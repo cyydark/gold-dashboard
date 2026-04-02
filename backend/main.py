@@ -1,6 +1,7 @@
 """FastAPI main application."""
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -17,8 +18,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Frontend static files path
-FRONTEND_PATH = "/Users/chenyanyu/telegram-claude-bot/gold-dashboard/frontend"
+# Frontend static files path — set via env var or default to sibling frontend/ dir
+FRONTEND_PATH = os.environ.get("FRONTEND_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend"))
 
 
 @asynccontextmanager

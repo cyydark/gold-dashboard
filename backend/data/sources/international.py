@@ -23,7 +23,7 @@ from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
-CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+CHROME_PATH = os.environ.get("CHROME_PATH", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 _xau_cache = {"data": None, "timestamp": 0.0}
@@ -231,6 +231,10 @@ def fetch_news() -> list[dict]:
 
     def _scrape_sync():
         """Scrape news synchronously using sync Playwright API."""
+        import os as _os
+        if not _os.path.exists(CHROME_PATH):
+            logger.warning(f"Chrome not found at {CHROME_PATH}, skipping news scrape")
+            return []
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 executable_path=CHROME_PATH,
