@@ -32,15 +32,17 @@ Chart.register({
     for (let i = 0; i < chart._goldNews.length; i++) {
       const item = chart._goldNews[i];
       if (item.direction === "neutral") continue;
-      // Prefer anchored timestamp to avoid drift on news refresh
-      const ts = item.chart_ts || _tsFromTimeAgo(item.time_ago);
-      if (!ts) continue;
-      const x = xScale.getPixelForValue(ts);
+      // published_ts (UTC seconds from DB) is most reliable anchor;
+      // chart_ts is session-level anchor; time_ago drifts with each refresh
+      const rawTs = item.published_ts ? item.published_ts * 1000
+                  : item.chart_ts || _tsFromTimeAgo(item.time_ago);
+      if (!rawTs) continue;
+      const x = xScale.getPixelForValue(rawTs);
       if (x < chartArea.left || x > chartArea.right) continue;
       if (!chart._goldXauData.length) continue;
       let closest = chart._goldXauData[0], minDiff = Infinity;
       for (const pt of chart._goldXauData) {
-        const d = Math.abs(pt.x - ts);
+        const d = Math.abs(pt.x - rawTs);
         if (d < minDiff) { minDiff = d; closest = pt; }
       }
       const y = yScale.getPixelForValue(closest.y);
@@ -88,14 +90,16 @@ class GoldChart {
     for (let i = 0; i < this.news.length; i++) {
       const item = this.news[i];
       if (item.direction === "neutral") continue;
-      // Prefer anchored timestamp to avoid drift on news refresh
-      const ts = item.chart_ts || _tsFromTimeAgo(item.time_ago);
-      if (!ts) continue;
+      // published_ts is the DB-published-at timestamp (most reliable)
+      const ts = item.published_ts ? new Date(item.published_ts * 1000)
+               : item.chart_ts ? new Date(item.chart_ts)
+               : new Date(_tsFromTimeAgo(item.time_ago));
+      if (!ts || isNaN(ts.getTime())) continue;
       const isUp = item.direction === "up";
       annotations[`n_${i}`] = {
         type: "line",
-        xMin: new Date(ts),
-        xMax: new Date(ts),
+        xMin: ts,
+        xMax: ts,
         borderColor: isUp ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)",
         borderWidth: 2,
         borderDash: [6, 4],

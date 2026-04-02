@@ -88,11 +88,12 @@ async function loadNews(days = 1) {
       return;
     }
 
-    // Anchor timestamp so emoji positions don't drift on subsequent refreshes
-    const now = Date.now();
+    // published_ts from DB is the canonical UTC publication time.
+    // Use it as chart_ts so emoji/annotation positions are stable.
     news.forEach(item => {
       if (!item.chart_ts) {
-        item.chart_ts = _calcChartTs(item.time_ago, now);
+        item.chart_ts = item.published_ts ? item.published_ts * 1000
+                      : _calcChartTs(item.time_ago, Date.now());
       }
     });
 
@@ -116,7 +117,7 @@ async function loadNews(days = 1) {
       </a>
     `}).join("");
 
-    const nowForDisplay = new Date(now);
+    const nowForDisplay = new Date();
     if (refreshTime) refreshTime.textContent = `更新于 ${nowForDisplay.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"})}`;
 
     // Pass news to chart if chart exists

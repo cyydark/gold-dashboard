@@ -84,6 +84,7 @@ async def get_history(symbol: str, days: int = 1):
 async def get_news(days: int = 1):
     """Serve cached news from DB (filtered by days), fallback to background cache."""
     from backend.data.db import get_news_items
+    from datetime import datetime
     db_news = await get_news_items(days)
     if db_news:
         # Re-sort by time_ago ascending (smallest = most recent = first)
@@ -98,5 +99,14 @@ async def get_news(days: int = 1):
             if m: return int(m.group(1)) * 1440
             return 999999
         db_news.sort(key=_ago_mins)
+        # Add Unix timestamp of published_at so frontend can anchor emoji
+        for item in db_news:
+            try:
+                pub = item.get("published_at", "")
+                if pub:
+                    dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+                    item["published_ts"] = int(dt.timestamp())
+            except Exception:
+                item["published_ts"] = None
         return {"news": db_news}
     return {"news": get_cached_news() or []}
