@@ -171,13 +171,17 @@ def fetch_xauusd_history(days: int = 90):
 
 def _time_ago_minutes(ago: str) -> int:
     """Parse '5小时前' / '3 hours ago' → minutes for sorting (smaller = newer)."""
-    m = re.match(r"^(\d+)\s*(分钟|min)", ago, re.I)
+    if not ago:
+        return 999999
+    # Strip surrounding whitespace once at entry
+    s = ago.strip()
+    m = re.match(r"^(\d+)\s*(分钟|min)", s, re.I)
     if m:
         return int(m.group(1))
-    m = re.match(r"^(\d+)\s*(小时|hour)", ago, re.I)
+    m = re.match(r"^(\d+)\s*(小时|hour)", s, re.I)
     if m:
         return int(m.group(1)) * 60
-    m = re.match(r"^(\d+)\s*(日|天|day)", ago, re.I)
+    m = re.match(r"^(\d+)\s*(日|天|day)", s, re.I)
     if m:
         return int(m.group(1)) * 1440
     return 999999
@@ -402,7 +406,7 @@ def _gold_direction(title_en: str) -> str:
     # Secondary signals — both directions present = neutral
     up_found = any(kw in lower for kw in [
         "bullish", "safe haven", "war", "conflict", "record high", "peak",
-        "strong demand", "us-China", "trade war", "tariff",
+        "strong demand", "us-china", "trade war", "tariff",
     ])
     dn_found = any(kw in lower for kw in [
         "bearish", "victory", "sell-off", "correction",
