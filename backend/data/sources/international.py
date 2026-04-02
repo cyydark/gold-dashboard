@@ -5,6 +5,7 @@ USD/CNY:           yfinance Ticker("CNY=X") — 离岸人民币汇率
 
 All functions are synchronous with their own cache.
 """
+import os
 import re
 import logging
 import time
@@ -13,6 +14,9 @@ import json
 import requests
 import urllib.parse
 from datetime import datetime, timezone, timedelta
+
+_OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "translategemma:4b")
+_OLLAMA_URL = "http://localhost:11434/api/generate"
 
 import yfinance as yf
 from playwright.sync_api import sync_playwright
@@ -316,11 +320,36 @@ def fetch_news() -> list[dict]:
         return _news_cache if _news_cache else []
 
 
-# ---- Translation ----
+# ---- Translation via Ollama + MyMemory fallback ----
 def _translate(text: str) -> str:
-    """Translate English text to Chinese via MyMemory (free, no key)."""
+    """Translate English to Chinese via local Ollama translategemma model, fallback to MyMemory."""
     if not text:
         return ""
+    try:
+        prompt = (
+            "Translate the following English text to Chinese (Simplified). "
+            "Output only the Chinese translation:\n\n" + text[:500]
+        )
+        resp = requests.post(
+            _OLLAMA_URL,
+            json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=30,
+        )
+        result = resp.json()
+        translated = result.get("response", "").strip()
+        if "\n" in translated:
+            translated = translated.split("\n")[0].strip()
+        # If no Chinese chars returned, fall back to MyMemory
+        if not any("\u4e00" <= c <= "\u9fff" for c in translated):
+            return _translate_mymemory(text)
+        return translated
+    except Exception as e:
+        logger.warning(f"Ollama translation error: {e}")
+    return _translate_mymemory(text)
+
+
+def _translate_mymemory(text: str) -> str:
+    """Fallback MyMemory translation."""
     try:
         url = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(text[:500])}&langpair=en|zh-CN"
         resp = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
@@ -330,7 +359,7 @@ def _translate(text: str) -> str:
             return translated
     except Exception:
         pass
-    return text  # fallback: return original
+    return text
 
 
 # ---- Sentiment: gold price direction ----
