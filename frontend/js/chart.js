@@ -47,7 +47,7 @@ class GoldChart {
         xMax: new Date(ts),
         borderColor: isUp ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)",
         borderWidth: 2,
-        borderDash: [6, 4],
+        borderDash: [12, 6],
       };
     }
     this.chart.options.plugins.annotation = { annotations };
