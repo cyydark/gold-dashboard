@@ -86,5 +86,17 @@ async def get_news(days: int = 1):
     from backend.data.db import get_news_items
     db_news = await get_news_items(days)
     if db_news:
+        # Re-sort by time_ago ascending (smallest = most recent = first)
+        import re
+        def _ago_mins(item):
+            t = item.get("time_ago", "999999")
+            m = re.match(r"^(\d+)\s*(分钟|min)", t, re.I)
+            if m: return int(m.group(1))
+            m = re.match(r"^(\d+)\s*(小时|hour)", t, re.I)
+            if m: return int(m.group(1)) * 60
+            m = re.match(r"^(\d+)\s*(日|天|day)", t, re.I)
+            if m: return int(m.group(1)) * 1440
+            return 999999
+        db_news.sort(key=_ago_mins)
         return {"news": db_news}
     return {"news": get_cached_news() or []}

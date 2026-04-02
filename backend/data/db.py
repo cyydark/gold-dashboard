@@ -84,13 +84,13 @@ async def log_alert(symbol: str, price: float, direction: str):
 
 
 async def get_news_items(days: int) -> list[dict]:
-    """Fetch news items from DB within the last `days`, newest first."""
+    """Fetch news items from DB within the last `days`, newest first by fetch time."""
     cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT title, title_en, source, url, direction, time_ago, published_at "
-            "FROM news_items WHERE published_at >= ? ORDER BY published_at DESC",
+            "SELECT title, title_en, source, url, direction, time_ago, published_at, fetched_at "
+            "FROM news_items WHERE published_at >= ? ORDER BY fetched_at DESC",
             (cutoff,),
         )
         return [dict(r) for r in await rows.fetchall()]

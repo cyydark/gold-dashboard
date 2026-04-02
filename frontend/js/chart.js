@@ -15,6 +15,41 @@ function _tsFromTimeAgo(timeAgo) {
   return null;
 }
 
+// Emoji plugin: registered globally so annotation plugin is not excluded
+Chart.register({
+  id: "emojiMarkers",
+  afterDatasetsDraw(chart) {
+    if (!chart._goldNews || !chart._goldXauData || !chart._goldNews.length) return;
+    const { ctx, chartArea, scales } = chart;
+    if (!chartArea || !scales.x || !scales.y) return;
+    const xScale = scales.x;
+    const yScale = scales.y;
+    const fontSize = 16;
+    ctx.save();
+    ctx.font = `${fontSize}px serif`;
+    ctx.textBaseline = "bottom";
+    for (let i = 0; i < chart._goldNews.length; i++) {
+      const item = chart._goldNews[i];
+      if (item.direction === "neutral") continue;
+      const ts = _tsFromTimeAgo(item.time_ago);
+      if (!ts) continue;
+      const x = xScale.getPixelForValue(ts);
+      if (x < chartArea.left || x > chartArea.right) continue;
+      if (!chart._goldXauData.length) continue;
+      let closest = chart._goldXauData[0], minDiff = Infinity;
+      for (const pt of chart._goldXauData) {
+        const d = Math.abs(pt.x - ts);
+        if (d < minDiff) { minDiff = d; closest = pt; }
+      }
+      const y = yScale.getPixelForValue(closest.y);
+      if (y < chartArea.top || y > chartArea.bottom) continue;
+      const emoji = item.direction === "up" ? "📈" : "📉";
+      ctx.fillText(emoji, x - fontSize / 2, y - 2);
+    }
+    ctx.restore();
+  },
+});
+
 class GoldChart {
   constructor() {
     this.chart = null;
@@ -28,7 +63,7 @@ class GoldChart {
     this.news = news || [];
     if (this.chart) {
       this.chart._goldNews = this.news;
-      this.chart.update("none");
+      this._updateAnnotations();
     }
   }
 
@@ -47,7 +82,7 @@ class GoldChart {
         xMax: new Date(ts),
         borderColor: isUp ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)",
         borderWidth: 2,
-        borderDash: [12, 6],
+        borderDash: [6, 4],
       };
     }
     this.chart.options.plugins.annotation = { annotations };
@@ -130,41 +165,6 @@ class GoldChart {
 
       if (this.chart) this.chart.destroy();
 
-      const self = this;
-      const emojiPlugin = {
-        id: "emojiMarkers",
-        afterDatasetsDraw(chart) {
-          if (!chart._goldNews || !chart._goldXauData) return;
-          const { ctx, chartArea, scales } = chart;
-          const xScale = scales.x;
-          const yScale = scales.y;
-          const fontSize = 16;
-          ctx.save();
-          ctx.font = `${fontSize}px serif`;
-          ctx.textBaseline = "bottom";
-          for (let i = 0; i < chart._goldNews.length; i++) {
-            const item = chart._goldNews[i];
-            if (item.direction === "neutral") continue;
-            const ts = _tsFromTimeAgo(item.time_ago);
-            if (!ts) continue;
-            const x = xScale.getPixelForValue(ts);
-            if (x < chartArea.left || x > chartArea.right) continue;
-            // Find closest price
-            if (!chart._goldXauData.length) continue;
-            let closest = chart._goldXauData[0], minDiff = Infinity;
-            for (const pt of chart._goldXauData) {
-              const d = Math.abs(pt.x - ts);
-              if (d < minDiff) { minDiff = d; closest = pt; }
-            }
-            const y = yScale.getPixelForValue(closest.y);
-            if (y < chartArea.top || y > chartArea.bottom) continue;
-            const emoji = item.direction === "up" ? "📈" : "📉";
-            ctx.fillText(emoji, x - fontSize / 2, y - 2);
-          }
-          ctx.restore();
-        },
-      };
-
       this.chart = new Chart(canvas, {
         type: "line",
         data: { datasets },
@@ -219,7 +219,6 @@ class GoldChart {
             },
           },
         },
-        plugins: [emojiPlugin],
       });
 
       this.chart._goldNews = this.news;
