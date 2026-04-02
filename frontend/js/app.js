@@ -62,6 +62,17 @@ function initControls() {
   });
 }
 
+function _calcChartTs(timeAgo, anchorNow) {
+  if (!timeAgo) return null;
+  const m = timeAgo.match(/^(\d+)\s*(分钟|min)/i);
+  if (m) return anchorNow - parseInt(m[1]) * 60 * 1000;
+  const h = timeAgo.match(/^(\d+)\s*(小时|hour)/i);
+  if (h) return anchorNow - parseInt(h[1]) * 60 * 60 * 1000;
+  const d = timeAgo.match(/^(\d+)\s*(日|天|day)/i);
+  if (d) return anchorNow - parseInt(d[1]) * 24 * 60 * 60 * 1000;
+  return null;
+}
+
 async function loadNews(days = 1) {
   const list = document.getElementById("news-list");
   const refreshTime = document.getElementById("news-refresh-time");
@@ -77,26 +88,36 @@ async function loadNews(days = 1) {
       return;
     }
 
+    // Anchor timestamp so emoji positions don't drift on subsequent refreshes
+    const now = Date.now();
+    news.forEach(item => {
+      if (!item.chart_ts) {
+        item.chart_ts = _calcChartTs(item.time_ago, now);
+      }
+    });
+
     list.innerHTML = news.map(item => {
       const dir = item.direction;
       const label = dir === "up" ? '<span class="news-tag up">📈 金价升</span>'
                    : dir === "down" ? '<span class="news-tag down">📉 金价降</span>'
                    : '<span class="news-tag neutral">📊 中性</span>';
+      // Escape HTML to prevent XSS
+      const escape = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       return `
-      <a class="news-item" href="${item.url}" target="_blank" rel="noopener">
+      <a class="news-item" href="${escape(item.url)}" target="_blank" rel="noopener">
         <div class="news-meta">
-          <span class="news-source">${item.source}</span>
-          <span class="news-time">${item.time_ago}</span>
+          <span class="news-source">${escape(item.source)}</span>
+          <span class="news-time">${escape(item.time_ago)}</span>
         </div>
         <div class="news-content">
-          <span class="news-headline">${item.title}</span>
+          <span class="news-headline">${escape(item.title)}</span>
         </div>
         <div class="news-dir">${label}</div>
       </a>
     `}).join("");
 
-    const now = new Date();
-    if (refreshTime) refreshTime.textContent = `更新于 ${now.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"})}`;
+    const nowForDisplay = new Date(now);
+    if (refreshTime) refreshTime.textContent = `更新于 ${nowForDisplay.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"})}`;
 
     // Pass news to chart if chart exists
     if (chart) {

@@ -402,10 +402,10 @@ def _gold_direction(title_en: str) -> str:
     # Secondary signals — both directions present = neutral
     up_found = any(kw in lower for kw in [
         "bullish", "safe haven", "war", "conflict", "record high", "peak",
-        "strong demand", "us-China", "trade war",
+        "strong demand", "us-China", "trade war", "tariff",
     ])
     dn_found = any(kw in lower for kw in [
-        "bearish", "victory", "tariff", "sell-off", "correction",
+        "bearish", "victory", "sell-off", "correction",
         "profit taking", "dollar strength",
     ])
     if up_found and not dn_found:

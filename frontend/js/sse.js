@@ -5,6 +5,7 @@
 class SSEClient {
   constructor() {
     this.source = null;
+    this._retryDelay = 5000;
     this._connect();
   }
 
@@ -26,9 +27,10 @@ class SSEClient {
     };
 
     this.source.onerror = () => {
-      // Reconnect after 5s
       this.source.close();
-      setTimeout(() => this._connect(), 5000);
+      const delay = this._retryDelay;
+      this._retryDelay = Math.min(this._retryDelay * 1.5, 60000);
+      setTimeout(() => this._connect(), delay);
     };
   }
 }

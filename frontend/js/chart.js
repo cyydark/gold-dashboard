@@ -3,9 +3,9 @@
  * News markers: dashed vertical lines (annotation v3) + emoji on price line.
  */
 
-function _tsFromTimeAgo(timeAgo) {
+function _tsFromTimeAgo(timeAgo, anchorNow) {
   if (!timeAgo) return null;
-  const now = Date.now();
+  const now = anchorNow || Date.now();
   const m = timeAgo.match(/^(\d+)\s*(分钟|min)/i);
   if (m) return now - parseInt(m[1]) * 60 * 1000;
   const h = timeAgo.match(/^(\d+)\s*(小时|hour)/i);
@@ -32,7 +32,8 @@ Chart.register({
     for (let i = 0; i < chart._goldNews.length; i++) {
       const item = chart._goldNews[i];
       if (item.direction === "neutral") continue;
-      const ts = _tsFromTimeAgo(item.time_ago);
+      // Prefer anchored timestamp to avoid drift on news refresh
+      const ts = item.chart_ts || _tsFromTimeAgo(item.time_ago);
       if (!ts) continue;
       const x = xScale.getPixelForValue(ts);
       if (x < chartArea.left || x > chartArea.right) continue;
@@ -87,7 +88,8 @@ class GoldChart {
     for (let i = 0; i < this.news.length; i++) {
       const item = this.news[i];
       if (item.direction === "neutral") continue;
-      const ts = _tsFromTimeAgo(item.time_ago);
+      // Prefer anchored timestamp to avoid drift on news refresh
+      const ts = item.chart_ts || _tsFromTimeAgo(item.time_ago);
       if (!ts) continue;
       const isUp = item.direction === "up";
       annotations[`n_${i}`] = {
