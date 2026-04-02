@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>黄金行情分析</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <header class="header">
+      <h1>🏆 黄金行情</h1>
+      <div class="header-meta">
+        <span class="live-badge">● LIVE</span>
+        <span id="last-update" class="update-time">加载中...</span>
+      </div>
+    </header>
+
+    <!-- Price Cards -->
+    <section class="price-cards" id="price-cards">
+      <div class="price-card" id="card-XAUUSD">
+        <div class="card-header">
+          <span class="card-symbol">🌍 国际黄金 XAU/USD</span>
+          <span class="card-unit">USD/oz</span>
+        </div>
+        <div class="card-price" id="price-XAUUSD">--</div>
+        <div class="card-change" id="change-XAUUSD">--</div>
+        <div class="card-ohlc">
+          <span>昨收 <em id="open-XAUUSD">--</em></span>
+          <span>高 <em id="high-XAUUSD">--</em></span>
+          <span>低 <em id="low-XAUUSD">--</em></span>
+        </div>
+      </div>
+
+      <div class="price-card" id="card-AU9999">
+        <div class="card-header">
+          <span class="card-symbol">🇨🇳 国内黄金 AU9999</span>
+          <span class="card-unit">CNY/g</span>
+        </div>
+        <div class="card-price" id="price-AU9999">--</div>
+        <div class="card-change" id="change-AU9999">--</div>
+        <div class="card-ohlc">
+          <span>今开 <em id="open-AU9999">--</em></span>
+          <span>高 <em id="high-AU9999">--</em></span>
+          <span>低 <em id="low-AU9999">--</em></span>
+        </div>
+      </div>
+
+      <div class="price-card" id="card-USDCNY">
+        <div class="card-header">
+          <span class="card-symbol">💱 美元兑人民币 USD/CNY</span>
+          <span class="card-unit">CNY/USD</span>
+        </div>
+        <div class="card-price" id="price-USDCNY">--</div>
+        <div class="card-change" id="change-USDCNY">--</div>
+        <div class="card-ohlc">
+          <span>今开 <em id="open-USDCNY">--</em></span>
+          <span>最高 <em id="high-USDCNY">--</em></span>
+          <span>最低 <em id="low-USDCNY">--</em></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chart Section: dual-series, no MA lines -->
+    <section class="chart-section">
+      <div class="chart-controls">
+        <div class="time-range-tabs">
+          <button class="range-btn active" data-days="1">1天</button>
+          <button class="range-btn" data-days="5">5天</button>
+          <button class="range-btn" data-days="30">月</button>
+        </div>
+        <div class="legend">
+          <span class="legend-item" style="color:#22c55e">■ COMEX: GCW00</span>
+          <span class="legend-item" style="color:#f59e0b">■ AU9999</span>
+        </div>
+      </div>
+      <div id="chart-container" style="height:400px;position:relative;background:#1a1d27">
+        <canvas id="priceChart" width="1200" height="400"></canvas>
+      </div>
+      <div id="chart-loader" class="loader" style="display:none">加载中...</div>
+
+    </section>
+
+    <!-- News Section -->
+    <section class="news-section" id="news-section">
+      <div class="news-header">
+        <span class="news-title">📰 相关资讯</span>
+        <span class="news-refresh" id="news-refresh-time"></span>
+      </div>
+      <div id="news-list" class="news-list">
+        <div class="news-loading">加载中...</div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>数据来源：Google Finance（国际金价/汇率）| 东方财富（国内金价）</p>
+    </footer>
+
+  </div>
+
+  <div id="toast-container"></div>
+  <script src="/static/js/sse.js"></script>
+  <script src="/static/js/chart.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
