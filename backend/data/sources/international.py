@@ -137,23 +137,17 @@ def fetch_xauusd_history(days: int = 90):
     """Fetch GC=F OHLCV history via yfinance using start/end to get exact range."""
     try:
         ticker = yf.Ticker("GC=F")
-        now = datetime.utcnow()
-
+        # 计算北京时间窗口，直接传datetime对象给yfinance（避免字符串边界时区问题）
+        now_bj = datetime.now(BEIJING_TZ)
         if days <= 1:
-            # Exact 24h × 5-min bars
-            start = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-            end = (now + timedelta(hours=1)).strftime("%Y-%m-%d")
-            data = ticker.history(start=start, end=end, interval="5m", auto_adjust=True)
+            start_bj = now_bj - timedelta(days=1)
+            data = ticker.history(start=start_bj, end=now_bj, interval="5m", auto_adjust=True)
         elif days <= 5:
-            # Exact days × 15-min bars
-            start = (now - timedelta(days=days)).strftime("%Y-%m-%d")
-            end = (now + timedelta(hours=1)).strftime("%Y-%m-%d")
-            data = ticker.history(start=start, end=end, interval="15m", auto_adjust=True)
+            start_bj = now_bj - timedelta(days=days)
+            data = ticker.history(start=start_bj, end=now_bj, interval="15m", auto_adjust=True)
         else:
-            # Daily bars for longer range
-            start = (now - timedelta(days=days)).strftime("%Y-%m-%d")
-            end = (now + timedelta(hours=1)).strftime("%Y-%m-%d")
-            data = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
+            start_bj = now_bj - timedelta(days=days)
+            data = ticker.history(start=start_bj, end=now_bj, interval="1d", auto_adjust=True)
 
         if data.empty:
             return None

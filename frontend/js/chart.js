@@ -28,6 +28,7 @@ Chart.register({
     ctx.save();
     ctx.font = `${fontSize}px serif`;
     ctx.textBaseline = "bottom";
+    chart._emojiHits = []; // store hit boxes for click detection
     for (let i = 0; i < chart._goldNews.length; i++) {
       const item = chart._goldNews[i];
       if (item.direction === "neutral") continue;
@@ -45,8 +46,21 @@ Chart.register({
       if (y < chartArea.top || y > chartArea.bottom) continue;
       const emoji = item.direction === "up" ? "📈" : "📉";
       ctx.fillText(emoji, x - fontSize / 2, y - 2);
+      // Store hit box: 30px wide click area around emoji
+      chart._emojiHits.push({ x: x - 15, x2: x + 15, y: y - fontSize, y2: y + 2, url: item.url });
     }
     ctx.restore();
+  },
+  afterEvent(chart, args) {
+    if (args.event.type !== "click") return;
+    if (!chart._emojiHits || !chart._emojiHits.length) return;
+    const { x, y } = args.event;
+    for (const hit of chart._emojiHits) {
+      if (x >= hit.x && x <= hit.x2 && y >= hit.y && y <= hit.y2) {
+        window.open(hit.url, "_blank", "noopener");
+        return;
+      }
+    }
   },
 });
 
@@ -111,8 +125,9 @@ class GoldChart {
         auRes.json(),
       ]);
 
-      // UTC seconds → Date shifted +8h so Chart.js time axis shows Beijing time
-      const toBeijingDate = (unixSec) => new Date((unixSec + 8 * 3600) * 1000);
+      // Timestamps from backend are UTC seconds — no conversion needed,
+      // Chart.js renders them in browser's local timezone (Beijing for this user)
+      const toBeijingDate = (unixSec) => new Date(unixSec * 1000);
 
       const xauPts = (xauData && Array.isArray(xauData) && xauData.length > 0)
         ? xauData.map(d => ({ x: toBeijingDate(d.time), y: d.close }))
@@ -182,6 +197,15 @@ class GoldChart {
               borderColor: "#2a2d3a",
               borderWidth: 1,
               padding: 10,
+              callbacks: {
+                title(items) {
+                  if (!items.length) return "";
+                  const d = items[0].parsed.x;
+                  const pad = n => String(n).padStart(2, "0");
+                  const date = new Date(d);
+                  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+                },
+              },
             },
             annotation: { annotations: {} },
           },
