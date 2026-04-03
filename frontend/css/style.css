@@ -149,7 +149,7 @@ body {
 .news-list { display: flex; flex-direction: column; gap: 8px; }
 .news-item {
   display: grid;
-  grid-template-columns: 90px 1fr auto;
+  grid-template-columns: minmax(min-content, auto) 1fr auto;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;

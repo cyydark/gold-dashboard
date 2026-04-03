@@ -6,6 +6,19 @@
 // Emoji plugin: registered globally so annotation plugin is not excluded
 Chart.register({
   id: "emojiMarkers",
+  _prevGoldNews: null,
+
+  beforeUpdate(chart, args) {
+    // Detect news changes and refresh dashed-line annotations before this draw.
+    // Keep emoji and dashed lines in lock-step: whenever chart._goldNews changes,
+    // call the GoldChart's _visibleNewsAnnotations() via chart._goldChartRef.
+    const news = chart._goldNews;
+    if (news === this._prevGoldNews) return;
+    this._prevGoldNews = news;
+    if (!chart._goldChartRef) return;
+    chart._goldChartRef._updateAnnotations();
+  },
+
   afterDatasetsDraw(chart) {
     if (!chart._goldNews || !chart._goldXauData || !chart._goldNews.length) return;
     const { ctx, chartArea, scales } = chart;
@@ -22,7 +35,7 @@ Chart.register({
       const item = chart._goldNews[i];
       if (item.direction === "neutral") continue;
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
-      if (!rawTs) continue;
+      if (!rawTs || isNaN(rawTs)) continue;
 
       const x = xScale.getPixelForValue(rawTs);
       if (x < chartArea.left || x > chartArea.right) continue;
@@ -91,27 +104,49 @@ class GoldChart {
     });
   }
 
-  _updateAnnotations() {
-    if (!this.chart) return;
+  /**
+   * Build annotation entries for all non-neutral, visible news items.
+   * "Visible" means the news timestamp falls within the current chart x-range
+   * AND the emoji would land within the chart area (not clipped).
+   */
+  _visibleNewsAnnotations() {
+    if (!this.chart || !this.chart.scales.x) return {};
+    const xScale = this.chart.scales.x;
+    const visMinRaw = xScale.min instanceof Date ? xScale.min.getTime() : Number(xScale.min);
+    const visMaxRaw = xScale.max instanceof Date ? xScale.max.getTime() : Number(xScale.max);
+    if (!isFinite(visMinRaw) || !isFinite(visMaxRaw)) return {};
+
     const annotations = {};
     for (let i = 0; i < this.news.length; i++) {
       const item = this.news[i];
       if (item.direction === "neutral") continue;
-      // published_ts is the canonical UTC publication timestamp
-      const ts = item.published_ts ? new Date(item.published_ts * 1000) : null;
-      if (!ts || isNaN(ts.getTime())) continue;
-      const isUp = item.direction === "up";
+      const rawTs = item.published_ts ? item.published_ts * 1000 : null;
+      if (!rawTs || isNaN(rawTs)) continue;
+      if (rawTs < visMinRaw || rawTs > visMaxRaw) continue;
+
+      const xPx = xScale.getPixelForValue(rawTs);
+      if (xPx < this.chart.chartArea.left || xPx > this.chart.chartArea.right) continue;
+
+      const borderColor = item.direction === "up"
+        ? "rgba(34,197,94,0.8)"
+        : "rgba(239,68,68,0.8)";
       annotations[`n_${i}`] = {
         type: "line",
-        xMin: ts,
-        xMax: ts,
-        borderColor: isUp ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)",
+        xMin: new Date(rawTs),
+        xMax: new Date(rawTs),
+        borderColor,
         borderWidth: 2,
         borderDash: [6, 4],
       };
     }
-    // "Now" line — updated each time so it tracks real clock time
-    annotations["nowLine"] = {
+    return annotations;
+  }
+
+  _updateAnnotations() {
+    if (!this.chart) return;
+    const newsAnnotations = this._visibleNewsAnnotations();
+    // Merge session markers so they always appear even when no news
+    const nowLine = {
       type: "line",
       xMin: new Date(),
       xMax: new Date(),
@@ -128,7 +163,9 @@ class GoldChart {
         backgroundColor: "transparent",
       },
     };
-    this.chart.options.plugins.annotation = { annotations };
+    this.chart.options.plugins.annotation = {
+      annotations: { ...newsAnnotations, nowLine },
+    };
     this.chart.update("none");
   }
 
@@ -185,7 +222,7 @@ class GoldChart {
           borderColor: "#22c55e",
           backgroundColor: "rgba(34,197,94,0.08)",
           borderWidth: 1.5,
-          pointRadius: xauPts.length > 200 ? 0 : 3,
+          pointRadius: 0,
           pointHoverRadius: 5,
           fill: true,
           tension: 0.15,
@@ -200,7 +237,7 @@ class GoldChart {
           borderColor: "#f59e0b",
           backgroundColor: "rgba(245,158,11,0.08)",
           borderWidth: 1.5,
-          pointRadius: auPts.length > 200 ? 0 : 3,
+          pointRadius: 0,
           pointHoverRadius: 5,
           fill: true,
           tension: 0.15,
@@ -305,6 +342,9 @@ class GoldChart {
           },
         },
       });
+
+      // Give the emoji plugin a back-reference so it can call our _updateAnnotations()
+      this.chart._goldChartRef = this;
 
       this.chart._goldNews = this.news;
       this.chart._goldXauData = xauPts;
