@@ -29,14 +29,12 @@ Chart.register({
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
 
-      // x: within data range → actual position; outside → snap to boundary
+      // x: within data range → actual position; outside → initial (first) data point
       let x;
-      if (rawTs < firstTs) {
-        x = xScale.getPixelForValue(firstTs);
-      } else if (rawTs > lastTs) {
-        x = xScale.getPixelForValue(lastTs);
-      } else {
+      if (rawTs >= firstTs && rawTs <= lastTs) {
         x = xScale.getPixelForValue(rawTs);
+      } else {
+        x = xScale.getPixelForValue(firstTs);
       }
 
       if (x < chartArea.left || x > chartArea.right) continue;
