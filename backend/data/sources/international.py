@@ -29,7 +29,9 @@ BEIJING_TZ = timezone(timedelta(hours=8))
 
 _xau_cache = {"data": None, "timestamp": 0.0}
 _usdcny_cache = {"data": None, "timestamp": 0.0}
+_gf_history_cache: dict[int, dict] = {}  # {window: {"data": records, "timestamp": float}}
 _TTL = 60  # 1 minute
+_GF_HISTORY_TTL = 300  # 5 minutes
 
 
 def _fetch_xauusd_once() -> dict | None:
@@ -286,22 +288,6 @@ def _fetch_gf_once(window: int) -> list[dict] | None:
 
     captured: dict = {}
 
-    def _on_request(request):
-        if "batchexecute" not in request.url:
-            return
-        if captured.get("_done"):
-            return
-        # Capture auth header and POST body
-        for name, val in request.headers.items():
-            if name.startswith("x-goog-ext"):
-                captured["auth_header"] = (name, val)
-                break
-        try:
-            captured["body"] = request.post_data
-            captured["url"] = request.url
-        except Exception:
-            pass
-
     with sync_playwright() as p:
         browser = p.chromium.launch(
             executable_path=CHROME_PATH,
@@ -316,47 +302,55 @@ def _fetch_gf_once(window: int) -> list[dict] | None:
             ),
         )
         page = context.new_page()
-        page.on("request", _on_request)
 
-        # Navigate to 1D page (default window=1D) for auth header capture
-        page.goto(
-            "https://www.google.com/finance/quote/GCW00:COMEX",
-            wait_until="domcontentloaded",
-            timeout=20000,
-        )
-        page.wait_for_timeout(12000)
-
-        url = captured.get("url")
-        body = captured.get("body")
-        auth_header = captured.get("auth_header")
-
-        if not url or not body:
-            browser.close()
-            logger.warning("GF batchexecute request not captured")
-            return None
-
-        # Body is URL-encoded: f.req=<encoded_json>
-        # Decode, modify/replace NUM, re-encode.
-        # NUM param is at the end of the inner JSON: ...]],1,null... (1=1D, 2=5D, 3=1M)
+        # Wait for batchexecute request using expect_request context manager.
+        # The chart fires this ~11s after DOM loaded; context manager blocks until received.
         try:
-            import urllib.parse
-            raw_body = body if isinstance(body, str) else body.decode("latin-1")
-            params = urllib.parse.parse_qs(raw_body, keep_blank_values=True)
-            inner_body = params.get("f.req", [""])[0]
-            inner_decoded = urllib.parse.unquote(inner_body)
-            # For window=1, body already has 1 — no change needed
-            # For window=2/3, replace ]],1, with ]],{window},
-            if window == 1:
-                new_inner = inner_decoded
-            else:
-                new_inner = re.sub(r'\],\d+,', '],' + str(window) + ',', inner_decoded, count=1)
-            new_body = urllib.parse.urlencode({"f.req": new_inner}).encode("latin-1")
-        except Exception as e:
-            logger.warning(f"Failed to modify GF body: {e}")
-            browser.close()
-            return None
+            with page.expect_request(lambda r: "AiCwsd" in r.url, timeout=25000) as req_info:
+                page.goto(
+                    "https://www.google.com/finance/quote/GCW00:COMEX",
+                    wait_until="domcontentloaded",
+                    timeout=20000,
+                )
+            matched = req_info.value
+            captured["url"] = matched.url
+            captured["body"] = matched.post_data
+            for name, val in matched.headers.items():
+                if name.startswith("x-goog-ext"):
+                    captured["auth_header"] = (name, val)
+                    break
+        except Exception:
+            pass  # TimeoutError — proceed with whatever was captured (may be empty)
 
         browser.close()
+
+    url = captured.get("url")
+    body = captured.get("body")
+    auth_header = captured.get("auth_header")
+
+    if not url or not body:
+        logger.warning("GF batchexecute request not captured")
+        return None
+
+    # Body is URL-encoded: f.req=<encoded_json>
+    # Decode, modify/replace NUM, re-encode.
+    # NUM param is at the end of the inner JSON: ...]],1,null... (1=1D, 2=5D, 3=1M)
+    try:
+        import urllib.parse
+        raw_body = body if isinstance(body, str) else body.decode("latin-1")
+        params = urllib.parse.parse_qs(raw_body, keep_blank_values=True)
+        inner_body = params.get("f.req", [""])[0]
+        inner_decoded = urllib.parse.unquote(inner_body)
+        # For window=1, body already has 1 — no change needed
+        # For window=2/3, replace ]],1, with ]],{window},
+        if window == 1:
+            new_inner = inner_decoded
+        else:
+            new_inner = re.sub(r'\],\d+,', '],' + str(window) + ',', inner_decoded, count=1)
+        new_body = urllib.parse.urlencode({"f.req": new_inner}).encode("latin-1")
+    except Exception as e:
+        logger.warning(f"Failed to modify GF body: {e}")
+        return None
 
     # Replay with captured auth header
     headers = {}
@@ -388,16 +382,25 @@ def _fetch_gf_once(window: int) -> list[dict] | None:
 
 
 def fetch_gf_xauusd_history(days: int = 5) -> list[dict] | None:
-    """Fetch GCW00:COMEX OHLCV via Google Finance.
+    """Fetch GCW00:COMEX OHLCV via Google Finance (5-min cache per window).
 
-    Returns {time, open, high, low, close, volume} sorted ascending.
-    Falls back to yfinance if GF fails.
+    Returns {time, open, high, low, close, volume} sorted ascending, or None on failure.
     """
     window = _WINDOW_MAP.get(days, 2)  # default to 5D window
+    now = time.time()
+
+    # Return cached data if still fresh
+    if window in _gf_history_cache:
+        entry = _gf_history_cache[window]
+        if now - entry["timestamp"] < _GF_HISTORY_TTL:
+            logger.info(f"GF cache hit window={window}, {len(entry['data'])} bars")
+            return entry["data"]
+
     records = _fetch_gf_once(window)
     if not records:
-        return _fetch_xauusd_history_fallback(days)
+        return None
     logger.info(f"GF fetched {len(records)} bars, range={records[0]['time']}..{records[-1]['time']}")
+    _gf_history_cache[window] = {"data": records, "timestamp": now}
     return records
 
 
@@ -437,7 +440,7 @@ def _fetch_xauusd_history_fallback(days: int = 90):
 
 
 def fetch_xauusd_history(days: int = 5) -> list[dict] | None:
-    """Fetch GCW00:COMEX OHLCV via Google Finance (primary) with yfinance fallback."""
+    """Fetch GCW00:COMEX OHLCV via Google Finance. Returns None on failure."""
     return fetch_gf_xauusd_history(days)
 
 
