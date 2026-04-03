@@ -186,6 +186,10 @@ class GoldChart {
 
       if (this.chart) this.chart.destroy();
 
+      // Lock x-axis to exact data range so no empty-space padding distorts the view
+      const xMin = xauPts.length > 0 ? xauPts[0].x.getTime() : null;
+      const xMax = xauPts.length > 0 ? xauPts[xauPts.length - 1].x.getTime() : null;
+
       this.chart = new Chart(canvas, {
         type: "line",
         data: { datasets },
@@ -218,6 +222,8 @@ class GoldChart {
           scales: {
             x: {
               type: "time",
+              min: xMin,
+              max: xMax,
               time: {
                 unit: unit,
                 tooltipUnit: unit,
