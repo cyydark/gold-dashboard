@@ -132,6 +132,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
   initControls();
   await chart.load(currentDays);
+  // Warm up all 3 windows in background (backend caches each for 5 min)
+  chart.warmup();
   loadNews(currentDays);
   // Refresh news every 5 minutes
   setInterval(() => loadNews(currentDays), 5 * 60 * 1000);

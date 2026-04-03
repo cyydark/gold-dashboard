@@ -70,6 +70,14 @@ class GoldChart {
     }
   }
 
+  /** Fire fetch for all 3 windows in parallel (backend caches each for 5 min). */
+  warmup() {
+    [1, 5, 30].forEach(days => {
+      fetch(`/api/history/XAUUSD?days=${days}`).catch(() => {});
+      fetch(`/api/history/AU9999?days=${days}`).catch(() => {});
+    });
+  }
+
   _updateAnnotations() {
     if (!this.chart) return;
     const annotations = {};
@@ -191,10 +199,10 @@ class GoldChart {
 
       if (this.chart) this.chart.destroy();
 
-      // Use the actual data range returned by Google Finance (Unix seconds)
-      // so the chart x-axis always aligns with GF's fixed session boundaries
+      // Use the actual data range from Google Finance for xMin (aligned session boundaries).
+      // xMax is always "now" so the right edge of the chart tracks real clock time.
       const xMin = xauResp ? toBeijingDate(xauResp.xMin) : new Date(Date.now() - days * 86400 * 1000);
-      const xMax = xauResp ? toBeijingDate(xauResp.xMax) : new Date();
+      const xMax = new Date();
 
       this.chart = new Chart(canvas, {
         type: "line",
