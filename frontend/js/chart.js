@@ -137,11 +137,14 @@ class GoldChart {
       // Chart.js renders them in browser's local timezone (Beijing for this user)
       const toBeijingDate = (unixSec) => new Date(unixSec * 1000);
 
-      const xauPts = (xauData && Array.isArray(xauData) && xauData.length > 0)
-        ? xauData.map(d => ({ x: toBeijingDate(d.time), y: d.close }))
+      const xauResp = (xauData && xauData.bars && xauData.bars.length > 0) ? xauData : null;
+      const auResp  = (auData  && auData.bars  && auData.bars.length  > 0) ? auData  : null;
+
+      const xauPts = xauResp
+        ? xauResp.bars.map(d => ({ x: toBeijingDate(d.time), y: d.close }))
         : [];
-      const auPts = (auData && Array.isArray(auData) && auData.length > 0)
-        ? auData.map(d => ({ x: toBeijingDate(d.time), y: d.close }))
+      const auPts = auResp
+        ? auResp.bars.map(d => ({ x: toBeijingDate(d.time), y: d.close }))
         : [];
 
       this._xauData = xauPts;
@@ -188,10 +191,10 @@ class GoldChart {
 
       if (this.chart) this.chart.destroy();
 
-      // X-axis: window ends at current time, starts at current time minus the selected range
-      const nowMs = Date.now();
-      const xMin = nowMs - days * 24 * 60 * 60 * 1000;
-      const xMax = nowMs;
+      // Use the actual data range returned by Google Finance (Unix seconds)
+      // so the chart x-axis always aligns with GF's fixed session boundaries
+      const xMin = xauResp ? toBeijingDate(xauResp.xMin) : new Date(Date.now() - days * 86400 * 1000);
+      const xMax = xauResp ? toBeijingDate(xauResp.xMax) : new Date();
 
       this.chart = new Chart(canvas, {
         type: "line",

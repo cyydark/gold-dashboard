@@ -44,11 +44,11 @@ async def get_prices():
 
 @router.get("/history/{symbol}")
 async def get_history(symbol: str, days: int = 1):
-    """Fetch price history via yfinance — raw bars, no re-aggregation.
+    """Fetch price history via Google Finance batchexecute (GF fallback to yfinance).
 
-    1 day:   5-min bars  (yfinance minimum ~5 trading days window)
-    5 days:  15-min bars
-    30 days: daily bars
+    1 day:   5-min bars
+    5 days:  15-min bars  (default — matches GF resolution)
+    30+ days: daily bars
     """
     try:
         loop = asyncio.get_running_loop()
@@ -57,17 +57,20 @@ async def get_history(symbol: str, days: int = 1):
             return []
 
         if symbol == "XAUUSD":
-            return [
+            bars = [
                 {"time": d["time"], "open": round(d["open"], 2),
                  "high": round(d["high"], 2), "low": round(d["low"], 2),
                  "close": round(d["close"], 2)}
                 for d in yf_data
             ]
+            x_min = yf_data[0]["time"] if yf_data else None
+            x_max = yf_data[-1]["time"] if yf_data else None
+            return {"bars": bars, "xMin": x_min, "xMax": x_max}
 
         if symbol == "AU9999":
             from backend.data.sources.international import _usdcny_cache
             cny_rate = (_usdcny_cache.get("data") or {}).get("price") or DEFAULT_CNY_RATE
-            return [
+            bars = [
                 {"time": d["time"],
                  "open": round(d["open"] * cny_rate / OZ_TO_G, 2),
                  "high": round(d["high"] * cny_rate / OZ_TO_G, 2),
@@ -75,6 +78,9 @@ async def get_history(symbol: str, days: int = 1):
                  "close": round(d["close"] * cny_rate / OZ_TO_G, 2)}
                 for d in yf_data
             ]
+            x_min = yf_data[0]["time"] if yf_data else None
+            x_max = yf_data[-1]["time"] if yf_data else None
+            return {"bars": bars, "xMin": x_min, "xMax": x_max}
     except Exception:
         pass
     return []
