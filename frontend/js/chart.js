@@ -16,27 +16,44 @@ Chart.register({
     ctx.save();
     ctx.font = `${fontSize}px serif`;
     ctx.textBaseline = "bottom";
+
+    const firstPt = chart._goldXauData[0];
+    const lastPt = chart._goldXauData[chart._goldXauData.length - 1];
+    const firstTs = firstPt.x;
+    const lastTs = lastPt.x;
+
     chart._emojiHits = []; // store hit boxes for click detection
     for (let i = 0; i < chart._goldNews.length; i++) {
       const item = chart._goldNews[i];
       if (item.direction === "neutral") continue;
-      // published_ts is the canonical UTC publication timestamp (ms)
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
-      const x = xScale.getPixelForValue(rawTs);
+
+      // x: within data range → actual position; outside → snap to boundary
+      let x;
+      if (rawTs < firstTs) {
+        x = xScale.getPixelForValue(firstTs);
+      } else if (rawTs > lastTs) {
+        x = xScale.getPixelForValue(lastTs);
+      } else {
+        x = xScale.getPixelForValue(rawTs);
+      }
+
       if (x < chartArea.left || x > chartArea.right) continue;
-      if (!chart._goldXauData.length) continue;
+
+      // Find the y of the price line at this x (nearest data point by timestamp)
       let closest = chart._goldXauData[0], minDiff = Infinity;
       for (const pt of chart._goldXauData) {
         const d = Math.abs(pt.x - rawTs);
         if (d < minDiff) { minDiff = d; closest = pt; }
       }
       const y = yScale.getPixelForValue(closest.y);
-      if (y < chartArea.top || y > chartArea.bottom) continue;
+      const clampedY = Math.max(chartArea.top, Math.min(chartArea.bottom, y));
+      if (clampedY < chartArea.top || clampedY > chartArea.bottom) continue;
+
       const emoji = item.direction === "up" ? "📈" : "📉";
-      ctx.fillText(emoji, x - fontSize / 2, y - 2);
-      // Store hit box: 30px wide click area around emoji
-      chart._emojiHits.push({ x: x - 15, x2: x + 15, y: y - fontSize, y2: y + 2, url: item.url });
+      ctx.fillText(emoji, x - fontSize / 2, clampedY - 2);
+      chart._emojiHits.push({ x: x - 15, x2: x + 15, y: clampedY - fontSize, y2: clampedY + 2, url: item.url });
     }
     ctx.restore();
   },
