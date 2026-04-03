@@ -100,7 +100,8 @@ class GoldChart {
       label: {
         display: true,
         content: "当前",
-        position: "start",
+        position: "center",
+        yAdjust: -50,
         color: "#94a3b8",
         font: { size: 10 },
         backgroundColor: "transparent",
@@ -285,7 +286,7 @@ class GoldChart {
       this.chart._goldNews = this.news;
       this.chart._goldXauData = xauPts;
 
-      if (this.news.length > 0) this._updateAnnotations();
+      this._updateAnnotations();  // always include session markers
 
     } catch (e) {
       console.error("Chart error:", e);
