@@ -217,12 +217,11 @@ class GoldChart {
                 title(items) {
                   if (!items.length) return "";
                   const d = items[0].parsed.x;
-                  // Show both Beijing (UTC+8) and US Eastern (UTC-4/-5) time
                   const pad = n => String(n).padStart(2, "0");
                   const toBJ = new Date(d);
                   const toUS = new Date(d - 12 * 3600 * 1000); // approximate US ET = BJ - 12h
-                  const bjStr = `${toBJ.getFullYear()}-${pad(toBJ.getMonth()+1)}-${pad(toBJ.getDate())} ${pad(toBJ.getHours())}:${pad(toBJ.getMinutes())}`;
-                  const usStr = `${pad(toUS.getMonth()+1)}-${pad(toUS.getDate())} ${pad(toUS.getHours())}:${pad(toUS.getMinutes())}`;
+                  const bjStr = `${toBJ.getFullYear()}年${toBJ.getMonth()+1}月${toBJ.getDate()}日 ${pad(toBJ.getHours())}:${pad(toBJ.getMinutes())}`;
+                  const usStr = `${toUS.getMonth()+1}月${toUS.getDate()}日 ${pad(toUS.getHours())}:${pad(toUS.getMinutes())}`;
                   return `${bjStr} 北京 | ${usStr} 美东`;
                 },
               },
@@ -257,11 +256,11 @@ class GoldChart {
                 unit: unit,
                 tooltipUnit: unit,
                 displayFormats: {
-                  minute: "MM-dd HH:mm",
-                  hour: "MM-dd HH:mm",
-                  day: "MM-dd",
-                  week: "MM-dd",
-                  month: "yyyy-MM",
+                  minute: "HH:mm",
+                  hour: "M月d日 HH:mm",
+                  day: "M月d日",
+                  week: "M月d日",
+                  month: "yyyy年M月",
                 },
               },
               ticks: { color: "#7a7f96", maxTicksLimit: 10, autoSkipPadding: 20, maxRotation: 0 },

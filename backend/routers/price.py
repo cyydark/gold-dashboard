@@ -106,7 +106,10 @@ async def get_news(days: int = 1):
                     item["published_ts"] = None
             except Exception:
                 item["published_ts"] = None
-        # Sort by published_ts ascending (nulls last)
-        db_news.sort(key=lambda x: x.get("published_ts") or 0)
+        # Sort by published_ts descending (newest first, nulls last)
+        db_news.sort(key=lambda x: x.get("published_ts") or 0, reverse=True)
         return {"news": db_news}
-    return {"news": get_cached_news() or []}
+    cached = get_cached_news() or []
+    # Sort cached news descending (newest first)
+    cached.sort(key=lambda x: x.get("published_ts") or 0, reverse=True)
+    return {"news": cached}
