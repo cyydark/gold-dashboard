@@ -139,6 +139,26 @@ class TestGoldDirectionSecondaryDown:
     def test_bearish_victory_down(self, title):
         assert _gold_direction(title) == "down"
 
+    @pytest.mark.parametrize("title", [
+        "Gold Retreats from Peak as Rate Hike Expectations Intensify",
+        "Gold retreats from multi-month peak",
+        "Gold retraces from record high",
+        "Gold retreating from $3,000 level",
+        "Gold pulls back from resistance",
+        "Gold pullback seen as healthy correction",
+        "Gold recedes from earlier highs",
+        "Gold recedes as dollar firms",
+        "Gold erases earlier gains",
+        "Gold giving up intraday gains",
+    ])
+    def test_retreat_retrace_pullback_down(self, title):
+        assert _gold_direction(title) == "down"
+
+    def test_gold_retreats_from_peak_reported(self):
+        # Reported by user: this title was incorrectly marked as UP because "Peak"
+        # was in the secondary up_found list. Now correctly identified as down.
+        assert _gold_direction("Gold Retreats from Peak as Rate Hike Expectations Intensify") == "down"
+
 
 class TestGoldDirectionTariff:
     """tariff should → up (tariff is in secondary up_found list)"""

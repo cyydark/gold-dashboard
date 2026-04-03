@@ -642,44 +642,44 @@ def _translate_mymemory(text: str) -> str:
 
 
 # ---- Sentiment: gold price direction ----
-_GOLD_UP_KW = [
-    "surge", "rises", "rising", "rally", "rallying", "gain", "gains",
-    "climb", "climbs", "climbing", "soar", "soars", "soaring",
-    "bullish", "safe haven", "inflation", "war", "conflict",
-    "demand", "high", "record high", "peak", "strong demand",
-]
-_GOLD_DN_KW = [
-    "plunge", "plunges", "plunging", "drop", "drops", "dropped",
-    "fall", "falls", "falling", "fell",
-    "decline", "declines", "declining",
-    "tumble", "tumbling", "bearish", "victory", "tariff",
-    "sell-off", "correction", "profit taking",
-]
+# Word-boundary patterns for precise matching
+_CLEAR_UP_RE = re.compile(
+    r'\b(surge[sd]?|rises?|rising|rally(?:ing|ed|s)?|gain(?:ed|ing)?|'
+    r'gains(?= (?:on|in|of|to|as|despite|amid|after|because|while|when|if|with|amid))|'
+    r'jump(?:ed|s)?|spike[sd]?|climb(?:ing|s|ed)?|soar(?:ing|s|ed)?)\b',
+    re.IGNORECASE,
+)
+_CLEAR_DN_RE = re.compile(
+    r'\b(sank|sink(?:s|ing)?|plunge[sd]?|plummet(?:ed|s|ing)?|'
+    r'drop(?:ped|s)?|fell|fall(?:s|ing|ed)?|'
+    r'tumble[sd]?|slip(?:ped|s|ping)?|'
+    r'retreat(?:s|ing)?|retrace[sd]?|pull(?:s|ing)? ?back|'
+    r'recede[sd]?|\berase\b|erases|erasing|erased|'
+    r'capitulat(?:es|ing|ed)?)\b',
+    re.IGNORECASE,
+)
+_GIVING_UP_RE = re.compile(
+    r'\b(giving up|gives up|give up)(?:[\s]+(?:gains?|intraday|all|its|hopes?|reserves?)|$)',
+    re.IGNORECASE,
+)
 
 
 def _gold_direction(title_en: str) -> str:
     """Return 'up' | 'down' | 'neutral' based on English headline keywords."""
     lower = title_en.lower()
 
-    clear_up = any(kw in lower for kw in [
-        "surge", "rises", "rising", "rally", "rallying", "gain", "gains",
-        "jump", "jumps", "jumped", "spike", "spikes", "spiked",
-    ])
-    clear_dn = any(kw in lower for kw in [
-        "sink", "sinks", "sank",
-        "plunge", "plunges", "plunging", "plummet", "plummets",
-        "drop", "drops", "dropped",
-        "fall", "falls", "fell", "falling",
-        "tumble", "tumbling", "tumbled",
-        "slip", "slips", "slipped",
-    ])
+    # "giving up" is always down; if "gains" also fires, down wins
+    giving_up = bool(_GIVING_UP_RE.search(lower))
+
+    clear_up = bool(_CLEAR_UP_RE.search(lower))
+    clear_dn = bool(_CLEAR_DN_RE.search(lower)) or giving_up
     if clear_up and not clear_dn:
         return "up"
     if clear_dn and not clear_up:
         return "down"
 
     up_found = any(kw in lower for kw in [
-        "bullish", "safe haven", "war", "conflict", "record high", "peak",
+        "bullish", "safe haven", "war", "conflict", "record high",
         "strong demand", "us-china", "trade war", "tariff",
     ])
     dn_found = any(kw in lower for kw in [
