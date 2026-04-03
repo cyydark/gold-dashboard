@@ -222,7 +222,7 @@ class GoldChart {
                 unit: unit,
                 tooltipUnit: unit,
                 displayFormats: {
-                  minute: "HH:mm",
+                  minute: "MM-dd HH:mm",
                   hour: "MM-dd HH:mm",
                   day: "MM-dd",
                   week: "MM-dd",
