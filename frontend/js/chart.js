@@ -1,71 +1,97 @@
 /**
  * Chart.js dual-axis chart: COMEX:GCW00 (right) + AU9999 (left).
- * News markers: dashed vertical lines (annotation v3) + emoji on price line.
+ *
+ * News markers (emoji + dashed lines) are drawn directly in afterDatasetsDraw
+ * using Canvas 2D API.  The annotation plugin is used ONLY for the "当前" now-line
+ * so that its label stays managed by chartjs-plugin-annotation.
+ * Both share a single source of truth (chart._goldNews) — no separate annotation
+ * descriptors to keep in sync.
  */
 
-// Emoji plugin: registered globally so annotation plugin is not excluded
 Chart.register({
   id: "emojiMarkers",
-  _prevGoldNews: null,
 
-  beforeUpdate(chart, args) {
-    // Detect news changes and refresh dashed-line annotations before this draw.
-    // Keep emoji and dashed lines in lock-step: whenever chart._goldNews changes,
-    // call the GoldChart's _visibleNewsAnnotations() via chart._goldChartRef.
-    const news = chart._goldNews;
-    if (news === this._prevGoldNews) return;
-    this._prevGoldNews = news;
-    if (!chart._goldChartRef) return;
-    chart._goldChartRef._updateAnnotations();
-  },
-
+  /**
+   * afterDraw runs after every Chart.js draw cycle.  We draw both the emoji
+   * AND the dashed vertical line here so emoji + line are guaranteed to appear
+   * or disappear together — they are rendered in the same Canvas 2D pass with
+   * identical visibility filtering.
+   */
   afterDatasetsDraw(chart) {
-    if (!chart._goldNews || !chart._goldXauData || !chart._goldNews.length) return;
     const { ctx, chartArea, scales } = chart;
     if (!chartArea || !scales.x || !scales.y) return;
+
+    const news = chart._goldNews;
+    const xauData = chart._goldXauData;
+    if (!news || !news.length || !xauData || !xauData.length) return;
+
     const xScale = scales.x;
     const yScale = scales.y;
     const fontSize = 16;
+    const firstTs = xauData[0].x;
+    const lastTs  = xauData[xauData.length - 1].x;
+
     ctx.save();
     ctx.font = `${fontSize}px serif`;
     ctx.textBaseline = "bottom";
 
-    chart._emojiHits = []; // store hit boxes for click detection
-    for (let i = 0; i < chart._goldNews.length; i++) {
-      const item = chart._goldNews[i];
+    chart._emojiHits = [];
+
+    for (let i = 0; i < news.length; i++) {
+      const item = news[i];
       if (item.direction === "neutral") continue;
+
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs || isNaN(rawTs)) continue;
 
-      const x = xScale.getPixelForValue(rawTs);
-      if (x < chartArea.left || x > chartArea.right) continue;
+      // x-bounds check
+      const xPx = xScale.getPixelForValue(rawTs);
+      if (xPx < chartArea.left || xPx > chartArea.right) continue;
 
-      // Find the gold price y at this x (nearest data point)
-      let emojiY;
+      // ── Dashed vertical line (full chart height) ────────────────────────
+      const lineColor = item.direction === "up"
+        ? "rgba(34,197,94,0.8)"
+        : "rgba(239,68,68,0.8)";
+      ctx.save();
+      ctx.beginPath();
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.moveTo(xPx, chartArea.top);
+      ctx.lineTo(xPx, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      // ── Emoji anchored on gold price line (or chart bottom if outside) ──
+      let emojiY = chartArea.bottom;
       let inRange = false;
-      if (chart._goldXauData.length > 0) {
-        const firstTs = chart._goldXauData[0].x;
-        const lastTs  = chart._goldXauData[chart._goldXauData.length - 1].x;
-        if (rawTs >= firstTs && rawTs <= lastTs) {
-          let closest = chart._goldXauData[0], minDiff = Infinity;
-          for (const pt of chart._goldXauData) {
-            const d = Math.abs(pt.x - rawTs);
-            if (d < minDiff) { minDiff = d; closest = pt; }
-          }
-          emojiY = yScale.getPixelForValue(closest.y);
-          const clamped = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
-          // Only use price-line y if it stays within chart after clamping
-          if (clamped === emojiY) inRange = true;
+
+      if (rawTs >= firstTs && rawTs <= lastTs) {
+        let closest = xauData[0], minDiff = Infinity;
+        for (const pt of xauData) {
+          const d = Math.abs(pt.x - rawTs);
+          if (d < minDiff) { minDiff = d; closest = pt; }
         }
+        emojiY = yScale.getPixelForValue(closest.y);
+        const clamped = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
+        if (clamped === emojiY) inRange = true;
       }
       if (!inRange) emojiY = chartArea.bottom;
 
       const emoji = item.direction === "up" ? "📈" : "📉";
-      ctx.fillText(emoji, x - fontSize / 2, emojiY - 2);
-      chart._emojiHits.push({ x: x - 15, x2: x + 15, y: emojiY - fontSize, y2: emojiY + 2, url: item.url });
+      ctx.fillText(emoji, xPx - fontSize / 2, emojiY - 2);
+
+      chart._emojiHits.push({
+        x: xPx - 15, x2: xPx + 15,
+        y: emojiY - fontSize, y2: emojiY + 2,
+        url: item.url,
+      });
     }
+
     ctx.restore();
   },
+
   afterEvent(chart, args) {
     if (args.event.type !== "click") return;
     if (!chart._emojiHits || !chart._emojiHits.length) return;
@@ -92,7 +118,8 @@ class GoldChart {
     this.news = news || [];
     if (this.chart) {
       this.chart._goldNews = this.news;
-      this._updateAnnotations();
+      // Trigger the emoji plugin's afterDatasetsDraw in the next animation frame
+      this.chart.update("none");
     }
   }
 
@@ -105,66 +132,32 @@ class GoldChart {
   }
 
   /**
-   * Build annotation entries for all non-neutral, visible news items.
-   * "Visible" means the news timestamp falls within the current chart x-range
-   * AND the emoji would land within the chart area (not clipped).
+   * Refresh only the "当前" now-line via chartjs-plugin-annotation.
+   * News emoji + dashed lines are drawn by the emojiMarkers plugin independently —
+   * no need to update annotation descriptors when news changes.
    */
-  _visibleNewsAnnotations() {
-    if (!this.chart || !this.chart.scales.x) return {};
-    const xScale = this.chart.scales.x;
-    const visMinRaw = xScale.min instanceof Date ? xScale.min.getTime() : Number(xScale.min);
-    const visMaxRaw = xScale.max instanceof Date ? xScale.max.getTime() : Number(xScale.max);
-    if (!isFinite(visMinRaw) || !isFinite(visMaxRaw)) return {};
-
-    const annotations = {};
-    for (let i = 0; i < this.news.length; i++) {
-      const item = this.news[i];
-      if (item.direction === "neutral") continue;
-      const rawTs = item.published_ts ? item.published_ts * 1000 : null;
-      if (!rawTs || isNaN(rawTs)) continue;
-      if (rawTs < visMinRaw || rawTs > visMaxRaw) continue;
-
-      const xPx = xScale.getPixelForValue(rawTs);
-      if (xPx < this.chart.chartArea.left || xPx > this.chart.chartArea.right) continue;
-
-      const borderColor = item.direction === "up"
-        ? "rgba(34,197,94,0.8)"
-        : "rgba(239,68,68,0.8)";
-      annotations[`n_${i}`] = {
-        type: "line",
-        xMin: new Date(rawTs),
-        xMax: new Date(rawTs),
-        borderColor,
-        borderWidth: 2,
-        borderDash: [6, 4],
-      };
-    }
-    return annotations;
-  }
-
-  _updateAnnotations() {
+  _updateNowLine() {
     if (!this.chart) return;
-    const newsAnnotations = this._visibleNewsAnnotations();
-    // Merge session markers so they always appear even when no news
-    const nowLine = {
-      type: "line",
-      xMin: new Date(),
-      xMax: new Date(),
-      borderColor: "rgba(148,163,184,0.7)",
-      borderWidth: 1,
-      borderDash: [4, 4],
-      label: {
-        display: true,
-        content: "当前",
-        position: "center",
-        yAdjust: -50,
-        color: "#94a3b8",
-        font: { size: 10 },
-        backgroundColor: "transparent",
-      },
-    };
     this.chart.options.plugins.annotation = {
-      annotations: { ...newsAnnotations, nowLine },
+      annotations: {
+        nowLine: {
+          type: "line",
+          xMin: new Date(),
+          xMax: new Date(),
+          borderColor: "rgba(148,163,184,0.7)",
+          borderWidth: 1,
+          borderDash: [4, 4],
+          label: {
+            display: true,
+            content: "当前",
+            position: "center",
+            yAdjust: -50,
+            color: "#94a3b8",
+            font: { size: 10 },
+            backgroundColor: "transparent",
+          },
+        },
+      },
     };
     this.chart.update("none");
   }
@@ -191,8 +184,6 @@ class GoldChart {
         auRes.json(),
       ]);
 
-      // Timestamps from backend are UTC seconds — no conversion needed,
-      // Chart.js renders them in browser's local timezone (Beijing for this user)
       const toBeijingDate = (unixSec) => new Date(unixSec * 1000);
 
       const xauResp = (xauData && xauData.bars && xauData.bars.length > 0) ? xauData : null;
@@ -249,8 +240,6 @@ class GoldChart {
 
       if (this.chart) this.chart.destroy();
 
-      // Use the actual data range from Google Finance for xMin (aligned session boundaries).
-      // xMax is always "now" so the right edge of the chart tracks real clock time.
       const xMin = xauResp ? toBeijingDate(xauResp.xMin) : new Date(Date.now() - days * 86400 * 1000);
       const xMax = new Date();
 
@@ -277,13 +266,15 @@ class GoldChart {
                   const d = items[0].parsed.x;
                   const pad = n => String(n).padStart(2, "0");
                   const toBJ = new Date(d);
-                  const toUS = new Date(d - 12 * 3600 * 1000); // approximate US ET = BJ - 12h
+                  const toUS = new Date(d - 12 * 3600 * 1000);
                   const bjStr = `${toBJ.getFullYear()}年${toBJ.getMonth()+1}月${toBJ.getDate()}日 ${pad(toBJ.getHours())}:${pad(toBJ.getMinutes())}`;
                   const usStr = `${toUS.getMonth()+1}月${toUS.getDate()}日 ${pad(toUS.getHours())}:${pad(toUS.getMinutes())}`;
                   return `${bjStr} 北京 | ${usStr} 美东`;
                 },
               },
             },
+            // Only the "当前" now-line uses chartjs-plugin-annotation.
+            // News emoji + dashed lines are drawn directly in the emojiMarkers plugin.
             annotation: {
               annotations: {
                 nowLine: {
@@ -343,13 +334,12 @@ class GoldChart {
         },
       });
 
-      // Give the emoji plugin a back-reference so it can call our _updateAnnotations()
-      this.chart._goldChartRef = this;
-
-      this.chart._goldNews = this.news;
+      // Feed data refs to the emoji plugin
+      this.chart._goldNews  = this.news;
       this.chart._goldXauData = xauPts;
 
-      this._updateAnnotations();  // always include session markers
+      // Draw "当前" now-line via annotation plugin; emoji/lines drawn by afterDatasetsDraw
+      this._updateNowLine();
 
     } catch (e) {
       console.error("Chart error:", e);
