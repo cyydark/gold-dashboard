@@ -187,9 +187,9 @@ class GoldChart {
 
       if (this.chart) this.chart.destroy();
 
-      // X-axis: always 24h window ending at current time (BJ)
+      // X-axis: window ends at current time, starts at current time minus the selected range
       const nowMs = Date.now();
-      const xMin = nowMs - 24 * 60 * 60 * 1000;
+      const xMin = nowMs - days * 24 * 60 * 60 * 1000;
       const xMax = nowMs;
 
       this.chart = new Chart(canvas, {
