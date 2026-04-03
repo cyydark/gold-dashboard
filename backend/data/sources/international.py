@@ -191,17 +191,18 @@ def _sync_save_news(items: list[dict]):
     """Save news items to DB synchronously using sqlite3 (no asyncio needed)."""
     import sqlite3
     from datetime import datetime, timedelta
-    # Import DB_PATH from db.py (no circular: db.py does not import international.py)
     from backend.data.db import DB_PATH
 
-    now_utc = datetime.utcnow()
-    fetched_at = now_utc.isoformat()
+    # Use explicit Beijing timezone — datetime.utcnow() returns wall-clock time
+    # (same as now() on a Beijing server), not actual UTC
+    now_bj = datetime.now(BEIJING_TZ)
+    fetched_at = now_bj.isoformat()
 
     try:
         with sqlite3.connect(DB_PATH) as conn:
             for item in items:
                 mins = _time_ago_minutes(item.get("time_ago", ""))
-                pub_ts = now_utc - timedelta(minutes=mins)
+                pub_ts = now_bj - timedelta(minutes=mins)
                 conn.execute("""
                     INSERT INTO news_items (title, title_en, source, url, direction, time_ago, published_at, fetched_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)

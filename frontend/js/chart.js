@@ -3,18 +3,6 @@
  * News markers: dashed vertical lines (annotation v3) + emoji on price line.
  */
 
-function _tsFromTimeAgo(timeAgo, anchorNow) {
-  if (!timeAgo) return null;
-  const now = anchorNow || Date.now();
-  const m = timeAgo.match(/^(\d+)\s*(分钟|min)/i);
-  if (m) return now - parseInt(m[1]) * 60 * 1000;
-  const h = timeAgo.match(/^(\d+)\s*(小时|hour)/i);
-  if (h) return now - parseInt(h[1]) * 60 * 60 * 1000;
-  const d = timeAgo.match(/^(\d+)\s*(日|天|day)/i);
-  if (d) return now - parseInt(d[1]) * 24 * 60 * 60 * 1000;
-  return null;
-}
-
 // Emoji plugin: registered globally so annotation plugin is not excluded
 Chart.register({
   id: "emojiMarkers",
@@ -32,10 +20,8 @@ Chart.register({
     for (let i = 0; i < chart._goldNews.length; i++) {
       const item = chart._goldNews[i];
       if (item.direction === "neutral") continue;
-      // published_ts (UTC seconds from DB) is most reliable anchor;
-      // chart_ts is session-level anchor; time_ago drifts with each refresh
-      const rawTs = item.published_ts ? item.published_ts * 1000
-                  : item.chart_ts || _tsFromTimeAgo(item.time_ago);
+      // published_ts is the canonical UTC publication timestamp (ms)
+      const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
       const x = xScale.getPixelForValue(rawTs);
       if (x < chartArea.left || x > chartArea.right) continue;
@@ -90,10 +76,8 @@ class GoldChart {
     for (let i = 0; i < this.news.length; i++) {
       const item = this.news[i];
       if (item.direction === "neutral") continue;
-      // published_ts is the DB-published-at timestamp (most reliable)
-      const ts = item.published_ts ? new Date(item.published_ts * 1000)
-               : item.chart_ts ? new Date(item.chart_ts)
-               : new Date(_tsFromTimeAgo(item.time_ago));
+      // published_ts is the canonical UTC publication timestamp
+      const ts = item.published_ts ? new Date(item.published_ts * 1000) : null;
       if (!ts || isNaN(ts.getTime())) continue;
       const isUp = item.direction === "up";
       annotations[`n_${i}`] = {

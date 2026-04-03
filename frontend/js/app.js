@@ -62,15 +62,20 @@ function initControls() {
   });
 }
 
-function _calcChartTs(timeAgo, anchorNow) {
-  if (!timeAgo) return null;
-  const m = timeAgo.match(/^(\d+)\s*(分钟|min)/i);
-  if (m) return anchorNow - parseInt(m[1]) * 60 * 1000;
-  const h = timeAgo.match(/^(\d+)\s*(小时|hour)/i);
-  if (h) return anchorNow - parseInt(h[1]) * 60 * 60 * 1000;
-  const d = timeAgo.match(/^(\d+)\s*(日|天|day)/i);
-  if (d) return anchorNow - parseInt(d[1]) * 24 * 60 * 60 * 1000;
-  return null;
+/**
+ * Compute "X分钟前" / "X小时前" / "X天前" from a UTC Unix timestamp (seconds).
+ * Computed live — never stale.
+ */
+function _timeAgo(tsSec) {
+  if (!tsSec) return "未知";
+  const diffMs = Date.now() - tsSec * 1000;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "刚刚";
+  if (diffMin < 60) return `${diffMin}分钟前`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}小时前`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}天前`;
 }
 
 async function loadNews(days = 1) {
@@ -88,15 +93,6 @@ async function loadNews(days = 1) {
       return;
     }
 
-    // published_ts from DB is the canonical UTC publication time.
-    // Use it as chart_ts so emoji/annotation positions are stable.
-    news.forEach(item => {
-      if (!item.chart_ts) {
-        item.chart_ts = item.published_ts ? item.published_ts * 1000
-                      : _calcChartTs(item.time_ago, Date.now());
-      }
-    });
-
     list.innerHTML = news.map(item => {
       const dir = item.direction;
       const label = dir === "up" ? '<span class="news-tag up">📈 金价升</span>'
@@ -104,11 +100,13 @@ async function loadNews(days = 1) {
                    : '<span class="news-tag neutral">📊 中性</span>';
       // Escape HTML to prevent XSS
       const escape = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      // time_ago is computed live from published_ts — never stale
+      const timeAgo = _timeAgo(item.published_ts);
       return `
       <a class="news-item" href="${escape(item.url)}" target="_blank" rel="noopener">
         <div class="news-meta">
           <span class="news-source">${escape(item.source)}</span>
-          <span class="news-time">${escape(item.time_ago)}</span>
+          <span class="news-time">${timeAgo}</span>
         </div>
         <div class="news-content">
           <span class="news-headline">${escape(item.title)}</span>
@@ -120,7 +118,7 @@ async function loadNews(days = 1) {
     const nowForDisplay = new Date();
     if (refreshTime) refreshTime.textContent = `更新于 ${nowForDisplay.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"})}`;
 
-    // Pass news to chart if chart exists
+    // Pass news to chart — published_ts is the canonical anchor
     if (chart) {
       chart.setNews(news);
     }
