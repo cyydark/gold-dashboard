@@ -1,5 +1,6 @@
 /**
  * Main app: price cards + dual gold chart + news.
+ * All data fetches are fire-and-forget to avoid blocking first paint.
  */
 
 let chart = null;
@@ -128,10 +129,11 @@ async function loadNews(days = 1) {
   }
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
+window.addEventListener("DOMContentLoaded", () => {
   chart = new GoldChart();
   initControls();
-  await chart.load(currentDays);
+  // Fire-and-forget: render UI immediately, load data async
+  chart.load(currentDays);
   // Warm up all 3 windows in background (backend caches each for 5 min)
   chart.warmup();
   loadNews(currentDays);

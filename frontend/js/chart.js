@@ -1,56 +1,85 @@
 /**
  * Chart.js dual-axis chart: COMEX:GCW00 (right) + AU9999 (left).
- * News markers: dashed vertical lines (annotation v3) + emoji on price line.
+ * News markers: emoji + dashed vertical lines — rendered together in afterDatasetsDraw.
+ * No annotation plugin dependency; all news visuals drawn directly on canvas.
  */
 
-// Emoji plugin: registered globally so annotation plugin is not excluded
+// Emoji + dashed-line plugin: both rendered together so they are always in sync
 Chart.register({
   id: "emojiMarkers",
   afterDatasetsDraw(chart) {
-    if (!chart._goldNews || !chart._goldXauData || !chart._goldNews.length) return;
     const { ctx, chartArea, scales } = chart;
-    if (!chartArea || !scales.x || !scales.y) return;
+    if (!chartArea || !scales.x) return;
+    const news = chart._goldNews;
+    const xauData = chart._goldXauData;
+    if (!news || !news.length) return;
+
     const xScale = scales.x;
-    const yScale = scales.y;
     const fontSize = 16;
     ctx.save();
     ctx.font = `${fontSize}px serif`;
     ctx.textBaseline = "bottom";
 
-    chart._emojiHits = []; // store hit boxes for click detection
-    for (let i = 0; i < chart._goldNews.length; i++) {
-      const item = chart._goldNews[i];
-      if (item.direction === "neutral") continue;
+    chart._emojiHits = []; // hit boxes for click detection
+
+    for (let i = 0; i < news.length; i++) {
+      const item = news[i];
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
 
       const x = xScale.getPixelForValue(rawTs);
       if (x < chartArea.left || x > chartArea.right) continue;
 
-      // Find the gold price y at this x (nearest data point)
-      let emojiY;
-      let inRange = false;
-      if (chart._goldXauData.length > 0) {
-        const firstTs = chart._goldXauData[0].x;
-        const lastTs  = chart._goldXauData[chart._goldXauData.length - 1].x;
-        if (rawTs >= firstTs && rawTs <= lastTs) {
-          let closest = chart._goldXauData[0], minDiff = Infinity;
-          for (const pt of chart._goldXauData) {
-            const d = Math.abs(pt.x - rawTs);
-            if (d < minDiff) { minDiff = d; closest = pt; }
-          }
-          emojiY = yScale.getPixelForValue(closest.y);
-          const clamped = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
-          // Only use price-line y if it stays within chart after clamping
-          if (clamped === emojiY) inRange = true;
-        }
-      }
-      if (!inRange) emojiY = chartArea.bottom;
+      // ── Dashed vertical line + emoji (only for up/down items) ─────────────
+      if (item.direction !== "neutral") {
+        const isUp = item.direction === "up";
+        const lineColor = isUp ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)";
 
-      const emoji = item.direction === "up" ? "📈" : "📉";
-      ctx.fillText(emoji, x - fontSize / 2, emojiY - 2);
-      chart._emojiHits.push({ x: x - 15, x2: x + 15, y: emojiY - fontSize, y2: emojiY + 2, url: item.url });
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.restore();
+
+        let emojiY = chartArea.bottom;
+        if (xauData && xauData.length > 0) {
+          const firstTs = xauData[0].x;
+          const lastTs  = xauData[xauData.length - 1].x;
+          if (rawTs >= firstTs && rawTs <= lastTs) {
+            let closest = xauData[0], minDiff = Infinity;
+            for (const pt of xauData) {
+              const d = Math.abs(pt.x - rawTs);
+              if (d < minDiff) { minDiff = d; closest = pt; }
+            }
+            const rawY = scales.y.getPixelForValue(closest.y);
+            const clamped = Math.max(chartArea.top, Math.min(chartArea.bottom, rawY));
+            if (clamped === rawY) emojiY = rawY;
+          }
+        }
+        const emoji = item.direction === "up" ? "📈" : "📉";
+        ctx.fillText(emoji, x - fontSize / 2, emojiY - 2);
+        chart._emojiHits.push({ x: x - 15, x2: x + 15, y: emojiY - fontSize, y2: emojiY + 2, url: item.url });
+      }
     }
+
+    // ── "Now" dashed line ─────────────────────────────────────────────────
+    const nowX = xScale.getPixelForValue(Date.now());
+    if (nowX >= chartArea.left && nowX <= chartArea.right) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(nowX, chartArea.top);
+      ctx.lineTo(nowX, chartArea.bottom);
+      ctx.strokeStyle = "rgba(148,163,184,0.7)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.restore();
   },
   afterEvent(chart, args) {
@@ -79,7 +108,8 @@ class GoldChart {
     this.news = news || [];
     if (this.chart) {
       this.chart._goldNews = this.news;
-      this._updateAnnotations();
+      // afterDatasetsDraw runs every draw — just trigger a silent redraw
+      this.chart.update("none");
     }
   }
 
@@ -89,47 +119,6 @@ class GoldChart {
       fetch(`/api/history/XAUUSD?days=${days}`).catch(() => {});
       fetch(`/api/history/AU9999?days=${days}`).catch(() => {});
     });
-  }
-
-  _updateAnnotations() {
-    if (!this.chart) return;
-    const annotations = {};
-    for (let i = 0; i < this.news.length; i++) {
-      const item = this.news[i];
-      if (item.direction === "neutral") continue;
-      // published_ts is the canonical UTC publication timestamp
-      const ts = item.published_ts ? new Date(item.published_ts * 1000) : null;
-      if (!ts || isNaN(ts.getTime())) continue;
-      const isUp = item.direction === "up";
-      annotations[`n_${i}`] = {
-        type: "line",
-        xMin: ts,
-        xMax: ts,
-        borderColor: isUp ? "rgba(34,197,94,0.8)" : "rgba(239,68,68,0.8)",
-        borderWidth: 2,
-        borderDash: [6, 4],
-      };
-    }
-    // "Now" line — updated each time so it tracks real clock time
-    annotations["nowLine"] = {
-      type: "line",
-      xMin: new Date(),
-      xMax: new Date(),
-      borderColor: "rgba(148,163,184,0.7)",
-      borderWidth: 1,
-      borderDash: [4, 4],
-      label: {
-        display: true,
-        content: "当前",
-        position: "center",
-        yAdjust: -50,
-        color: "#94a3b8",
-        font: { size: 10 },
-        backgroundColor: "transparent",
-      },
-    };
-    this.chart.options.plugins.annotation = { annotations };
-    this.chart.update("none");
   }
 
   async load(days) {
@@ -185,8 +174,8 @@ class GoldChart {
           borderColor: "#22c55e",
           backgroundColor: "rgba(34,197,94,0.08)",
           borderWidth: 1.5,
-          pointRadius: xauPts.length > 200 ? 0 : 3,
-          pointHoverRadius: 5,
+          pointRadius: 0,
+          pointHoverRadius: 4,
           fill: true,
           tension: 0.15,
           yAxisID: "y",
@@ -200,8 +189,8 @@ class GoldChart {
           borderColor: "#f59e0b",
           backgroundColor: "rgba(245,158,11,0.08)",
           borderWidth: 1.5,
-          pointRadius: auPts.length > 200 ? 0 : 3,
-          pointHoverRadius: 5,
+          pointRadius: 0,
+          pointHoverRadius: 4,
           fill: true,
           tension: 0.15,
           yAxisID: "y2",
@@ -247,26 +236,6 @@ class GoldChart {
                 },
               },
             },
-            annotation: {
-              annotations: {
-                nowLine: {
-                  type: "line",
-                  xMin: new Date(),
-                  xMax: new Date(),
-                  borderColor: "rgba(148,163,184,0.7)",
-                  borderWidth: 1,
-                  borderDash: [4, 4],
-                  label: {
-                    display: true,
-                    content: "当前",
-                    position: "start",
-                    color: "#94a3b8",
-                    font: { size: 10 },
-                    backgroundColor: "transparent",
-                  },
-                },
-              },
-            },
           },
           scales: {
             x: {
@@ -309,7 +278,9 @@ class GoldChart {
       this.chart._goldNews = this.news;
       this.chart._goldXauData = xauPts;
 
-      this._updateAnnotations();  // always include session markers
+      // Note: do NOT call _updateAnnotations() here — chart._goldNews was just set
+      // from this.news (which may be stale/empty if news hasn't loaded for this range yet).
+      // Annotations are updated by setNews() once fresh news arrives.
 
     } catch (e) {
       console.error("Chart error:", e);

@@ -439,9 +439,79 @@ def _fetch_xauusd_history_fallback(days: int = 90):
         return None
 
 
+def _fetch_fast_yfinance_history(days: int = 5) -> list[dict] | None:
+    """Fetch GC=F via yfinance directly (no Playwright) — fast path for 5d/30d windows."""
+    try:
+        ticker = yf.Ticker("GC=F")
+        now_bj = datetime.now(BEIJING_TZ)
+        if days <= 1:
+            start_bj = now_bj - timedelta(days=1)
+            data = ticker.history(start=start_bj, end=now_bj, interval="5m", auto_adjust=True)
+        elif days <= 5:
+            start_bj = now_bj - timedelta(days=days)
+            data = ticker.history(start=start_bj, end=now_bj, interval="15m", auto_adjust=True)
+        else:
+            start_bj = now_bj - timedelta(days=days)
+            data = ticker.history(start=start_bj, end=now_bj, interval="1d", auto_adjust=True)
+
+        if data.empty:
+            return None
+
+        records = []
+        for ts, row in data.iterrows():
+            utc_ts = ts.tz_convert("UTC") if ts.tz else ts
+            records.append({
+                "time": int(utc_ts.timestamp()),
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"]),
+                "volume": int(row["Volume"]) if "Volume" in row else 0,
+            })
+        records.sort(key=lambda x: x["time"])
+        return records
+    except Exception as e:
+        logger.warning(f"yfinance fast history error: {e}")
+        return None
+
+
+# Separate cache for yfinance fast path — keyed by (days)
+_yf_history_cache: dict[int, dict] = {}  # {days: {"data": records, "timestamp": float}}
+_YF_HISTORY_TTL = 300  # 5 minutes
+
+
 def fetch_xauusd_history(days: int = 5) -> list[dict] | None:
-    """Fetch GCW00:COMEX OHLCV via Google Finance. Returns None on failure."""
-    return fetch_gf_xauusd_history(days)
+    """Fetch GCW00:COMEX OHLCV via yfinance for all windows.
+
+    No Playwright, no Google Finance — fully local fetch.
+    """
+    now = time.time()
+
+    # yfinance fast path for 5d/30d — checked first so it hits even if GF failed
+    if days not in (1,):
+        if days in _yf_history_cache:
+            entry = _yf_history_cache[days]
+            if now - entry["timestamp"] < _YF_HISTORY_TTL:
+                return entry["data"]
+        records = _fetch_fast_yfinance_history(days)
+        if records:
+            _yf_history_cache[days] = {"data": records, "timestamp": now}
+            return records
+        # yfinance failed too — try GF as last resort (will be slow)
+        gf_records = fetch_gf_xauusd_history(days)
+        if gf_records:
+            _yf_history_cache[days] = {"data": gf_records, "timestamp": now}
+        return gf_records
+
+    # 1-day: yfinance (5-min bars) — no Playwright
+    if 1 in _yf_history_cache:
+        entry = _yf_history_cache[1]
+        if now - entry["timestamp"] < _YF_HISTORY_TTL:
+            return entry["data"]
+    records = _fetch_fast_yfinance_history(1)
+    if records:
+        _yf_history_cache[1] = {"data": records, "timestamp": now}
+    return records
 
 
 # ---------------------------------------------------------------------------

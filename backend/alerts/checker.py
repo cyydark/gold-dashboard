@@ -36,6 +36,18 @@ async def _refresh_news():
         logger.warning(f"News refresh error: {e}")
 
 
+async def _prewarm_history():
+    """Background history cache refresh for all 3 windows."""
+    from backend.data.sources.international import fetch_gf_xauusd_history
+    loop = asyncio.get_running_loop()
+    await asyncio.gather(
+        loop.run_in_executor(None, fetch_gf_xauusd_history, 1),
+        loop.run_in_executor(None, fetch_gf_xauusd_history, 5),
+        loop.run_in_executor(None, fetch_gf_xauusd_history, 30),
+    )
+    logger.info("History cache refreshed in background")
+
+
 async def fetch_and_check():
     """Fetch prices and run alert checks."""
     try:
@@ -68,7 +80,8 @@ async def fetch_and_check():
 
 
 def start_scheduler(interval_sec: int = 30):
-    # News: refresh every 5 min in background
+    # History + news: refresh every 5 min in background
+    scheduler.add_job(_prewarm_history, 'interval', seconds=300, id="history_refresh")
     scheduler.add_job(_refresh_news, 'interval', seconds=300, id="news_refresh")
     # Price + alert check every 30 sec
     scheduler.add_job(fetch_and_check, 'interval', seconds=interval_sec, id="price_check")
