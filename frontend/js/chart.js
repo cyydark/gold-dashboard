@@ -11,6 +11,7 @@ Chart.register({
     const { ctx, chartArea, scales } = chart;
     if (!chartArea || !scales.x || !scales.y) return;
     const xScale = scales.x;
+    const yScale = scales.y;
     const fontSize = 16;
     ctx.save();
     ctx.font = `${fontSize}px serif`;
@@ -23,11 +24,28 @@ Chart.register({
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
 
-      // Emoji always on the dashed line's x, at the bottom of the dashed line
       const x = xScale.getPixelForValue(rawTs);
-      const emojiY = chartArea.bottom;
-
       if (x < chartArea.left || x > chartArea.right) continue;
+
+      // Find the gold price y at this x (nearest data point)
+      let emojiY;
+      let inRange = false;
+      if (chart._goldXauData.length > 0) {
+        const firstTs = chart._goldXauData[0].x;
+        const lastTs  = chart._goldXauData[chart._goldXauData.length - 1].x;
+        if (rawTs >= firstTs && rawTs <= lastTs) {
+          let closest = chart._goldXauData[0], minDiff = Infinity;
+          for (const pt of chart._goldXauData) {
+            const d = Math.abs(pt.x - rawTs);
+            if (d < minDiff) { minDiff = d; closest = pt; }
+          }
+          emojiY = yScale.getPixelForValue(closest.y);
+          const clamped = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
+          // Only use price-line y if it stays within chart after clamping
+          if (clamped === emojiY) inRange = true;
+        }
+      }
+      if (!inRange) emojiY = chartArea.bottom;
 
       const emoji = item.direction === "up" ? "📈" : "📉";
       ctx.fillText(emoji, x - fontSize / 2, emojiY - 2);
