@@ -29,7 +29,8 @@ Chart.register({
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
 
-      // x: within data range → actual position; outside → initial position (left boundary)
+      // x: within data range → actual; outside → on dashed line at boundary
+      // y: always on the gold price line
       let x, emojiY;
       if (rawTs >= firstTs && rawTs <= lastTs) {
         x = xScale.getPixelForValue(rawTs);
@@ -40,12 +41,12 @@ Chart.register({
           if (d < minDiff) { minDiff = d; closest = pt; }
         }
         emojiY = yScale.getPixelForValue(closest.y);
-        emojiY = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
       } else {
-        // Snap to initial position: left boundary, top of chart
+        // Snap to dashed line at chart boundary, on the price line
         x = chartArea.left;
-        emojiY = chartArea.top + fontSize;
+        emojiY = yScale.getPixelForValue(firstPt.y);
       }
+      emojiY = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
 
       if (x < chartArea.left || x > chartArea.right) continue;
       if (emojiY < chartArea.top || emojiY > chartArea.bottom) continue;
