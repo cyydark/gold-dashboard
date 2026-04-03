@@ -1,7 +1,114 @@
 /**
  * Chart.js dual-axis chart: COMEX:GCW00 (right) + AU9999 (left).
  * News markers: dashed vertical lines (annotation v3) + emoji on price line.
+ * Market session shading: open/close markers + background coloring.
  */
+
+// COMEX Sunday 18:00 ET → Friday 17:00 ET
+// In Beijing time (UTC+8, DST-aware):
+//   Open:  ET 18:00 + (DST? +12h : +13h) = 06:00 / 07:00 BJ
+//   Close: ET 17:00 + (DST? +12h : +13h) = 05:00 / 06:00 BJ
+function _isDST(date) {
+  // US DST: second Sunday March → first Sunday November
+  const jan = new Date(date.getFullYear(), 0, 1);
+  const jul = new Date(date.getFullYear(), 6, 1);
+  const janOffset = jan.getTimezoneOffset();
+  const julOffset = jul.getTimezoneOffset();
+  const isDST = Math.min(janOffset, julOffset) !== date.getTimezoneOffset();
+  return isDST;
+}
+
+function _bjDate(year, month, day, hour) {
+  return new Date(Date.UTC(year, month, day, hour - 8)) / 1000; // UTC seconds
+}
+
+function _comexWindowForDay(year, month, day) {
+  const dst = _isDST(new Date(year, month, day));
+  const offset = dst ? 12 : 13; // hours between ET and BJ
+  // BJ open: ET 18:00 = 18+offset BJ same day
+  const openHour = 18 + offset - 24; // wrap to same-day BJ hours
+  // BJ close: ET 17:00 = 17+offset BJ next day (crosses midnight)
+  const closeHour = 17 + offset - 24; // wrap
+  const openBJ = _bjDate(year, month, day, openHour);   // seconds UTC
+  const closeBJ = _bjDate(year, month, day, closeHour); // seconds UTC — crosses to next day
+  return { open: openBJ, close: closeBJ };
+}
+
+function _buildSessionAnnotations(xMinSec, xMaxSec) {
+  const anns = {};
+  const startDate = new Date(xMinSec * 1000);
+  const endDate   = new Date(xMaxSec * 1000);
+
+  // Walk each day in the window and shade open/closed
+  const cursor = new Date(startDate);
+  cursor.setUTCHours(0, 0, 0, 0);
+
+  while (cursor <= endDate) {
+    const y = cursor.getUTCFullYear();
+    const m = cursor.getUTCMonth();
+    const d = cursor.getUTCDate();
+    const w = _comexWindowForDay(y, m, d);
+    const dayStart = Math.floor(cursor.getTime() / 1000); // midnight UTC of this day
+    const dayEnd   = dayStart + 86400;
+
+    const openSec = w.open;
+    const closeSec = w.close;
+
+    // Shade closed (before open)
+    if (openSec > xMinSec && openSec < xMaxSec && openSec > dayStart) {
+      const cStart = Math.max(xMinSec, dayStart);
+      const cEnd   = Math.min(openSec, xMaxSec);
+      anns[`closed_pre_${d}`] = {
+        type: "box", xMin: cStart, xMax: cEnd,
+        backgroundColor: "rgba(239,68,68,0.05)",
+        borderWidth: 0,
+      };
+    }
+    // Shade open (open → close)
+    const oStart = Math.max(openSec, xMinSec);
+    const oEnd   = Math.min(closeSec, xMaxSec);
+    if (oEnd > oStart) {
+      anns[`open_${d}`] = {
+        type: "box", xMin: oStart, xMax: oEnd,
+        backgroundColor: "rgba(34,197,94,0.06)",
+        borderWidth: 0,
+      };
+    }
+    // Shade closed (after close)
+    if (closeSec < xMaxSec && closeSec > dayStart) {
+      const cStart2 = Math.max(closeSec, xMinSec);
+      const cEnd2   = Math.min(dayEnd, xMaxSec);
+      anns[`closed_post_${d}`] = {
+        type: "box", xMin: cStart2, xMax: cEnd2,
+        backgroundColor: "rgba(239,68,68,0.05)",
+        borderWidth: 0,
+      };
+    }
+
+    // Open marker line
+    if (openSec >= xMinSec && openSec <= xMaxSec) {
+      anns[`openLine_${d}`] = {
+        type: "line", xMin: openSec, xMax: openSec,
+        borderColor: "rgba(34,197,94,0.9)", borderWidth: 1.5, borderDash: [4, 3],
+        label: { display: true, content: "开盘", position: "start",
+          color: "#22c55e", font: { size: 10 }, backgroundColor: "transparent" },
+      };
+    }
+    // Close marker line
+    if (closeSec >= xMinSec && closeSec <= xMaxSec) {
+      anns[`closeLine_${d}`] = {
+        type: "line", xMin: closeSec, xMax: closeSec,
+        borderColor: "rgba(239,68,68,0.9)", borderWidth: 1.5, borderDash: [4, 3],
+        label: { display: true, content: "停盘", position: "start",
+          color: "#ef4444", font: { size: 10 }, backgroundColor: "transparent" },
+      };
+    }
+
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return anns;
+}
 
 // Emoji plugin: registered globally so annotation plugin is not excluded
 Chart.register({
@@ -184,13 +291,13 @@ class GoldChart {
       }
 
       const unit = days <= 1 ? "minute" : days <= 5 ? "hour" : "day";
-
-      if (this.chart) this.chart.destroy();
-
-      // X-axis: always 24h window ending at current time (BJ)
       const nowMs = Date.now();
       const xMin = nowMs - 24 * 60 * 60 * 1000;
       const xMax = nowMs;
+      // Pre-compute session open/close bands before passing to Chart options
+      const sessionAnns = _buildSessionAnnotations(xMin / 1000, xMax / 1000);
+
+      if (this.chart) this.chart.destroy();
 
       this.chart = new Chart(canvas, {
         type: "line",
@@ -225,6 +332,7 @@ class GoldChart {
             },
             annotation: {
               annotations: {
+                ...sessionAnns,
                 nowLine: {
                   type: "line",
                   xMin: new Date(),
