@@ -29,29 +29,30 @@ Chart.register({
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
 
-      // x: within data range → actual position; outside → initial (first) data point
-      let x;
+      // x: within data range → actual position; outside → initial position (left boundary)
+      let x, emojiY;
       if (rawTs >= firstTs && rawTs <= lastTs) {
         x = xScale.getPixelForValue(rawTs);
+        // Find nearest data point for y on the price line
+        let closest = chart._goldXauData[0], minDiff = Infinity;
+        for (const pt of chart._goldXauData) {
+          const d = Math.abs(pt.x - rawTs);
+          if (d < minDiff) { minDiff = d; closest = pt; }
+        }
+        emojiY = yScale.getPixelForValue(closest.y);
+        emojiY = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
       } else {
-        x = xScale.getPixelForValue(firstTs);
+        // Snap to initial position: left boundary, top of chart
+        x = chartArea.left;
+        emojiY = chartArea.top + fontSize;
       }
 
       if (x < chartArea.left || x > chartArea.right) continue;
-
-      // Find the y of the price line at this x (nearest data point by timestamp)
-      let closest = chart._goldXauData[0], minDiff = Infinity;
-      for (const pt of chart._goldXauData) {
-        const d = Math.abs(pt.x - rawTs);
-        if (d < minDiff) { minDiff = d; closest = pt; }
-      }
-      const y = yScale.getPixelForValue(closest.y);
-      const clampedY = Math.max(chartArea.top, Math.min(chartArea.bottom, y));
-      if (clampedY < chartArea.top || clampedY > chartArea.bottom) continue;
+      if (emojiY < chartArea.top || emojiY > chartArea.bottom) continue;
 
       const emoji = item.direction === "up" ? "📈" : "📉";
-      ctx.fillText(emoji, x - fontSize / 2, clampedY - 2);
-      chart._emojiHits.push({ x: x - 15, x2: x + 15, y: clampedY - fontSize, y2: clampedY + 2, url: item.url });
+      ctx.fillText(emoji, x - fontSize / 2, emojiY - 2);
+      chart._emojiHits.push({ x: x - 15, x2: x + 15, y: emojiY - fontSize, y2: emojiY + 2, url: item.url });
     }
     ctx.restore();
   },
