@@ -1,14 +1,19 @@
 """Price and history API routes."""
 import asyncio
+import os
+
+from dotenv import load_dotenv
 from fastapi import APIRouter
 from backend.data.sources.international import fetch_xauusd, fetch_usdcny, fetch_xauusd_history
 from backend.alerts.checker import get_cached_news
 from backend.data.sources.domestic import fetch_au9999
 
+load_dotenv()
+
 router = APIRouter(prefix="/api", tags=["price"])
 
 OZ_TO_G = 31.1035
-DEFAULT_CNY_RATE = 6.87
+DEFAULT_CNY_RATE = float(os.environ.get("DEFAULT_CNY_RATE", "6.87"))
 
 
 @router.get("/prices")

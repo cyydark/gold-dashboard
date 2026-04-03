@@ -1,11 +1,16 @@
 """BrowserManager: 统一管理 Playwright Chromium 生命周期（单例，线程安全）."""
 import logging
+import os
 import threading
+
 from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
 
-CHROME_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+CHROME_PATH = os.environ.get(
+    "CHROME_PATH",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+)
 
 
 class BrowserManager:
