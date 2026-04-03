@@ -89,6 +89,23 @@ class GoldChart {
         borderDash: [6, 4],
       };
     }
+    // "Now" line — updated each time so it tracks real clock time
+    annotations["nowLine"] = {
+      type: "line",
+      xMin: new Date(),
+      xMax: new Date(),
+      borderColor: "rgba(148,163,184,0.7)",
+      borderWidth: 1,
+      borderDash: [4, 4],
+      label: {
+        display: true,
+        content: "当前",
+        position: "start",
+        color: "#94a3b8",
+        font: { size: 10 },
+        backgroundColor: "transparent",
+      },
+    };
     this.chart.options.plugins.annotation = { annotations };
     this.chart.update("none");
   }
@@ -170,9 +187,10 @@ class GoldChart {
 
       if (this.chart) this.chart.destroy();
 
-      // Lock x-axis to exact data range so no empty-space padding distorts the view
-      const xMin = xauPts.length > 0 ? xauPts[0].x.getTime() : null;
-      const xMax = xauPts.length > 0 ? xauPts[xauPts.length - 1].x.getTime() : null;
+      // X-axis: always 24h window ending at current time (BJ)
+      const nowMs = Date.now();
+      const xMin = nowMs - 24 * 60 * 60 * 1000;
+      const xMax = nowMs;
 
       this.chart = new Chart(canvas, {
         type: "line",
@@ -195,13 +213,36 @@ class GoldChart {
                 title(items) {
                   if (!items.length) return "";
                   const d = items[0].parsed.x;
+                  // Show both Beijing (UTC+8) and US Eastern (UTC-4/-5) time
                   const pad = n => String(n).padStart(2, "0");
-                  const date = new Date(d);
-                  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+                  const toBJ = new Date(d);
+                  const toUS = new Date(d - 12 * 3600 * 1000); // approximate US ET = BJ - 12h
+                  const bjStr = `${toBJ.getFullYear()}-${pad(toBJ.getMonth()+1)}-${pad(toBJ.getDate())} ${pad(toBJ.getHours())}:${pad(toBJ.getMinutes())}`;
+                  const usStr = `${pad(toUS.getMonth()+1)}-${pad(toUS.getDate())} ${pad(toUS.getHours())}:${pad(toUS.getMinutes())}`;
+                  return `${bjStr} 北京 | ${usStr} 美东`;
                 },
               },
             },
-            annotation: { annotations: {} },
+            annotation: {
+              annotations: {
+                nowLine: {
+                  type: "line",
+                  xMin: new Date(),
+                  xMax: new Date(),
+                  borderColor: "rgba(148,163,184,0.7)",
+                  borderWidth: 1,
+                  borderDash: [4, 4],
+                  label: {
+                    display: true,
+                    content: "当前",
+                    position: "start",
+                    color: "#94a3b8",
+                    font: { size: 10 },
+                    backgroundColor: "transparent",
+                  },
+                },
+              },
+            },
           },
           scales: {
             x: {
