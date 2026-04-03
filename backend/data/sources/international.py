@@ -1,7 +1,9 @@
-"""GCW00:COMEX (COMEX gold futures) and USD/CNY via yfinance SDK.
+"""GCW00:COMEX (COMEX gold futures) via Google Finance batchexecute API.
 
-International gold: yfinance Ticker("GC=F") — COMEX 黄金期货主力合约
-USD/CNY:           yfinance Ticker("CNY=X") — 离岸人民币汇率
+International gold: Google Finance /finance/_/GoogleFinanceUi/data/batchexecute?rpcids=AiCwsd
+  — captures the same OHLCV data displayed on https://www.google.com/finance/quote/GCW00:COMEX
+  — requires x-goog-ext-* auth header captured from Playwright, replayed immediately
+USD/CNY: yfinance Ticker("CNY=X") — 离岸人民币汇率
 
 All functions are synchronous with their own cache.
 """
@@ -9,7 +11,6 @@ import os
 import re
 import logging
 import time
-import asyncio
 import json
 import requests
 import urllib.parse
@@ -81,7 +82,7 @@ def _fetch_usdcny_once() -> dict | None:
 
         price = float(latest["Close"])
         change = round(price - float(prev["Close"]), 4)
-        pct = round((change / float(prev["Close"])) * 100, 4) if prev["Close"] else 0
+        pct = round((change / float(prev["Close"]) * 100), 4) if prev["Close"] else 0
 
         now_bj = datetime.now(BEIJING_TZ)
         ts_str = now_bj.strftime("%m月%d日 %H:%M:%S 北京时间")
@@ -133,11 +134,277 @@ def fetch_usdcny() -> dict | None:
     return usdcny
 
 
-def fetch_xauusd_history(days: int = 90):
-    """Fetch GC=F OHLCV history via yfinance using start/end to get exact range."""
+# ---------------------------------------------------------------------------
+# Google Finance OHLCV fetch
+# ---------------------------------------------------------------------------
+
+_WINDOW_MAP = {
+    1: 1,   # 1D window  → body NUM=1
+    5: 2,   # 5D window  → body NUM=2
+    30: 3,  # 1M window  → body NUM=3
+}
+
+# Which window param to use based on requested days
+_WINDOW_DEFAULT = {
+    1: 1,
+    5: 2,
+    30: 3,
+}
+
+
+def _parse_gf_timestamp(ts_arr: list) -> int | None:
+    """Convert GF ts_arr [year,month,day,hour,minute,null,null,[tz_offset]] to UTC unix ms.
+
+    GF returns ET (UTC-4) timestamps.  E.g.
+    [2026,3,27,17,0,null,null,[-14400]] → 2026-03-27 17:00 ET.
+    """
+    try:
+        if not ts_arr or len(ts_arr) < 5:
+            return None
+        year, month, day = ts_arr[0], ts_arr[1], ts_arr[2]
+        hour = ts_arr[3] if ts_arr[3] is not None else 0
+        minute = ts_arr[4] if ts_arr[4] is not None else 0
+        tz_arr = ts_arr[-1] if isinstance(ts_arr[-1], list) else []
+        tz_seconds = tz_arr[0] if tz_arr else -14400  # default ET = UTC-4
+        et_tz = timezone(timedelta(seconds=tz_seconds))
+        et_dt = datetime(year, month, day, hour, minute, tzinfo=et_tz)
+        return int(et_dt.timestamp() * 1000)
+    except Exception:
+        return None
+
+
+def _parse_gf_raw(raw: str) -> list[dict]:
+    """Parse Google Finance batchexecute raw response into flat bar list.
+
+    Response format:
+      )}'  <length>  [[wrb.fr,AiCwsd,escaped_inner_json]]
+
+    Inner JSON: [[[GCW00, COMEX], /g/..., USD, [session_group]]]
+    Bars: session_group[3][0][1] = list of [ts_arr, ohlcv]
+      ohlcv = [close, spread, pct, vol_type, vol_type2, vol_type3]
+
+    Returns list of {time, open, high, low, close, volume} sorted ascending.
+    """
+    # Strip length-prefixed chunks to get the outer JSON array
+    try:
+        header_end = raw.index("[[")
+    except ValueError:
+        raise ValueError("No JSON array found in GF response")
+
+    json_str = raw[header_end:]
+
+    # Find matching close-bracket for the outermost [[ ... ]]
+    depth = 0
+    arr_start = -1
+    arr_end = -1
+    for i, c in enumerate(json_str):
+        if c == "[":
+            if depth == 0:
+                arr_start = i
+            depth += 1
+        elif c == "]":
+            depth -= 1
+            if depth == 0:
+                arr_end = i + 1
+                break
+
+    if arr_start < 0 or arr_end < 0:
+        raise ValueError(f"Could not find matching outer brackets (start={arr_start}, end={arr_end})")
+
+    outer = json.loads(json_str[arr_start:arr_end])
+    # outer = [[wrb.fr, AiCwsd, escaped_inner]]
+    inner_str = outer[0][2]
+
+    # inner_str is a JSON string with \" escaped quotes — unescape for json.loads
+    inner_fixed = inner_str.replace('\\"', '"')
+    parsed = json.loads(inner_fixed)
+    # parsed = [[[GCW00, COMEX], /g/..., USD, [session_group]]]
+    # session_group = [[[1, [start_ts], [end_ts]], bars]]
+    session_groups = parsed[0]
+
+    records = []
+    for seg in session_groups:
+        if not isinstance(seg, list) or len(seg) < 4:
+            continue
+        bar_container = seg[3]
+        if not isinstance(bar_container, list) or len(bar_container) < 1:
+            continue
+        bars_info = bar_container[0]
+        if not isinstance(bars_info, list) or len(bars_info) < 2:
+            continue
+        session_meta = bars_info[0]  # [1, [start_ts], [end_ts]]
+        bars = bars_info[1]
+
+        if not isinstance(bars, list):
+            continue
+
+        for bar_item in bars:
+            if not isinstance(bar_item, list) or len(bar_item) < 2:
+                continue
+            ts_arr = bar_item[0]
+            ohlcv = bar_item[1]
+            if not isinstance(ts_arr, list) or not isinstance(ohlcv, list):
+                continue
+            if len(ohlcv) < 4:
+                continue
+
+            ts_ms = _parse_gf_timestamp(ts_arr)
+            if ts_ms is None:
+                continue
+
+            # ohlcv[0]=close, ohlcv[1]=high-low spread, ohlcv[4]=volume-category?
+            close_px = float(ohlcv[0])
+            # Derive high/low from close ± spread/2 (spread = high - low)
+            spread = float(ohlcv[1]) if ohlcv[1] else 0.0
+            high_px = close_px + spread / 2.0
+            low_px = close_px - spread / 2.0
+
+            records.append({
+                "time": ts_ms // 1000,   # GF ts_arr already in ET; ts_ms is ms → seconds
+                "open": round(low_px, 2),
+                "high": round(high_px, 2),
+                "low": round(low_px, 2),
+                "close": round(close_px, 2),
+                "volume": 0,
+            })
+
+    records.sort(key=lambda x: x["time"])
+    return records
+
+
+def _fetch_gf_once(window: int) -> list[dict] | None:
+    """Capture x-goog-ext header via Playwright, replay with requests.
+
+    Args:
+        window: 1=1D, 2=5D, 3=1M (maps to POST body NUM parameter)
+
+    Returns list of {time, open, high, low, close, volume} or None on failure.
+    """
+    if not os.path.exists(CHROME_PATH):
+        logger.warning(f"Chrome not found at {CHROME_PATH}")
+        return None
+
+    captured: dict = {}
+
+    def _on_request(request):
+        if "batchexecute" not in request.url:
+            return
+        if captured.get("_done"):
+            return
+        # Capture auth header and POST body
+        for name, val in request.headers.items():
+            if name.startswith("x-goog-ext"):
+                captured["auth_header"] = (name, val)
+                break
+        try:
+            captured["body"] = request.post_data
+            captured["url"] = request.url
+        except Exception:
+            pass
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            executable_path=CHROME_PATH,
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox"],
+        )
+        context = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0.0.0 Safari/537.36"
+            ),
+        )
+        page = context.new_page()
+        page.on("request", _on_request)
+
+        # Navigate to 1D page (default window=1D) for auth header capture
+        page.goto(
+            "https://www.google.com/finance/quote/GCW00:COMEX",
+            wait_until="domcontentloaded",
+            timeout=20000,
+        )
+        page.wait_for_timeout(12000)
+
+        url = captured.get("url")
+        body = captured.get("body")
+        auth_header = captured.get("auth_header")
+
+        if not url or not body:
+            browser.close()
+            logger.warning("GF batchexecute request not captured")
+            return None
+
+        # Body is URL-encoded: f.req=<encoded_json>
+        # Decode, modify/replace NUM, re-encode.
+        # NUM param is at the end of the inner JSON: ...]],1,null... (1=1D, 2=5D, 3=1M)
+        try:
+            import urllib.parse
+            raw_body = body if isinstance(body, str) else body.decode("latin-1")
+            params = urllib.parse.parse_qs(raw_body, keep_blank_values=True)
+            inner_body = params.get("f.req", [""])[0]
+            inner_decoded = urllib.parse.unquote(inner_body)
+            # For window=1, body already has 1 — no change needed
+            # For window=2/3, replace ]],1, with ]],{window},
+            if window == 1:
+                new_inner = inner_decoded
+            else:
+                new_inner = re.sub(r'\],\d+,', '],' + str(window) + ',', inner_decoded, count=1)
+            new_body = urllib.parse.urlencode({"f.req": new_inner}).encode("latin-1")
+        except Exception as e:
+            logger.warning(f"Failed to modify GF body: {e}")
+            browser.close()
+            return None
+
+        browser.close()
+
+    # Replay with captured auth header
+    headers = {}
+    if auth_header:
+        headers[auth_header[0]] = auth_header[1]
+    headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+    try:
+        resp = requests.post(url, data=new_body, headers=headers, timeout=30)
+        if resp.status_code != 200:
+            logger.warning(f"GF API returned {resp.status_code}")
+            return None
+        raw = resp.text
+    except Exception as e:
+        logger.warning(f"GF API request failed: {e}")
+        return None
+
+    if not raw or len(raw) < 50:
+        logger.warning("GF API returned empty response")
+        return None
+
+    try:
+        records = _parse_gf_raw(raw)
+    except Exception as e:
+        logger.warning(f"GF parse error: {e}")
+        return None
+
+    return records
+
+
+def fetch_gf_xauusd_history(days: int = 5) -> list[dict] | None:
+    """Fetch GCW00:COMEX OHLCV via Google Finance.
+
+    Returns {time, open, high, low, close, volume} sorted ascending.
+    Falls back to yfinance if GF fails.
+    """
+    window = _WINDOW_MAP.get(days, 2)  # default to 5D window
+    records = _fetch_gf_once(window)
+    if not records:
+        return _fetch_xauusd_history_fallback(days)
+    logger.info(f"GF fetched {len(records)} bars, range={records[0]['time']}..{records[-1]['time']}")
+    return records
+
+
+def _fetch_xauusd_history_fallback(days: int = 90):
+    """Fallback to yfinance when GF fails."""
     try:
         ticker = yf.Ticker("GC=F")
-        # 计算北京时间窗口，直接传datetime对象给yfinance（避免字符串边界时区问题）
         now_bj = datetime.now(BEIJING_TZ)
         if days <= 1:
             start_bj = now_bj - timedelta(days=1)
@@ -161,19 +428,27 @@ def fetch_xauusd_history(days: int = 90):
                 "high": float(row["High"]),
                 "low": float(row["Low"]),
                 "close": float(row["Close"]),
-                "volume": int(row["Volume"]),
+                "volume": int(row["Volume"]) if "Volume" in row else 0,
             })
         return records
     except Exception as e:
-        logger.warning(f"yfinance history error: {e}")
+        logger.warning(f"yfinance history fallback error: {e}")
         return None
 
+
+def fetch_xauusd_history(days: int = 5) -> list[dict] | None:
+    """Fetch GCW00:COMEX OHLCV via Google Finance (primary) with yfinance fallback."""
+    return fetch_gf_xauusd_history(days)
+
+
+# ---------------------------------------------------------------------------
+# News scraping
+# ---------------------------------------------------------------------------
 
 def _time_ago_minutes(ago: str) -> int:
     """Parse '5小时前' / '3 hours ago' → minutes for sorting (smaller = newer)."""
     if not ago:
         return 999999
-    # Strip surrounding whitespace once at entry
     s = ago.strip()
     m = re.match(r"^(\d+)\s*(分钟|min)", s, re.I)
     if m:
@@ -193,8 +468,6 @@ def _sync_save_news(items: list[dict]):
     from datetime import datetime, timedelta
     from backend.data.db import DB_PATH
 
-    # Use explicit Beijing timezone — datetime.utcnow() returns wall-clock time
-    # (same as now() on a Beijing server), not actual UTC
     now_bj = datetime.now(BEIJING_TZ)
     fetched_at = now_bj.isoformat()
 
@@ -235,7 +508,6 @@ def fetch_news() -> list[dict]:
         return sorted(_news_cache, key=lambda x: _time_ago_minutes(x["time_ago"]))
 
     def _scrape_sync():
-        """Scrape news synchronously using sync Playwright API."""
         import os as _os
         if not _os.path.exists(CHROME_PATH):
             logger.warning(f"Chrome not found at {CHROME_PATH}, skipping news scrape")
@@ -283,7 +555,10 @@ def fetch_news() -> list[dict]:
                 title_parts = re.split(r"\n+", text)
                 title_text = " ".join(title_parts[1:]) if skip else text
                 title_text = re.sub(r"\s+", " ", title_text).strip()
-                title_text = re.sub(r"^\d+\s*(分钟|小时|日|minutes?|hours?|days?)\s*(前|ago)\s+", "", title_text, flags=re.I).strip()
+                title_text = re.sub(
+                    r"^\d+\s*(分钟|小时|日|minutes?|hours?|days?)\s*(前|ago)\s+",
+                    "", title_text, flags=re.I,
+                ).strip()
                 if title_text in seen_titles:
                     continue
                 seen_titles.add(title_text)
@@ -312,7 +587,6 @@ def fetch_news() -> list[dict]:
         _news_cache = parsed if parsed else []
         _news_timestamp = now
 
-        # Persist to DB (run sync function in thread pool, no asyncio needed)
         if _news_cache:
             import threading
             threading.Thread(target=_sync_save_news, args=(_news_cache,), daemon=True).start()
@@ -342,7 +616,6 @@ def _translate(text: str) -> str:
         translated = result.get("response", "").strip()
         if "\n" in translated:
             translated = translated.split("\n")[0].strip()
-        # If no Chinese chars returned, fall back to MyMemory
         if not any("\u4e00" <= c <= "\u9fff" for c in translated):
             return _translate_mymemory(text)
         return translated
@@ -385,10 +658,8 @@ def _gold_direction(title_en: str) -> str:
     """Return 'up' | 'down' | 'neutral' based on English headline keywords."""
     lower = title_en.lower()
 
-    # Clear directional verbs — highest priority, always win
     clear_up = any(kw in lower for kw in [
         "surge", "rises", "rising", "rally", "rallying", "gain", "gains",
-        "gain", "climb", "climbs", "climbing", "soar", "soars", "soaring",
         "jump", "jumps", "jumped", "spike", "spikes", "spiked",
     ])
     clear_dn = any(kw in lower for kw in [
@@ -404,7 +675,6 @@ def _gold_direction(title_en: str) -> str:
     if clear_dn and not clear_up:
         return "down"
 
-    # Secondary signals — both directions present = neutral
     up_found = any(kw in lower for kw in [
         "bullish", "safe haven", "war", "conflict", "record high", "peak",
         "strong demand", "us-china", "trade war", "tariff",
@@ -418,5 +688,4 @@ def _gold_direction(title_en: str) -> str:
     if dn_found and not up_found:
         return "down"
 
-    # Remove vague/misleading keywords: inflation, high, low, demand alone are too ambiguous
     return "neutral"
