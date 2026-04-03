@@ -11,16 +11,10 @@ Chart.register({
     const { ctx, chartArea, scales } = chart;
     if (!chartArea || !scales.x || !scales.y) return;
     const xScale = scales.x;
-    const yScale = scales.y;
     const fontSize = 16;
     ctx.save();
     ctx.font = `${fontSize}px serif`;
     ctx.textBaseline = "bottom";
-
-    const firstPt = chart._goldXauData[0];
-    const lastPt = chart._goldXauData[chart._goldXauData.length - 1];
-    const firstTs = firstPt.x;
-    const lastTs = lastPt.x;
 
     chart._emojiHits = []; // store hit boxes for click detection
     for (let i = 0; i < chart._goldNews.length; i++) {
@@ -29,27 +23,11 @@ Chart.register({
       const rawTs = item.published_ts ? item.published_ts * 1000 : null;
       if (!rawTs) continue;
 
-      // x: within data range → actual; outside → on dashed line at boundary
-      // y: always on the gold price line
-      let x, emojiY;
-      if (rawTs >= firstTs && rawTs <= lastTs) {
-        x = xScale.getPixelForValue(rawTs);
-        // Find nearest data point for y on the price line
-        let closest = chart._goldXauData[0], minDiff = Infinity;
-        for (const pt of chart._goldXauData) {
-          const d = Math.abs(pt.x - rawTs);
-          if (d < minDiff) { minDiff = d; closest = pt; }
-        }
-        emojiY = yScale.getPixelForValue(closest.y);
-      } else {
-        // Snap to dashed line at chart boundary, on the price line
-        x = chartArea.left;
-        emojiY = yScale.getPixelForValue(firstPt.y);
-      }
-      emojiY = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
+      // Emoji always on the dashed line's x, at the bottom of the dashed line
+      const x = xScale.getPixelForValue(rawTs);
+      const emojiY = chartArea.bottom;
 
       if (x < chartArea.left || x > chartArea.right) continue;
-      if (emojiY < chartArea.top || emojiY > chartArea.bottom) continue;
 
       const emoji = item.direction === "up" ? "📈" : "📉";
       ctx.fillText(emoji, x - fontSize / 2, emojiY - 2);
