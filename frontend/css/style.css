@@ -275,7 +275,47 @@ body {
   padding: 10px 0;
 }
 
-/* 响应式：移动端上下排列 */
+/* 右侧来源新闻样式 */
+.briefing-news-list {
+  overflow-y: auto;
+  max-height: calc(100vh - 380px);
+  flex: 1;
+}
+
+.source-news-item {
+  border-bottom: 1px solid #2a2d37;
+  padding: 10px 0;
+}
+
+.source-news-item:last-child {
+  border-bottom: none;
+}
+
+.source-news-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72em;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.source-news-source {
+  color: #f0c040;
+}
+
+.source-news-title {
+  font-size: 0.88em;
+  color: #d0d0d0;
+  line-height: 1.5;
+  text-decoration: none;
+  display: block;
+}
+
+.source-news-title:hover {
+  color: #fff;
+  text-decoration: underline;
+}
 @media (max-width: 768px) {
   .content-grid {
     grid-template-columns: 1fr;

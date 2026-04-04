@@ -129,6 +129,38 @@ async function loadBriefings() {
         <div class="briefing-content">${escapeHtml(b.content)}</div>
       </div>
     `).join("");
+
+    // 渲染右侧来源新闻（按简报顺序展开所有来源）
+    const newsListEl = document.getElementById("briefing-news-list");
+    if (newsListEl) {
+      if (briefings.length === 0) {
+        newsListEl.innerHTML = '<div class="briefing-empty">暂无来源新闻</div>';
+      } else {
+        const allSourceNews = [];
+        for (const b of briefings) {
+          const news = b.source_news || [];
+          for (const n of news) {
+            allSourceNews.push({ ...n, _briefing_time: b.time_range || b.generated_at || "" });
+          }
+        }
+        if (allSourceNews.length === 0) {
+          newsListEl.innerHTML = '<div class="briefing-empty">暂无来源新闻</div>';
+        } else {
+          newsListEl.innerHTML = allSourceNews.map(n => `
+            <div class="source-news-item">
+              <div class="source-news-meta">
+                <span class="source-news-source">${escapeHtml(n.source || "")}</span>
+                <span>·</span>
+                <span>${escapeHtml(n._briefing_time || n.published || "")}</span>
+              </div>
+              <a class="source-news-title" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener">
+                ${escapeHtml(n.title || "")}
+              </a>
+            </div>
+          `).join("");
+        }
+      }
+    }
   } catch (e) {
     list.innerHTML = '<div class="briefing-empty">加载失败</div>';
   }
