@@ -24,15 +24,20 @@ const _hoverPlugin = {
 
     const xScale = scales.x;
     const rawTs = xScale.getValueForPixel(xPx);
-    const ms5 = 5 * 60 * 1000; // 5-minute bar width in ms
 
-    // Find exact intersection: bar whose time is within [rawTs - ms5/2, rawTs + ms5/2]
+    // Find nearest point by timestamp (no window tolerance)
     const findAtX = (data) => {
       if (!data || !data.length) return null;
+      let nearest = null;
+      let minDiff = Infinity;
       for (const pt of data) {
-        if (Math.abs(pt.x - rawTs) <= ms5 / 2) return pt;
+        const diff = Math.abs(pt.x - rawTs);
+        if (diff < minDiff) {
+          minDiff = diff;
+          nearest = pt;
+        }
       }
-      return null;
+      return nearest;
     };
 
     const xauPt = findAtX(chart.data.datasets[0]?.data || []);
