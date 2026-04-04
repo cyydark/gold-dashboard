@@ -46,17 +46,25 @@ def call_claude_cli(prompt: str) -> str:
         raise BriefingGenerationError(f"Claude CLI call failed: {e}")
 
 
-def _build_news_list(news: list[dict]) -> tuple[str, list[str]]:
-    """从新闻列表构建 prompt 中的新闻文本和标题列表。"""
-    titles = []
-    lines = []
+def _build_news_list(news: list[dict]) -> tuple[str, list[dict]]:
+    """从新闻列表构建 prompt 文本和完整新闻对象列表（存入 DB）。"""
+    prompt_lines = []
+    db_news = []
     for i, n in enumerate(news[:20], 1):
         title = n.get("title", "").strip()
         source = n.get("source", "未知来源")
-        if title:
-            titles.append(title)
-            lines.append(f"{i}. [{source}] {title}")
-    return "\n".join(lines), titles
+        if not title:
+            continue
+        url = n.get("url") or ""
+        published = n.get("published") or n.get("published_at") or ""
+        prompt_lines.append(f"{i}. [{source}] {title}")
+        db_news.append({
+            "title": title,
+            "source": source,
+            "url": url,
+            "published": published,
+        })
+    return "\n".join(prompt_lines), db_news
 
 
 async def generate_briefing_from_news(news: list[dict], hour_label: str):
@@ -65,7 +73,7 @@ async def generate_briefing_from_news(news: list[dict], hour_label: str):
         logger.info("No news to generate briefing")
         return
 
-    news_list_text, news_titles = _build_news_list(news)
+    news_list_text, db_news = _build_news_list(news)
     prompt = PROMPT_TEMPLATE.format(news_count=len(news), news_list=news_list_text)
 
     try:
@@ -77,7 +85,7 @@ async def generate_briefing_from_news(news: list[dict], hour_label: str):
     await save_briefing(
         content=content,
         news_count=len(news),
-        news_titles=news_titles,
+        source_news=db_news,
         time_range=hour_label,
     )
     logger.info(f"Briefing saved: {content[:60]}...")
