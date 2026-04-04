@@ -48,6 +48,7 @@ async def init_db():
                 content TEXT NOT NULL,
                 news_count INTEGER DEFAULT 0,
                 news_titles TEXT,
+                source_news TEXT,
                 time_range TEXT,
                 generated_at TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -107,12 +108,12 @@ async def get_news_items(days: int) -> list[dict]:
         return [dict(r) for r in await rows.fetchall()]
 
 
-async def save_briefing(content: str, news_count: int, news_titles: list[str], time_range: str) -> int:
+async def save_briefing(content: str, news_count: int, source_news: list[dict], time_range: str) -> int:
     """保存一条 AI 简报到数据库，返回新记录 ID."""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO ai_briefings (content, news_count, news_titles, time_range, generated_at) VALUES (?, ?, ?, ?, ?)",
-            (content, news_count, json.dumps(news_titles, ensure_ascii=False), time_range, datetime.utcnow().isoformat()),
+            "INSERT INTO ai_briefings (content, news_count, source_news, time_range, generated_at) VALUES (?, ?, ?, ?, ?)",
+            (content, news_count, json.dumps(source_news, ensure_ascii=False), time_range, datetime.utcnow().isoformat()),
         )
         await db.commit()
         return cursor.lastrowid
@@ -123,18 +124,19 @@ async def get_recent_briefings(limit: int = 24) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT id, content, news_count, news_titles, time_range, generated_at, created_at "
+            "SELECT id, content, news_count, source_news, time_range, generated_at, created_at "
             "FROM ai_briefings ORDER BY generated_at DESC LIMIT ?",
             (limit,),
         )
         results = []
         for r in await rows.fetchall():
             d = dict(r)
-            if d.get("news_titles"):
-                try:
-                    d["news_titles"] = json.loads(d["news_titles"])
-                except (json.JSONDecodeError, ValueError):
-                    d["news_titles"] = []
+            # 兼容旧字段名 news_titles 和新字段名 source_news
+            raw = d.get("source_news") or d.get("news_titles") or "[]"
+            try:
+                d["source_news"] = json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                d["source_news"] = []
             results.append(d)
         return results
 
