@@ -1,109 +1,127 @@
 /**
- * Chart.js dual-axis chart: COMEX:GCW00 (right) + AU9999 (left).
- *
- * News markers (emoji + dashed lines) are drawn directly in afterDatasetsDraw
- * using Canvas 2D API.  The annotation plugin is used ONLY for the "当前" now-line
- * so that its label stays managed by chartjs-plugin-annotation.
- * Both share a single source of truth (chart._goldNews) — no separate annotation
- * descriptors to keep in sync.
+ * Chart.js dual-axis chart: XAU/USD (Binance, right) + AU9999 (SGE, left).
+ * Shows 5-minute K-lines for the last 72 hours.
+ * The annotation plugin draws the "当前" now-line.
  */
 
-Chart.register({
-  id: "emojiMarkers",
+/**
+ * Hover crosshair plugin:
+ * - afterEvent: track mouse X, trigger redraw
+ * - afterDatasetsDraw: draw dashed vertical line + floating label
+ */
+const _hoverPlugin = {
+  id: "goldHover",
 
-  /**
-   * afterDraw runs after every Chart.js draw cycle.  We draw both the emoji
-   * AND the dashed vertical line here so emoji + line are guaranteed to appear
-   * or disappear together — they are rendered in the same Canvas 2D pass with
-   * identical visibility filtering.
-   */
+  _mouseX: null,
+
   afterDatasetsDraw(chart) {
     const { ctx, chartArea, scales } = chart;
     if (!chartArea || !scales.x || !scales.y) return;
+    if (this._mouseX === null) return;
 
-    const news = chart._goldNews;
-    const xauData = chart._goldXauData;
-    if (!news || !news.length || !xauData || !xauData.length) return;
+    const xPx = this._mouseX;
+    if (xPx < chartArea.left || xPx > chartArea.right) return;
 
     const xScale = scales.x;
-    const yScale = scales.y;
-    const fontSize = 16;
-    const firstTs = xauData[0].x;
-    const lastTs  = xauData[xauData.length - 1].x;
+    const rawTs = xScale.getValueForPixel(xPx);
+    const ms5 = 5 * 60 * 1000; // 5-minute bar width in ms
+
+    // Find exact intersection: bar whose time is within [rawTs - ms5/2, rawTs + ms5/2]
+    const findAtX = (data) => {
+      if (!data || !data.length) return null;
+      for (const pt of data) {
+        if (Math.abs(pt.x - rawTs) <= ms5 / 2) return pt;
+      }
+      return null;
+    };
+
+    const xauPt = findAtX(chart.data.datasets[0]?.data || []);
+    const auPt  = findAtX(chart.data.datasets[1]?.data || []);
+
+    const pad = n => String(n).padStart(2, "0");
+    const fmtBJ = (ts) => {
+      const d = new Date(ts);
+      return `${pad(d.getMonth()+1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    const fmtUS = (ts) => {
+      const d = new Date(ts - 12 * 3600 * 1000);
+      return `${pad(d.getMonth()+1)}月${pad(d.getDate())}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const lines = [];
+    if (rawTs) {
+      lines.push({ t: `北京 ${fmtBJ(rawTs)}`, c: "#94a3b8" });
+      lines.push({ t: `美东 ${fmtUS(rawTs)}`, c: "#94a3b8" });
+    }
+    if (xauPt) lines.push({ t: `XAU/USD ${xauPt.y.toFixed(2)}`, c: "#22c55e" });
+    if (auPt)  lines.push({ t: `AU9999 ${auPt.y.toFixed(2)}`,  c: "#f59e0b" });
+
+    if (!lines.length) return;
 
     ctx.save();
-    ctx.font = `${fontSize}px serif`;
-    ctx.textBaseline = "bottom";
 
-    chart._emojiHits = [];
+    // Dashed vertical line
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(148,163,184,0.5)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.moveTo(xPx, chartArea.top);
+    ctx.lineTo(xPx, chartArea.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
 
-    for (let i = 0; i < news.length; i++) {
-      const item = news[i];
-      if (item.direction === "neutral") continue;
+    // Floating label box
+    const lineH = 18, pad2 = 8;
+    ctx.font = "12px Inter, sans-serif";
+    const maxW = Math.max(...lines.map(l => ctx.measureText(l.t).width));
+    const boxW = maxW + pad2 * 2;
+    const boxH = lines.length * lineH + pad2;
+    let boxX = xPx + 8;
+    if (boxX + boxW > chartArea.right - 4) boxX = xPx - boxW - 8;
+    const boxY = chartArea.top + 8;
 
-      const rawTs = item.published_ts ? item.published_ts * 1000 : null;
-      if (!rawTs || isNaN(rawTs)) continue;
+    ctx.fillStyle = "rgba(30,33,48,0.95)";
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, boxH, 4);
+    ctx.fill();
 
-      // x-bounds check
-      const xPx = xScale.getPixelForValue(rawTs);
-      if (xPx < chartArea.left || xPx > chartArea.right) continue;
+    ctx.textBaseline = "top";
+    lines.forEach((l, i) => {
+      ctx.fillStyle = l.c;
+      ctx.fillText(l.t, boxX + pad2, boxY + pad2 + i * lineH);
+    });
 
-      // ── Dashed vertical line (full chart height) ────────────────────────
-      const lineColor = item.direction === "up"
-        ? "rgba(34,197,94,0.8)"
-        : "rgba(239,68,68,0.8)";
-      ctx.save();
-      ctx.beginPath();
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.moveTo(xPx, chartArea.top);
-      ctx.lineTo(xPx, chartArea.bottom);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-
-      // ── Emoji anchored on gold price line (or chart bottom if outside) ──
-      let emojiY = chartArea.bottom;
-      let inRange = false;
-
-      if (rawTs >= firstTs && rawTs <= lastTs) {
-        let closest = xauData[0], minDiff = Infinity;
-        for (const pt of xauData) {
-          const d = Math.abs(pt.x - rawTs);
-          if (d < minDiff) { minDiff = d; closest = pt; }
-        }
-        emojiY = yScale.getPixelForValue(closest.y);
-        const clamped = Math.max(chartArea.top, Math.min(chartArea.bottom, emojiY));
-        if (clamped === emojiY) inRange = true;
+    // Intersection dots
+    if (xauPt && scales.y) {
+      const yPx = scales.y.getPixelForValue(xauPt.y);
+      if (yPx >= chartArea.top && yPx <= chartArea.bottom) {
+        ctx.fillStyle = "#22c55e";
+        ctx.beginPath(); ctx.arc(xPx, yPx, 4, 0, Math.PI * 2); ctx.fill();
       }
-      if (!inRange) emojiY = chartArea.bottom;
-
-      const emoji = item.direction === "up" ? "📈" : "📉";
-      ctx.fillText(emoji, xPx - fontSize / 2, emojiY - 2);
-
-      chart._emojiHits.push({
-        x: xPx - 15, x2: xPx + 15,
-        y: emojiY - fontSize, y2: emojiY + 2,
-        url: item.url,
-      });
+    }
+    if (auPt && scales.y2) {
+      const yPx = scales.y2.getPixelForValue(auPt.y);
+      if (yPx >= chartArea.top && yPx <= chartArea.bottom) {
+        ctx.fillStyle = "#f59e0b";
+        ctx.beginPath(); ctx.arc(xPx, yPx, 4, 0, Math.PI * 2); ctx.fill();
+      }
     }
 
     ctx.restore();
   },
 
   afterEvent(chart, args) {
-    if (args.event.type !== "click") return;
-    if (!chart._emojiHits || !chart._emojiHits.length) return;
-    const { x, y } = args.event;
-    for (const hit of chart._emojiHits) {
-      if (x >= hit.x && x <= hit.x2 && y >= hit.y && y <= hit.y2) {
-        window.open(hit.url, "_blank", "noopener");
-        return;
-      }
+    if (args.event.type === "mousemove") {
+      this._mouseX = args.inChartArea ? args.event.x : null;
+      chart.draw(false); // no animation
+    } else if (args.event.type === "mouseout" || args.event.type === "mouseleave") {
+      this._mouseX = null;
+      chart.draw(false);
     }
   },
-});
+};
+
+Chart.register(_hoverPlugin);
 
 class GoldChart {
   constructor() {
@@ -111,31 +129,21 @@ class GoldChart {
     this.loading = false;
     this.currentDays = 1;
     this.news = [];
-    this._xauData = [];
   }
 
   setNews(news) {
     this.news = news || [];
     if (this.chart) {
-      this.chart._goldNews = this.news;
-      // Trigger the emoji plugin's afterDatasetsDraw in the next animation frame
       this.chart.update("none");
     }
   }
 
-  /** Fire fetch for all 3 windows in parallel (backend caches each for 5 min). */
+  /** Fire fetch for both symbols in parallel (backend caches each for 5 min). */
   warmup() {
-    [1, 5, 30].forEach(days => {
-      fetch(`/api/history/XAUUSD?days=${days}`).catch(() => {});
-      fetch(`/api/history/AU9999?days=${days}`).catch(() => {});
-    });
+    fetch(`/api/history/XAUUSD`).catch(() => {});
+    fetch(`/api/history/AU9999`).catch(() => {});
   }
 
-  /**
-   * Refresh only the "当前" now-line via chartjs-plugin-annotation.
-   * News emoji + dashed lines are drawn by the emojiMarkers plugin independently —
-   * no need to update annotation descriptors when news changes.
-   */
   _updateNowLine() {
     if (!this.chart) return;
     this.chart.options.plugins.annotation = {
@@ -162,10 +170,9 @@ class GoldChart {
     this.chart.update("none");
   }
 
-  async load(days) {
+  async load() {
     if (this.loading) return;
     this.loading = true;
-    this.currentDays = days;
 
     const canvas = document.getElementById("priceChart");
     if (!canvas) { console.error("canvas not found"); return; }
@@ -175,8 +182,8 @@ class GoldChart {
 
     try {
       const [xauRes, auRes] = await Promise.all([
-        fetch(`/api/history/XAUUSD?days=${days}`),
-        fetch(`/api/history/AU9999?days=${days}`),
+        fetch(`/api/history/XAUUSD`),
+        fetch(`/api/history/AU9999`),
       ]);
 
       const [xauData, auData] = await Promise.all([
@@ -197,6 +204,7 @@ class GoldChart {
         : [];
 
       this._xauData = xauPts;
+      this._auData = auPts;
 
       if (xauPts.length === 0 && auPts.length === 0) {
         if (loader) { loader.textContent = "暂无数据"; }
@@ -236,12 +244,13 @@ class GoldChart {
         });
       }
 
-      const unit = days <= 1 ? "minute" : days <= 5 ? "hour" : "day";
+      const unit = "minute";
 
       if (this.chart) this.chart.destroy();
 
-      const xMin = xauResp ? toBeijingDate(xauResp.xMin) : new Date(Date.now() - days * 86400 * 1000);
-      const xMax = new Date();
+      const now = new Date();
+      const xMax = now;
+      const xMin = new Date(now.getTime() - 72 * 60 * 60 * 1000);
 
       this.chart = new Chart(canvas, {
         type: "line",
@@ -253,28 +262,7 @@ class GoldChart {
           interaction: { mode: "index", intersect: false },
           plugins: {
             legend: { display: false },
-            tooltip: {
-              backgroundColor: "#1e2130",
-              titleColor: "#8a8fad",
-              bodyColor: "#ddd",
-              borderColor: "#2a2d3a",
-              borderWidth: 1,
-              padding: 10,
-              callbacks: {
-                title(items) {
-                  if (!items.length) return "";
-                  const d = items[0].parsed.x;
-                  const pad = n => String(n).padStart(2, "0");
-                  const toBJ = new Date(d);
-                  const toUS = new Date(d - 12 * 3600 * 1000);
-                  const bjStr = `${toBJ.getFullYear()}年${toBJ.getMonth()+1}月${toBJ.getDate()}日 ${pad(toBJ.getHours())}:${pad(toBJ.getMinutes())}`;
-                  const usStr = `${toUS.getMonth()+1}月${toUS.getDate()}日 ${pad(toUS.getHours())}:${pad(toUS.getMinutes())}`;
-                  return `${bjStr} 北京 | ${usStr} 美东`;
-                },
-              },
-            },
-            // Only the "当前" now-line uses chartjs-plugin-annotation.
-            // News emoji + dashed lines are drawn directly in the emojiMarkers plugin.
+            tooltip: { enabled: false },
             annotation: {
               annotations: {
                 nowLine: {
@@ -334,11 +322,7 @@ class GoldChart {
         },
       });
 
-      // Feed data refs to the emoji plugin
-      this.chart._goldNews  = this.news;
-      this.chart._goldXauData = xauPts;
-
-      // Draw "当前" now-line via annotation plugin; emoji/lines drawn by afterDatasetsDraw
+      // Draw "当前" now-line via annotation plugin
       this._updateNowLine();
 
     } catch (e) {

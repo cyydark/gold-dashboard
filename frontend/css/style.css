@@ -168,49 +168,112 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* AI 简报 */
-.briefing-section {
+/* ===== AI 简报 + 来源新闻 双栏 ===== */
+.briefing-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 768px) {
+  .briefing-wrapper { grid-template-columns: 1fr; }
+}
+
+.briefing-section,
+.source-news-section {
   background: #1a1d27;
   border: 1px solid #2a2d37;
   border-radius: 12px;
   padding: 16px;
-  margin-bottom: 16px;
+  min-height: 200px;
 }
+
 .briefing-header {
   display: flex;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  gap: 8px;
 }
 .briefing-title {
-  font-size: 1em;
+  font-size: 0.85em;
   font-weight: 600;
   color: #f0c040;
 }
-.briefing-list {
-  max-height: 400px;
-  overflow-y: auto;
+.briefing-period {
+  font-size: 0.72em;
+  color: #666;
 }
-.briefing-item {
-  border-bottom: 1px solid #2a2d37;
-  padding: 10px 0;
-}
-.briefing-item:last-child {
-  border-bottom: none;
-}
-.briefing-time {
-  font-size: 0.75em;
-  color: #888;
-  margin-bottom: 4px;
-}
-.briefing-content {
-  font-size: 0.9em;
-  color: #d0d0d0;
+
+/* 上一日整体 */
+.briefing-daily {
+  font-size: 0.88em;
+  color: #c8c8c8;
   line-height: 1.6;
   white-space: pre-wrap;
+  border-bottom: 1px solid #2a2d37;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
 }
-.briefing-loading,
-.briefing-empty {
-  color: #666;
+
+/* 近12小时逐时列表 */
+.hourly-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.hourly-item {
+  display: flex;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid #1e2130;
+  align-items: flex-start;
+}
+.hourly-item:last-child { border-bottom: none; }
+.hourly-time {
+  font-size: 0.72em;
+  color: #f0c040;
+  min-width: 46px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.hourly-text {
+  font-size: 0.82em;
+  color: #b0b0b8;
+  line-height: 1.5;
+  flex: 1;
+}
+
+/* 来源新闻 */
+.briefing-news-list {
+  max-height: 460px;
+  overflow-y: auto;
+}
+.source-news-item {
+  border-bottom: 1px solid #1e2130;
+  padding: 7px 0;
+}
+.source-news-item:last-child { border-bottom: none; }
+.source-news-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7em;
+  color: #888;
+  margin-bottom: 2px;
+}
+.source-news-source { color: #f0c040; }
+.source-news-title {
+  font-size: 0.82em;
+  color: #b0b0b8;
+  line-height: 1.4;
+  text-decoration: none;
+  display: block;
+}
+.source-news-title:hover { color: #fff; text-decoration: underline; }
+
+/* 空/加载状态 */
+.briefing-loading, .briefing-empty {
+  color: #555;
   text-align: center;
-  padding: 20px;
+  padding: 16px 0;
+  font-size: 0.82em;
 }

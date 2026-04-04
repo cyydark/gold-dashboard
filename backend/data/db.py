@@ -38,7 +38,8 @@ async def init_db():
                 direction TEXT DEFAULT 'neutral',
                 time_ago TEXT,
                 published_at TEXT NOT NULL,
-                fetched_at TEXT NOT NULL
+                fetched_at TEXT NOT NULL,
+                hour_range TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_news_published ON news_items(published_at);
@@ -47,8 +48,6 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 content TEXT NOT NULL,
                 news_count INTEGER DEFAULT 0,
-                news_titles TEXT,
-                source_news TEXT,
                 time_range TEXT,
                 generated_at TEXT NOT NULL,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -108,12 +107,12 @@ async def get_news_items(days: int) -> list[dict]:
         return [dict(r) for r in await rows.fetchall()]
 
 
-async def save_briefing(content: str, news_count: int, source_news: list[dict], time_range: str) -> int:
+async def save_briefing(content: str, news_count: int, time_range: str) -> int:
     """保存一条 AI 简报到数据库，返回新记录 ID."""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO ai_briefings (content, news_count, source_news, time_range, generated_at) VALUES (?, ?, ?, ?, ?)",
-            (content, news_count, json.dumps(source_news, ensure_ascii=False), time_range, datetime.utcnow().isoformat()),
+            "INSERT INTO ai_briefings (content, news_count, time_range, generated_at) VALUES (?, ?, ?, ?)",
+            (content, news_count, time_range, datetime.utcnow().isoformat()),
         )
         await db.commit()
         return cursor.lastrowid
@@ -124,19 +123,42 @@ async def get_recent_briefings(limit: int = 24) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT id, content, news_count, source_news, time_range, generated_at, created_at "
+            "SELECT id, content, news_count, time_range, generated_at, created_at "
             "FROM ai_briefings ORDER BY generated_at DESC LIMIT ?",
             (limit,),
         )
-        results = []
-        for r in await rows.fetchall():
-            d = dict(r)
-            # 兼容旧字段名 news_titles 和新字段名 source_news
-            raw = d.get("source_news") or d.get("news_titles") or "[]"
-            try:
-                d["source_news"] = json.loads(raw)
-            except (json.JSONDecodeError, ValueError):
-                d["source_news"] = []
-            results.append(d)
-        return results
+        return [dict(r) for r in await rows.fetchall()]
+
+
+async def get_news_by_date_range(start_iso: str, end_iso: str, limit: int = 200) -> list[dict]:
+    """获取指定日期范围内的新闻（按 published_at 过滤）。"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        rows = await db.execute(
+            "SELECT id, title, title_en, source, url, direction, time_ago, published_at, fetched_at "
+            "FROM news_items "
+            "WHERE published_at >= ? AND published_at < ? "
+            "ORDER BY published_at ASC LIMIT ?",
+            (start_iso, end_iso, limit),
+        )
+        return [dict(r) for r in await rows.fetchall()]
+
+
+async def get_recent_news(hour_range: str | None = None, limit: int = 20) -> list[dict]:
+    """获取新闻，hour_range 非空则只返回该时段的新闻。"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if hour_range:
+            rows = await db.execute(
+                "SELECT id, title, title_en, source, url, direction, time_ago, published_at, fetched_at "
+                "FROM news_items WHERE hour_range = ? ORDER BY published_at DESC LIMIT ?",
+                (hour_range, limit),
+            )
+        else:
+            rows = await db.execute(
+                "SELECT id, title, title_en, source, url, direction, time_ago, published_at, fetched_at "
+                "FROM news_items ORDER BY fetched_at DESC LIMIT ?",
+                (limit,),
+            )
+        return [dict(r) for r in await rows.fetchall()]
 

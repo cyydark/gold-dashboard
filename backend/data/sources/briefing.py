@@ -2,8 +2,10 @@
 import logging
 import os
 import subprocess
+import threading
 
 from backend.data.db import save_briefing
+from backend.data.sources.international import _sync_save_news
 
 logger = logging.getLogger(__name__)
 
@@ -13,16 +15,25 @@ class BriefingGenerationError(Exception):
 
     pass
 
-PROMPT_TEMPLATE = """你是一位专业、客观的黄金市场分析师。请根据以下 {news_count} 条新闻，撰写一份简洁、有深度的金市每日简报。
+PROMPT_TEMPLATE = """你是一位专业、客观的黄金市场分析师。以下是近1小时内与金市相关的新闻。
 
 要求：
-- 结构清晰，分为"市场概况"、"影响因素"、"短期展望"三个部分
-- 篇幅控制在 300-500 字左右
-- 语言简洁专业，适合投资者快速阅读
-- 若有重大利多/利空因素，需明确指出
-- 无需客套话，直接开始分析
+- 将该小时所有新闻汇总为一条判断，格式：「↑利多/↓利空/—中性」+ 一句话原因
+- 篇幅不超过40字，直接输出，无需标题和分节
 
-以下是新闻列表：
+新闻列表：
+{news_list}
+"""
+
+DAILY_PROMPT_TEMPLATE = """你是一位专业、客观的黄金市场分析师。以下是北京时间昨日全天的黄金市场相关新闻。
+
+要求：
+- 将全天所有新闻汇总为不超过5句话的极简摘要
+- 每句话标注方向：「↑利多」「↓利空」「—中性」
+- 用一句话总结昨日金价整体走势及主要驱动因素
+- 直接输出，无需标题和分节
+
+新闻列表：
 {news_list}
 """
 
@@ -46,34 +57,25 @@ def call_claude_cli(prompt: str) -> str:
         raise BriefingGenerationError(f"Claude CLI call failed: {e}")
 
 
-def _build_news_list(news: list[dict]) -> tuple[str, list[dict]]:
-    """从新闻列表构建 prompt 文本和完整新闻对象列表（存入 DB）。"""
-    prompt_lines = []
-    db_news = []
+def _build_news_list(news: list[dict]) -> str:
+    """从新闻列表构建 prompt 文本。"""
+    lines = []
     for i, n in enumerate(news[:20], 1):
         title = n.get("title", "").strip()
         source = n.get("source", "未知来源")
         if not title:
             continue
-        url = n.get("url") or ""
-        published = n.get("published") or n.get("published_at") or ""
-        prompt_lines.append(f"{i}. [{source}] {title}")
-        db_news.append({
-            "title": title,
-            "source": source,
-            "url": url,
-            "published": published,
-        })
-    return "\n".join(prompt_lines), db_news
+        lines.append(f"{i}. [{source}] {title}")
+    return "\n".join(lines)
 
 
-async def generate_briefing_from_news(news: list[dict], hour_label: str):
-    """用 news 生成简报并写入数据库。"""
+async def generate_briefing_from_news(news: list[dict], hour_range: str):
+    """用 news 生成简报并写入数据库，同时保存该时段的新闻。"""
     if not news:
         logger.info("No news to generate briefing")
         return
 
-    news_list_text, db_news = _build_news_list(news)
+    news_list_text = _build_news_list(news)
     prompt = PROMPT_TEMPLATE.format(news_count=len(news), news_list=news_list_text)
 
     try:
@@ -82,10 +84,37 @@ async def generate_briefing_from_news(news: list[dict], hour_label: str):
         logger.warning("Briefing generation failed, skipping save")
         return
 
+    # 保存新闻时标记时段
+    threading.Thread(target=_sync_save_news, args=(news, hour_range), daemon=True).start()
+
     await save_briefing(
         content=content,
         news_count=len(news),
-        source_news=db_news,
-        time_range=hour_label,
+        time_range=hour_range,
     )
     logger.info(f"Briefing saved: {content[:60]}...")
+
+
+async def generate_daily_briefing_from_news(news: list[dict], date_str: str):
+    """用昨日全天新闻生成每日简报并写入数据库（不重复保存新闻）。"""
+    if not news:
+        logger.info("No news to generate daily briefing")
+        return
+
+    news_list_text = _build_news_list(news)
+    prompt = DAILY_PROMPT_TEMPLATE.format(news_count=len(news), news_list=news_list_text)
+
+    try:
+        content = call_claude_cli(prompt)
+    except BriefingGenerationError:
+        logger.warning("Daily briefing generation failed, skipping save")
+        return
+
+    time_range = f"{date_str} 日报"
+    await save_briefing(
+        content=content,
+        news_count=len(news),
+        time_range=time_range,
+    )
+    logger.info(f"Daily briefing saved for {date_str}: {content[:60]}...")
+

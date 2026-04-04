@@ -115,7 +115,20 @@ async def get_news(days: int = 1):
 
 @router.get("/briefings")
 async def get_briefings(limit: int = 24):
-    """返回最近 limit 条 AI 简报，按时间倒序。"""
-    from backend.data.db import get_recent_briefings
+    """返回最近简报 + 对应时段的新闻（无匹配时降级返回最近新闻）。"""
+    from backend.data.db import get_recent_briefings, get_recent_news
     briefings = await get_recent_briefings(limit)
-    return {"briefings": briefings}
+    latest_hour = briefings[0]["time_range"] if briefings else None
+    news = await get_recent_news(hour_range=latest_hour, limit=20)
+    # hour_range 格式可能与存储的 news.hour_range 不完全匹配，降级取最近新闻
+    if not news and latest_hour:
+        news = await get_recent_news(limit=20)
+    return {"briefings": briefings, "news": news}
+
+
+@router.post("/briefings/trigger")
+async def trigger_briefing():
+    """手动触发简报生成（调用自动逻辑）。"""
+    from backend.alerts.checker import _generate_briefing_scheduled
+    await _generate_briefing_scheduled()
+    return {"status": "done"}
