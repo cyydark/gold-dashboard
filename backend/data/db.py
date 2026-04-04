@@ -1,5 +1,6 @@
 """SQLite database setup and operations — news + alert rules only."""
 import aiosqlite
+import json
 import os
 from datetime import datetime, timedelta
 
@@ -41,6 +42,16 @@ async def init_db():
             );
 
             CREATE INDEX IF NOT EXISTS idx_news_published ON news_items(published_at);
+
+            CREATE TABLE IF NOT EXISTS ai_briefings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL,
+                news_count INTEGER DEFAULT 0,
+                news_titles TEXT,
+                time_range TEXT,
+                generated_at TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         await db.commit()
 
@@ -94,4 +105,36 @@ async def get_news_items(days: int) -> list[dict]:
             (cutoff,),
         )
         return [dict(r) for r in await rows.fetchall()]
+
+
+async def save_briefing(content: str, news_count: int, news_titles: list[str], time_range: str) -> int:
+    """保存一条 AI 简报到数据库，返回新记录 ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO ai_briefings (content, news_count, news_titles, time_range, generated_at) VALUES (?, ?, ?, ?, ?)",
+            (content, news_count, json.dumps(news_titles, ensure_ascii=False), time_range, datetime.utcnow().isoformat()),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_recent_briefings(limit: int = 24) -> list[dict]:
+    """获取最近 limit 条简报，按时间倒序（最新在前）."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        rows = await db.execute(
+            "SELECT id, content, news_count, news_titles, time_range, generated_at, created_at "
+            "FROM ai_briefings ORDER BY generated_at DESC LIMIT ?",
+            (limit,),
+        )
+        results = []
+        for r in await rows.fetchall():
+            d = dict(r)
+            if d.get("news_titles"):
+                try:
+                    d["news_titles"] = json.loads(d["news_titles"])
+                except Exception:
+                    d["news_titles"] = []
+            results.append(d)
+        return results
 
