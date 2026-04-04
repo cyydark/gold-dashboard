@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -25,8 +26,27 @@ async def lifespan(app: FastAPI):
     await init_db()
     asyncio.create_task(_news_refresh_loop())
     asyncio.create_task(_price_bars_fetch_loop())
+    asyncio.create_task(_briefing_loop())
     logger.info("Gold Dashboard started")
     yield
+
+
+async def _briefing_loop():
+    """每小时01分触发AI简报生成（分析上一小时新闻）。"""
+    from datetime import datetime, timedelta
+    from backend.alerts.checker import _generate_briefing_scheduled
+    while True:
+        now = datetime.now()
+        next_hour = now.replace(minute=1, second=0, microsecond=0)
+        if now.minute >= 1:
+            next_hour = next_hour + timedelta(hours=1)
+        wait = (next_hour - now).total_seconds()
+        await asyncio.sleep(max(wait, 0))
+        try:
+            await _generate_briefing_scheduled()
+        except Exception as e:
+            logger.warning(f"Briefing loop error: {e}")
+        await asyncio.sleep(3600)
 
 
 async def _news_refresh_loop():
@@ -45,7 +65,8 @@ async def _news_refresh_loop():
 async def _price_bars_fetch_loop():
     """Background loop: fetch current price every 1 minute and store as 1m bar with full OHLC."""
     from backend.data.db import save_price_bar, save_usdcny
-    from backend.data.sources.international import fetch_xauusd, fetch_usdcny
+    from backend.data.sources.binance import fetch_xauusd
+    from backend.data.sources.erapi import fetch_usdcny
     from backend.data.sources.domestic import fetch_au9999
 
     while True:

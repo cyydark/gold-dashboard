@@ -2,9 +2,10 @@
 import aiosqlite
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "alerts.db")
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 
 async def init_db():
@@ -136,7 +137,6 @@ async def get_news_by_date_range(start_iso: str, end_iso: str, limit: int = 200)
 
 async def get_news_last_hours(hours: int = 1, limit: int = 20) -> list[dict]:
     """Fetch news published within the last N hours (Beijing time)."""
-    from backend.data.sources.international import BEIJING_TZ
     now = datetime.now(BEIJING_TZ)
     cutoff = (now - timedelta(hours=hours)).isoformat()
     async with aiosqlite.connect(DB_PATH) as db:

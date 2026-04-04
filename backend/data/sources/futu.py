@@ -49,28 +49,6 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
         logger.warning(f"Failed to save news to DB: {e}")
 
 
-def _gold_direction(text: str) -> str:
-    """Return 'up' | 'down' | 'neutral' based on Chinese/English keywords."""
-    up_kw = [
-        "上涨", "攀升", "飙升", "大涨", "创新高", "避险", "冲突", "战争",
-        "美以", "空袭", "导弹", "制裁", "降息", "黄金需求",
-        "surge", "rises", "rally", "spike", "soar",
-    ]
-    dn_kw = [
-        "下跌", "回落", "大跌", "暴跌", "回调", "获利了结", "美元走强",
-        "升值", "抛售",
-        "drop", "fell", "plunge", "tumble",
-    ]
-    t = text.lower()
-    up = any(k in t for k in up_kw)
-    dn = any(k in t for k in dn_kw)
-    if up and not dn:
-        return "up"
-    if dn and not up:
-        return "down"
-    return "neutral"
-
-
 def fetch_futu_news(page_size: int = 50) -> list[dict]:
     """Fetch news from Futu API, returns normalized news items."""
     global _cache, _cache_ts
@@ -122,7 +100,7 @@ def fetch_futu_news(page_size: int = 50) -> list[dict]:
             "url": detail_url,
             "published": pub_date,
             "time_ago": pub_date,
-            "direction": _gold_direction(full_text),
+            "direction": "neutral",
         })
 
     _cache = items

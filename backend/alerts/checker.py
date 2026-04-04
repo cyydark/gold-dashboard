@@ -18,8 +18,11 @@ async def _generate_briefing_scheduled():
             return
 
         now = datetime.now(BEIJING_TZ)
-        recent_window = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
-        hour_label = f"{recent_window.strftime('%H:%M')}~{now.strftime('%H:%M')}"
+        # 分析上一整小时：HH:00 ~ HH:59
+        this_hour_start = now.replace(minute=0, second=0, microsecond=0)
+        last_hour_start = this_hour_start - timedelta(hours=1)
+        last_hour_end = this_hour_start - timedelta(minutes=1)
+        hour_label = f"{last_hour_start.strftime('%H:%M')}~{last_hour_end.strftime('%H:%M')}"
 
         recent_news = []
         for n in all_news:
@@ -39,7 +42,7 @@ async def _generate_briefing_scheduled():
                         pass
                 if pub_dt is None:
                     continue
-                if pub_dt >= recent_window:
+                if pub_dt >= last_hour_start and pub_dt < this_hour_start:
                     recent_news.append(n)
             except Exception:
                 continue

@@ -4,7 +4,6 @@ from datetime import timedelta
 
 from dotenv import load_dotenv
 from fastapi import APIRouter
-from backend.data.sources.international import fetch_usdcny
 from backend.data.db import get_price_bars, get_latest_price_bar
 
 load_dotenv()
@@ -97,7 +96,7 @@ async def get_history(symbol: str, days: int = 1):
 async def get_news(days: int = 1):
     """Serve news from DB (filtered by days)."""
     from backend.data.db import get_news_items
-    from backend.data.sources.international import BEIJING_TZ
+    from backend.data.sources.futu import BEIJING_TZ
     from datetime import datetime
 
     db_news = await get_news_items(days)
@@ -120,10 +119,9 @@ async def get_news(days: int = 1):
 @router.post("/news/refresh")
 async def refresh_news():
     """手动抓取新闻并入库。"""
-    import asyncio
-    from backend.data.sources.international import fetch_news, _sync_save_news
+    from backend.data.sources.futu import fetch_futu_news, _sync_save_news
     loop = asyncio.get_event_loop()
-    news = await loop.run_in_executor(None, fetch_news)
+    news = await loop.run_in_executor(None, fetch_futu_news)
     if news:
         await asyncio.to_thread(_sync_save_news, news, "")
     return {"count": len(news), "message": f"抓取到 {len(news)} 条新闻已入库"}
@@ -133,7 +131,7 @@ async def refresh_news():
 async def get_briefings(limit: int = 24):
     """返回日报 + 近12小时简报 + 近1小时新闻。"""
     from backend.data.db import get_hourly_briefings, get_daily_briefing, get_news_last_hours
-    from backend.data.sources.international import BEIJING_TZ
+    from backend.data.sources.futu import BEIJING_TZ
     from datetime import datetime
     hourly = await get_hourly_briefings(limit)
     daily = await get_daily_briefing()

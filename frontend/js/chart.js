@@ -266,6 +266,18 @@ class GoldChart {
       const xMax = now;
       const xMin = new Date(now.getTime() - 72 * 60 * 60 * 1000);
 
+      // Dynamic Y range: compute min/max from data, add 5% padding (grace)
+      const _yRange = (pts) => {
+        if (!pts || pts.length === 0) return null;
+        const vals = pts.map(p => p.y);
+        const dataMin = Math.min(...vals);
+        const dataMax = Math.max(...vals);
+        const pad = (dataMax - dataMin) * 0.05 || dataMax * 0.01;
+        return { min: dataMin - pad, max: dataMax + pad };
+      };
+      const yau  = _yRange(xauPts);
+      const yau2 = _yRange(auPts);
+
       this.chart = new Chart(canvas, {
         type: "line",
         data: { datasets },
@@ -324,6 +336,9 @@ class GoldChart {
               ticks: { color: "#22c55e", callback: v => v.toFixed(1) },
               grid: { color: "#2a2d3a" },
               border: { color: "#2a2d3a" },
+              suggestedMin: yau?.min,
+              suggestedMax: yau?.max,
+              grace: "5%",
             },
             y2: {
               position: "left",
@@ -331,6 +346,9 @@ class GoldChart {
               ticks: { color: "#f59e0b", callback: v => v.toFixed(1) },
               grid: { drawOnChartArea: false },
               border: { color: "#2a2d3a" },
+              suggestedMin: yau2?.min,
+              suggestedMax: yau2?.max,
+              grace: "5%",
             },
           },
         },

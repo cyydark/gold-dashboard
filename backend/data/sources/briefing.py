@@ -5,7 +5,7 @@ import subprocess
 import threading
 
 from backend.data.db import save_hourly_briefing, save_daily_briefing
-from backend.data.sources.international import _sync_save_news
+from backend.data.sources.futu import _sync_save_news
 
 logger = logging.getLogger(__name__)
 
