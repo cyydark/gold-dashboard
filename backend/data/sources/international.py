@@ -4,7 +4,7 @@ XAU/USD: Binance XAUT/USDT (24/7)
 USD/CNY: er-api
 
 Historical K线: Binance klines
-News: RSS feeds via RSSHub (configured in sources.yaml)
+News: 富途牛牛直接API (backend/data/sources/futu.py)
 """
 import os
 import re
@@ -283,6 +283,14 @@ def fetch_news() -> list[dict]:
                 })
         except Exception as e:
             logger.warning(f"RSS fetch error for {src_name}: {e}")
+
+    # Futu direct API
+    try:
+        from backend.data.sources.futu import fetch_futu_news
+        futu_news = fetch_futu_news()
+        all_news.extend(futu_news)
+    except Exception as e:
+        logger.warning(f"Futu news fetch error: {e}")
 
                 # Sort newest first — entries already reverse-chronological from RSS; skip sort
     _news_cache = all_news
