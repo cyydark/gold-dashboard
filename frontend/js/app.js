@@ -48,23 +48,14 @@ window.onPriceUpdate = function (data) {
   }
 };
 
-function initControls() {
-  document.querySelectorAll(".range-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.classList.contains("active")) return;
-      document.querySelectorAll(".range-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentDays = parseInt(btn.dataset.days);
-      if (chart) chart.load(currentDays);
-      loadNews(currentDays);
-    });
-  });
-}
-
-/**
- * Compute "X分钟前" / "X小时前" / "X天前" from a UTC Unix timestamp (seconds).
- * Computed live — never stale.
- */
+window.addEventListener("DOMContentLoaded", async () => {
+  chart = new GoldChart();
+  loadBriefings();
+  await chart.load();
+  chart.warmup();
+  loadNews(1);
+  setInterval(() => loadNews(1), 5 * 60 * 1000);
+});
 function _timeAgo(tsSec) {
   if (!tsSec) return "未知";
   const diffMs = Date.now() - tsSec * 1000;
@@ -161,12 +152,8 @@ function escapeHtml(s) {
 window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
   loadBriefings();
-  initControls();
-  document.getElementById("refresh-briefing-btn")?.addEventListener("click", loadBriefings);
-  await chart.load(currentDays);
-  // Warm up all 3 windows in background (backend caches each for 5 min)
+  await chart.load();
   chart.warmup();
-  loadNews(currentDays);
-  // Refresh news every 5 minutes
-  setInterval(() => loadNews(currentDays), 5 * 60 * 1000);
+  loadNews(1);
+  setInterval(() => loadNews(1), 5 * 60 * 1000);
 });
