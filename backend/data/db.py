@@ -1,6 +1,5 @@
-"""SQLite database setup and operations — news + alert rules only."""
+"""SQLite database setup and operations — news + alert rules + briefings."""
 import aiosqlite
-import json
 import os
 from datetime import datetime, timedelta
 
@@ -56,6 +55,19 @@ async def init_db():
         await db.commit()
 
 
+async def get_news_items(days: int) -> list[dict]:
+    """Fetch news items from DB within the last `days`, newest first by fetch time."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        rows = await db.execute(
+            "SELECT title, title_en, source, url, direction, time_ago, published_at, fetched_at "
+            "FROM news_items WHERE published_at >= ? ORDER BY fetched_at DESC",
+            (cutoff,),
+        )
+        return [dict(r) for r in await rows.fetchall()]
+
+
 async def get_all_rules() -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -94,19 +106,6 @@ async def log_alert(symbol: str, price: float, direction: str):
         await db.commit()
 
 
-async def get_news_items(days: int) -> list[dict]:
-    """Fetch news items from DB within the last `days`, newest first by fetch time."""
-    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        rows = await db.execute(
-            "SELECT title, title_en, source, url, direction, time_ago, published_at, fetched_at "
-            "FROM news_items WHERE published_at >= ? ORDER BY fetched_at DESC",
-            (cutoff,),
-        )
-        return [dict(r) for r in await rows.fetchall()]
-
-
 async def save_briefing(content: str, news_count: int, time_range: str) -> int:
     """保存一条 AI 简报到数据库，返回新记录 ID."""
     async with aiosqlite.connect(DB_PATH) as db:
@@ -131,7 +130,7 @@ async def get_recent_briefings(limit: int = 24) -> list[dict]:
 
 
 async def get_news_by_date_range(start_iso: str, end_iso: str, limit: int = 200) -> list[dict]:
-    """获取指定日期范围内的新闻（按 published_at 过滤）。"""
+    """Fetch news items from DB within a date range."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
@@ -145,7 +144,7 @@ async def get_news_by_date_range(start_iso: str, end_iso: str, limit: int = 200)
 
 
 async def get_recent_news(hour_range: str | None = None, limit: int = 20) -> list[dict]:
-    """获取新闻，hour_range 非空则只返回该时段的新闻。"""
+    """Fetch recent news, optionally filtered by hour_range."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         if hour_range:
@@ -161,4 +160,3 @@ async def get_recent_news(hour_range: str | None = None, limit: int = 20) -> lis
                 (limit,),
             )
         return [dict(r) for r in await rows.fetchall()]
-

@@ -117,4 +117,3 @@ async def generate_daily_briefing_from_news(news: list[dict], date_str: str):
         time_range=time_range,
     )
     logger.info(f"Daily briefing saved for {date_str}: {content[:60]}...")
-
