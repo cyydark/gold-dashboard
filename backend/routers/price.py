@@ -13,28 +13,26 @@ router = APIRouter(prefix="/api", tags=["price"])
 
 @router.get("/prices")
 async def get_prices():
-    """Fetch current prices from database."""
-    from backend.data.db import get_latest_price_bar, get_latest_usdcny
+    """Fetch current prices from latest price_bars rows."""
+    from backend.data.db import get_latest_price_bar
     from datetime import datetime, timezone, timedelta
 
     BEIJING_TZ = timezone(timedelta(hours=8))
 
     xau_bar = await get_latest_price_bar("XAUUSD")
     au_bar = await get_latest_price_bar("AU9999")
-    fx_bar = await get_latest_usdcny()
+    fx_bar = await get_latest_price_bar("USDCNY")
 
     result = {}
 
     if xau_bar:
-        price = round(xau_bar["close"], 2)
-        open_px = round(xau_bar["open"], 2)
         result["XAUUSD"] = {
             "symbol": "XAUUSD",
             "name": "国际黄金 XAU/USD",
-            "price": price,
-            "change": round(price - open_px, 2),
-            "pct": round((price - open_px) / open_px * 100, 2) if open_px else 0,
-            "open": open_px,
+            "price": round(xau_bar["close"], 2),
+            "change": round(xau_bar.get("change", 0), 2),
+            "pct": round(xau_bar.get("pct", 0), 2),
+            "open": round(xau_bar["open"], 2),
             "high": round(xau_bar["high"], 2),
             "low": round(xau_bar["low"], 2),
             "unit": "USD/oz",
@@ -42,15 +40,13 @@ async def get_prices():
         }
 
     if au_bar:
-        price = round(au_bar["close"], 2)
-        open_px = round(au_bar["open"], 2)
         result["AU9999"] = {
             "symbol": "AU9999",
             "name": "国内黄金 AU9999",
-            "price": price,
-            "change": round(price - open_px, 2),
-            "pct": round((price - open_px) / open_px * 100, 2) if open_px else 0,
-            "open": open_px,
+            "price": round(au_bar["close"], 2),
+            "change": round(au_bar.get("change", 0), 2),
+            "pct": round(au_bar.get("pct", 0), 2),
+            "open": round(au_bar["open"], 2),
             "high": round(au_bar["high"], 2),
             "low": round(au_bar["low"], 2),
             "unit": "CNY/g",
@@ -61,7 +57,12 @@ async def get_prices():
         result["USDCNY"] = {
             "symbol": "USDCNY",
             "name": "人民币兑美元 CNY/USD",
-            "price": round(fx_bar["price"], 4),
+            "price": round(fx_bar["close"], 4),
+            "change": round(fx_bar.get("change", 0), 4),
+            "pct": round(fx_bar.get("pct", 0), 4),
+            "open": round(fx_bar["open"], 4),
+            "high": round(fx_bar["high"], 4),
+            "low": round(fx_bar["low"], 4),
             "unit": "CNY/USD",
             "updated_at": datetime.fromtimestamp(fx_bar["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
         }

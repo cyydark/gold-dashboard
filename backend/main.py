@@ -63,10 +63,10 @@ async def _news_refresh_loop():
 
 
 async def _price_bars_fetch_loop():
-    """Background loop: fetch current price every 1 minute and store as 1m bar with full OHLC."""
+    """Background loop: fetch current price every 1 minute and store bar + latest snapshot."""
     from backend.data.db import save_price_bar, save_usdcny
-    from backend.data.sources.binance import fetch_xauusd
-    from backend.data.sources.erapi import fetch_usdcny
+    from backend.data.sources.eastmoney_gold import fetch_xauusd
+    from backend.data.sources.eastmoney_fx import fetch_usdcny
     from backend.data.sources.domestic import fetch_au9999
 
     while True:
@@ -81,6 +81,8 @@ async def _price_bars_fetch_loop():
                     high=xau["high"],
                     low=xau["low"],
                     close=xau["price"],
+                    change=xau.get("change", 0),
+                    pct=xau.get("pct", 0),
                 )
                 logger.info(f"Stored XAUUSD bar at {bar_ts}")
         except Exception as e:
@@ -96,6 +98,8 @@ async def _price_bars_fetch_loop():
                     high=au["high"],
                     low=au["low"],
                     close=au["price"],
+                    change=au.get("change", 0),
+                    pct=au.get("pct", 0),
                 )
                 logger.info(f"Stored AU9999 bar at {bar_ts}")
         except Exception as e:
@@ -104,7 +108,15 @@ async def _price_bars_fetch_loop():
         try:
             fx = await asyncio.to_thread(fetch_usdcny)
             if fx:
-                await save_usdcny(price=fx["price"], ts=bar_ts)
+                await save_usdcny(
+                    price=fx["price"],
+                    open_px=fx["open"],
+                    high=fx["high"],
+                    low=fx["low"],
+                    change=fx.get("change", 0),
+                    pct=fx.get("pct", 0),
+                    ts=bar_ts,
+                )
                 logger.info(f"Stored USDCNY bar at {bar_ts}")
         except Exception as e:
             logger.warning(f"USDCNY bar error: {e}")

@@ -1,5 +1,5 @@
 /**
- * Chart.js dual-axis chart: XAU/USD (Binance, right) + AU9999 (SGE, left).
+ * Chart.js dual-axis chart: XAU/USD (right) + AU9999 (left).
  * Shows 5-minute K-lines for the last 72 hours.
  * The annotation plugin draws the "当前" now-line.
  */
@@ -137,6 +137,55 @@ const _hoverPlugin = {
 
 Chart.register(_hoverPlugin);
 
+// Zoom plugin — wheel zoom via chartjs-plugin-zoom, drag-pan done natively in afterInit
+const _zoomPlugin = {
+  id: "goldZoom",
+
+  afterInit(chart) {
+    chart._resetZoom = () => chart.resetZoom();
+
+    const canvas = chart.canvas;
+    const xMin = canvas._goldXMin;
+    const xMax = canvas._goldXMax;
+
+    let dragging = false;
+    let startX = 0;
+    let origMin = null;
+    let origMax = null;
+
+    const onDown = (e) => {
+      dragging = true;
+      startX = e.clientX;
+      origMin = chart.scales.x.min;
+      origMax = chart.scales.x.max;
+      e.preventDefault();
+    };
+    const onMove = (e) => {
+      if (!dragging || !chart.scales.x) return;
+      const chartArea = chart.chartArea;
+      if (!chartArea) return;
+      const dx = e.clientX - startX;
+      if (dx === 0) return;
+      const totalPx = chartArea.right - chartArea.left;
+      const range = origMax - origMin;
+      const shift = (-dx / totalPx) * range;
+      const newMin = origMin + shift;
+      const newMax = origMax + shift;
+      const clampedMin = Math.max(newMin, xMin);
+      const clampedMax = Math.min(newMax, xMax);
+      chart.zoomScale("x", { min: clampedMin, max: clampedMax });
+      if (chart._updateNowLine) chart._updateNowLine();
+    };
+    const onUp = () => { dragging = false; };
+
+    canvas.addEventListener("mousedown", onDown);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  },
+};
+
+Chart.register(_zoomPlugin);
+
 class GoldChart {
   constructor() {
     this.chart = null;
@@ -230,7 +279,7 @@ class GoldChart {
 
       if (xauPts.length > 0) {
         datasets.push({
-          label: "COMEX: GCW00",
+          label: "COMEX GC00Y",
           data: xauPts,
           borderColor: "#22c55e",
           backgroundColor: "rgba(34,197,94,0.08)",
@@ -266,17 +315,23 @@ class GoldChart {
       const xMax = now;
       const xMin = new Date(now.getTime() - 72 * 60 * 60 * 1000);
 
-      // Dynamic Y range: compute min/max from data, add 5% padding (grace)
-      const _yRange = (pts) => {
+      // Store bounds on canvas before chart creation (read in beforeInit plugin)
+      canvas._goldXMin = xMin;
+      canvas._goldXMax = now;
+
+      // Dynamic Y range: ensure minimum ±1 padding so chart is always readable
+      const _yRange = (pts, minPad = 1) => {
         if (!pts || pts.length === 0) return null;
         const vals = pts.map(p => p.y);
         const dataMin = Math.min(...vals);
         const dataMax = Math.max(...vals);
-        const pad = (dataMax - dataMin) * 0.05 || dataMax * 0.01;
+        const range = dataMax - dataMin;
+        // Use at least minPad padding, or 5% of range if that's larger
+        const pad = Math.max(range * 0.05, minPad);
         return { min: dataMin - pad, max: dataMax + pad };
       };
-      const yau  = _yRange(xauPts);
-      const yau2 = _yRange(auPts);
+      const yau  = _yRange(xauPts, 10);   // ±10 for XAUUSD (~4700)
+      const yau2 = _yRange(auPts, 1);     // ±1 for AU9999 (~1034)
 
       this.chart = new Chart(canvas, {
         type: "line",
@@ -289,6 +344,26 @@ class GoldChart {
           plugins: {
             legend: { display: false },
             tooltip: { enabled: false },
+            zoom: {
+              zoom: {
+                wheel: {
+                  enabled: true,
+                  speed: 0.1,
+                },
+                pinch: { enabled: false },
+                drag: { enabled: false },
+                mode: "x",
+                onZoomComplete: ({ chart }) => {
+                  if (chart._updateNowLine) chart._updateNowLine();
+                },
+              },
+              limits: {
+                x: {
+                  min: xMin,
+                  max: now,
+                },
+              },
+            },
             annotation: {
               annotations: {
                 nowLine: {
@@ -332,23 +407,21 @@ class GoldChart {
             },
             y: {
               position: "right",
-              title: { display: true, text: "COMEX: GCW00 (USD/oz)", color: "#22c55e", font: { size: 11 } },
-              ticks: { color: "#22c55e", callback: v => v.toFixed(1) },
+              title: { display: true, text: "COMEX GC00Y (USD/oz)", color: "#22c55e", font: { size: 11 } },
+              ticks: { color: "#22c55e", callback: v => v.toFixed(2) },
               grid: { color: "#2a2d3a" },
               border: { color: "#2a2d3a" },
               suggestedMin: yau?.min,
               suggestedMax: yau?.max,
-              grace: "5%",
             },
             y2: {
               position: "left",
               title: { display: true, text: "AU9999 (CNY/g)", color: "#f59e0b", font: { size: 11 } },
-              ticks: { color: "#f59e0b", callback: v => v.toFixed(1) },
+              ticks: { color: "#f59e0b", callback: v => v.toFixed(2) },
               grid: { drawOnChartArea: false },
               border: { color: "#2a2d3a" },
               suggestedMin: yau2?.min,
               suggestedMax: yau2?.max,
-              grace: "5%",
             },
           },
         },
@@ -357,6 +430,11 @@ class GoldChart {
       // Draw "当前" now-line via annotation plugin
       this._updateNowLine();
 
+      // Double-click to reset zoom
+      canvas.addEventListener("dblclick", () => {
+        if (this.chart?._resetZoom) this.chart._resetZoom();
+      });
+
     } catch (e) {
       console.error("Chart error:", e);
       if (loader) { loader.textContent = "加载失败: " + e.message; }
@@ -364,6 +442,33 @@ class GoldChart {
 
     this.loading = false;
     if (loader) loader.style.display = "none";
+  }
+
+  /**
+   * Update chart with real-time SSE price.
+   * Uses wall-clock minute-aligned timestamp so the point always appears at "now".
+   * - Same minute as last point → update its price
+   * - New minute → append new point
+   * @param {string} symbol - "XAUUSD" or "AU9999"
+   * @param {number} nowTsSec - current wall-clock Unix timestamp in seconds
+   * @param {number} price - current price
+   */
+  appendPrice(symbol, nowTsSec, price) {
+    if (!this.chart) return;
+    const axisID = symbol === "XAUUSD" ? "y" : "y2";
+    const dataset = this.chart.data.datasets.find(d => d.yAxisID === axisID);
+    if (!dataset || !dataset.data.length) return;
+
+    const tsMs = Math.floor(nowTsSec / 60) * 60 * 1000;
+    const last = dataset.data[dataset.data.length - 1];
+    const lastTs = last ? Math.floor(last.x.getTime() / 60000) * 60000 : null;
+
+    if (last && lastTs === tsMs) {
+      last.y = price;
+    } else {
+      dataset.data.push({ x: new Date(tsMs), y: price });
+    }
+    this.chart.update("none");
   }
 }
 

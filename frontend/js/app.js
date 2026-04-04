@@ -57,7 +57,13 @@ window.onPriceUpdate = function (data) {
   const el = document.getElementById("last-update");
   if (el) el.textContent = data.updated_at ? `更新于 ${data.updated_at}` : "";
   for (const sym of ["XAUUSD", "AU9999", "USDCNY"]) {
-    if (data[sym]) updatePriceCard(sym, data[sym]);
+    if (data[sym]) {
+      updatePriceCard(sym, data[sym]);
+      // Use now_ts (wall-clock time) so chart point appears at current time
+      if (chart && data[sym].now_ts) {
+        chart.appendPrice(sym, data[sym].now_ts, data[sym].price);
+      }
+    }
   }
 };
 

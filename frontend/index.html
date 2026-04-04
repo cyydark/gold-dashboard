@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -55,9 +56,15 @@
       <div class="price-card" id="card-USDCNY">
         <div class="card-header">
           <span class="card-symbol">💱 人民币兑美元 CNY/USD</span>
+          <span class="card-unit" id="unit-USDCNY">CNY/USD</span>
         </div>
         <div class="card-price" id="price-USDCNY">--</div>
         <div class="card-change" id="change-USDCNY">--</div>
+        <div class="card-ohlc">
+          <span>今开 <em id="open-USDCNY">--</em></span>
+          <span>高 <em id="high-USDCNY">--</em></span>
+          <span>低 <em id="low-USDCNY">--</em></span>
+        </div>
       </div>
     </section>
 
@@ -93,8 +100,8 @@
     <section class="chart-section">
       <div class="chart-controls">
         <div class="legend">
-          <span class="legend-item" style="color:#22c55e">■ XAU/USD (Binance)</span>
-          <span class="legend-item" style="color:#f59e0b">■ AU9999 (SGE)</span>
+          <span class="legend-item" style="color:#22c55e">■ XAU/USD</span>
+          <span class="legend-item" style="color:#f59e0b">■ AU9999</span>
         </div>
       </div>
       <div id="chart-container" style="height:400px;position:relative;background:#1a1d27">
@@ -105,14 +112,14 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <p>数据来源：Google Finance（国际金价/汇率）| 东方财富（国内金价）</p>
+      <p>数据来源：东方财富（国际金价 / 国内金价 / 汇率）</p>
     </footer>
 
   </div>
 
   <div id="toast-container"></div>
   <script src="/static/js/sse.js?v=2"></script>
-  <script src="/static/js/chart.js?v=2"></script>
-  <script src="/static/js/app.js?v=10"></script>
+  <script src="/static/js/chart.js?v=3"></script>
+  <script src="/static/js/app.js?v=11"></script>
 </body>
 </html>
