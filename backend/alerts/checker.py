@@ -8,11 +8,11 @@ logger = logging.getLogger(__name__)
 
 async def _generate_briefing_scheduled():
     """每小时自动从最近1小时新闻生成简报。"""
-    from backend.data.sources.international import fetch_news, BEIJING_TZ
+    from backend.data.sources.futu import fetch_futu_news, BEIJING_TZ
     from backend.data.sources.briefing import generate_briefing_from_news
     try:
         loop = asyncio.get_event_loop()
-        all_news = await loop.run_in_executor(None, fetch_news)
+        all_news = await loop.run_in_executor(None, fetch_futu_news)
         if not all_news:
             logger.info("No news fetched, skipping briefing")
             return
@@ -59,7 +59,7 @@ async def _generate_briefing_scheduled():
 
 async def _generate_daily_briefing_scheduled():
     """每日午夜（北京时间00时）汇总昨日全天新闻生成'上一日整体'简报。"""
-    from backend.data.sources.international import BEIJING_TZ
+    from backend.data.sources.futu import BEIJING_TZ
     from backend.data.db import get_news_by_date_range
     from backend.data.sources.briefing import generate_daily_briefing_from_news
     try:
