@@ -48,14 +48,6 @@ window.onPriceUpdate = function (data) {
   }
 };
 
-window.addEventListener("DOMContentLoaded", async () => {
-  chart = new GoldChart();
-  loadBriefings();
-  await chart.load();
-  chart.warmup();
-  loadNews(1);
-  setInterval(() => loadNews(1), 5 * 60 * 1000);
-});
 function _timeAgo(tsSec) {
   if (!tsSec) return "未知";
   const diffMs = Date.now() - tsSec * 1000;
