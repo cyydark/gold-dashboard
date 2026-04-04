@@ -1,15 +1,17 @@
 """AI 金市简报生成 via claude -p 命令。"""
-import json
 import logging
 import os
 import subprocess
-from datetime import datetime, timedelta, timezone
 
 from backend.data.db import save_briefing
 
 logger = logging.getLogger(__name__)
 
-BEIJING_TZ = timezone(timedelta(hours=8))
+
+class BriefingGenerationError(Exception):
+    """Raised when Claude CLI fails to generate a briefing."""
+
+    pass
 
 PROMPT_TEMPLATE = """你是一位专业、客观的黄金市场分析师。请根据以下 {news_count} 条新闻，撰写一份简洁、有深度的金市每日简报。
 
@@ -34,14 +36,14 @@ def call_claude_cli(prompt: str) -> str:
         )
         if result.returncode != 0:
             logger.warning(f"Claude CLI error: {result.stderr}")
-            return ""
+            raise BriefingGenerationError(f"Claude CLI exited with code {result.returncode}: {result.stderr}")
         return result.stdout.strip()
     except FileNotFoundError:
         logger.warning("claude CLI not found")
-        return ""
+        raise BriefingGenerationError("claude CLI not found")
     except Exception as e:
         logger.warning(f"Claude CLI call failed: {e}")
-        return ""
+        raise BriefingGenerationError(f"Claude CLI call failed: {e}")
 
 
 def _build_news_list(news: list[dict]) -> tuple[str, list[str]]:
@@ -66,8 +68,9 @@ async def generate_briefing_from_news(news: list[dict], hour_label: str):
     news_list_text, news_titles = _build_news_list(news)
     prompt = PROMPT_TEMPLATE.format(news_count=len(news), news_list=news_list_text)
 
-    content = call_claude_cli(prompt)
-    if not content:
+    try:
+        content = call_claude_cli(prompt)
+    except BriefingGenerationError:
         logger.warning("Briefing generation failed, skipping save")
         return
 
