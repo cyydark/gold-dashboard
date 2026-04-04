@@ -133,7 +133,7 @@ async def get_recent_briefings(limit: int = 24) -> list[dict]:
             if d.get("news_titles"):
                 try:
                     d["news_titles"] = json.loads(d["news_titles"])
-                except Exception:
+                except (json.JSONDecodeError, ValueError):
                     d["news_titles"] = []
             results.append(d)
         return results
