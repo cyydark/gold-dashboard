@@ -1,4 +1,4 @@
-"""Domestic gold (AU9999) data via akshare SDK, with 5-min cache."""
+"""Domestic gold (AU9999) — 实时价格 via akshare."""
 import logging
 import time
 import asyncio
@@ -11,11 +11,10 @@ logger = logging.getLogger(__name__)
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 _cache = {"data": None, "timestamp": 0.0}
-_CACHE_TTL = 300  # 5 minutes
+_CACHE_TTL = 60  # 1 minute
 
 
 def _fetch_once() -> dict | None:
-    """Fetch AU9999 from Shanghai Gold Exchange via akshare (sync, no cache)."""
     for attempt in range(3):
         try:
             df_spot = ak.spot_quotations_sge(symbol="Au99.99")
@@ -51,7 +50,6 @@ def _fetch_once() -> dict | None:
 
 
 async def fetch_au9999() -> dict | None:
-    """Get AU9999 data with 5-minute cache (async, uses thread pool)."""
     now = time.time()
     if _cache["data"] is not None and (now - _cache["timestamp"]) < _CACHE_TTL:
         return _cache["data"]
@@ -64,32 +62,3 @@ async def fetch_au9999() -> dict | None:
     elif _cache["data"] is not None:
         return _cache["data"]
     return data
-
-
-def fetch_au9999_history(days: int = 5) -> list[dict] | None:
-    """Fetch AU9999 5-minute OHLCV via Sina futures zh minute API.
-
-    Sina returns ~1023 bars (about 11 days at 5m granularity).
-    """
-    try:
-        df = ak.futures_zh_minute_sina(symbol="au0", period="5")
-    except Exception as e:
-        logger.warning(f"futures_zh_minute_sina error: {e}")
-        return None
-
-    records = []
-    for _, row in df.iterrows():
-        dt_str = str(row["datetime"])
-        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S").replace(
-            tzinfo=BEIJING_TZ
-        )
-        records.append({
-            "time": int(dt.timestamp()),
-            "open":  round(float(row["open"]), 2),
-            "high":  round(float(row["high"]), 2),
-            "low":   round(float(row["low"]), 2),
-            "close": round(float(row["close"]), 2),
-            "volume": 0,
-        })
-    records.sort(key=lambda x: x["time"])
-    return records if records else None

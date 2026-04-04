@@ -22,7 +22,7 @@ class SSEClient {
           window.onPriceUpdate(prices);
         }
       } catch (e) {
-        console.warn("SSE parse error:", e);
+        // silently ignore malformed SSE data
       }
     };
 

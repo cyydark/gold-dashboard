@@ -23,18 +23,31 @@ function updatePriceCard(symbol, data) {
   const openEl   = document.getElementById(`open-${symbol}`);
   const highEl   = document.getElementById(`high-${symbol}`);
   const lowEl    = document.getElementById(`low-${symbol}`);
+  const ohlcEl   = document.getElementById(`ohlc-${symbol}`);
   if (!priceEl) return;
 
   priceEl.textContent = `${data.price} ${data.unit || ""}`;
-  const sign = data.change >= 0 ? "+" : "";
-  changeEl.textContent = `${sign}${data.change} (${sign}${data.pct}%)`;
-  changeEl.className = `card-change ${data.change >= 0 ? "up" : "down"}`;
-  if (openEl) openEl.textContent = data.open;
-  if (highEl) highEl.textContent = data.high;
-  if (lowEl)  lowEl.textContent  = data.low;
-  if (card) {
-    card.classList.remove("up", "down");
-    card.classList.add(data.change >= 0 ? "up" : "down");
+  const hasChange = data.change != null && data.pct != null;
+  if (hasChange) {
+    const sign = data.change >= 0 ? "+" : "";
+    changeEl.textContent = `${sign}${data.change} (${sign}${data.pct}%)`;
+    changeEl.className = `card-change ${data.change >= 0 ? "up" : "down"}`;
+    if (card) {
+      card.classList.remove("up", "down");
+      card.classList.add(data.change >= 0 ? "up" : "down");
+    }
+  } else {
+    changeEl.textContent = "";
+    changeEl.className = "card-change";
+    if (card) card.classList.remove("up", "down");
+  }
+
+  const hasOHLC = data.open != null && data.high != null && data.low != null;
+  if (ohlcEl) ohlcEl.style.display = hasOHLC ? "" : "none";
+  if (hasOHLC) {
+    if (openEl) openEl.textContent = data.open;
+    if (highEl) highEl.textContent = data.high;
+    if (lowEl)  lowEl.textContent  = data.low;
   }
 }
 
@@ -128,21 +141,32 @@ async function loadBriefings() {
   try {
     const res = await fetch("/api/briefings?limit=24");
     const data = await res.json();
-    const briefings = data.briefings || [];
+    const briefings = data.hourly || [];
+    const dailyData = data.daily;
 
-    if (briefings.length === 0) {
+    if (!dailyData && briefings.length === 0) {
       dailyEl.innerHTML = '<div class="briefing-empty">暂无简报</div>';
       hourlyEl.innerHTML = '';
       return;
     }
 
-    // 上一日整体：取最旧的那条（代表较早时段的分析，或当昨日看）
-    const daily = briefings[briefings.length - 1];
-    dailyTimeEl.textContent = daily.time_range || daily.generated_at || "";
-    dailyEl.innerHTML = `<span class="briefing-daily-text">${escapeHtml(daily.content || "")}</span>`;
+    // 上一日整体：日报独立存储
+    if (dailyData) {
+      dailyTimeEl.textContent = dailyData.time_range || "";
+      dailyEl.innerHTML = `<span class="briefing-daily-text">${escapeHtml(dailyData.content || "")}</span>`;
+    } else {
+      dailyTimeEl.textContent = "";
+      dailyEl.innerHTML = '<span class="briefing-empty">日报将于每日08:05生成</span>';
+    }
 
-    // 最近12小时：最新往前数12条（跳过最旧的那条，避免与"上一日"重复）
-    const hourly = briefings.slice(0, 12);
+    // 近12小时：小时简报独立存储，相同小时只留最新那条（按generated_at倒序去重）
+    const hourMap = new Map();
+    briefings.forEach(b => {
+      if (!b.time_range) return;
+      const hour = b.time_range.split("~")[0].trim();
+      if (!hourMap.has(hour)) hourMap.set(hour, b);
+    });
+    const hourly = [...hourMap.values()].slice(0, 12);
     hourlyEl.innerHTML = hourly.map(b => {
       const timeLabel = b.time_range
         ? b.time_range.split("~")[0] + "时"
@@ -154,17 +178,14 @@ async function loadBriefings() {
         </div>`;
     }).join("");
 
-    // 右侧：直接展示 API 按最新简报时段过滤好的新闻
+    // 右侧：近1小时新闻（后端已过滤）
     if (newsEl) {
       const news = data.news || [];
-      const latestBriefing = briefings[0];
       if (sourceTimeEl) {
-        sourceTimeEl.textContent = latestBriefing && latestBriefing.time_range
-          ? latestBriefing.time_range
-          : "";
+        sourceTimeEl.textContent = data.time_window || "";
       }
       if (news.length === 0) {
-        newsEl.innerHTML = '<div class="briefing-empty">暂无来源新闻</div>';
+        newsEl.innerHTML = '<div class="briefing-empty">暂无近1小时新闻</div>';
       } else {
         newsEl.innerHTML = news.slice(0, 8).map(n => `
           <div class="source-news-item">

@@ -22,9 +22,14 @@
 - 新闻 emoji 标注 + 虚线定位
 
 ### 新闻资讯
-- 抓取 Google Finance 黄金相关新闻
-- Ollama 本地翻译（gemma 模型）
-- 新闻情感分析：📈 金价升 / 📉 金价降 / 📊 中性
+- 抓取华尔街见闻等 RSS 新闻源
+- AI 简报：每小时汇总 + 每日整体摘要（Claude CLI 生成）
+- 近1小时新闻实时展示
+
+### AI 简报
+- **近12小时逐时简报**：每小时自动生成，一句话判断方向
+- **上一日整体摘要**：每日08:05生成，汇总全天走势与驱动因素
+- **新闻来源**：每条简报关联对应时段原始新闻，可点击跳转原文
 
 ### 价格预警
 - 设置高价/低价阈值，突破即触发
@@ -38,11 +43,11 @@
 Browser ← SSE/HTTP → FastAPI ←→ 数据源
                              ├── yfinance       (国际金价/汇率)
                              ├── akshare        (国内金价)
-                             └── Playwright CDP (Google Finance)
+                             └── RSSHub         (新闻 RSS)
                           ↕
-                      SQLite (预警/新闻缓存)
+                      SQLite (预警/新闻/简报)
                           ↕
-                   APScheduler (定时任务)
+                   APScheduler (定时任务 + 简报生成)
 ```
 
 ### 目录结构
@@ -53,16 +58,17 @@ gold-dashboard/
 │   ├── main.py              # FastAPI 入口 + lifespan 管理
 │   ├── requirements.txt      # Python 依赖
 │   ├── routers/
-│   │   ├── price.py         # 价格/历史数据 API
+│   │   ├── price.py         # 价格/历史数据/简报 API
 │   │   ├── alert.py         # 预警 CRUD API
-│   │   └── sse.py           # Server-Sent Events 流
+│   │   ├── sse.py           # Server-Sent Events 流
+│   │   └── rss.py           # RSS 订阅源
 │   ├── data/
 │   │   ├── models.py        # Pydantic 数据模型
 │   │   ├── db.py            # SQLite 操作
 │   │   └── sources/
-│   │       ├── international.py  # yfinance + Google Finance CDP
-│   │       ├── domestic.py      # akshare 国内金价
-│   │       └── browser.py      # Playwright Chromium 单例
+│   │       ├── international.py  # yfinance + RSS 新闻
+│   │       ├── domestic.py        # akshare 国内金价
+│   │       └── briefing.py        # AI 简报生成（Claude CLI）
 │   ├── analysis/
 │   │   └── indicators.py    # MA / RSI / MACD 指标
 │   ├── alerts/
@@ -73,10 +79,9 @@ gold-dashboard/
 │   ├── index.html           # 单页应用入口
 │   ├── css/style.css        # 深色主题样式
 │   └── js/
-│       ├── app.js           # 主逻辑：价格卡片 + 新闻
+│       ├── app.js           # 主逻辑：价格卡片 + 简报
 │       ├── chart.js         # Chart.js 双轴图表 + emoji 标注
-│       ├── sse.js           # SSE 客户端
-│       └── alerts.js        # 预警管理 UI
+│       └── sse.js           # SSE 客户端
 ├── run.sh                   # 启动脚本
 └── .env                     # 环境变量（不提交）
 ```
@@ -89,8 +94,6 @@ gold-dashboard/
 
 - Python 3.14
 - Node.js（可选，用于前端开发）
-- Chrome/Chromium（Playwright 浏览器自动化用）
-- [Ollama](https://ollama.com/)（本地新闻翻译，可选）
 
 ### 安装
 
@@ -101,9 +104,6 @@ cd gold-dashboard
 
 # 安装 Python 依赖
 pip install -r backend/requirements.txt
-
-# 安装 Playwright 浏览器
-playwright install chromium
 ```
 
 ### 配置
@@ -111,14 +111,11 @@ playwright install chromium
 创建 `.env` 文件：
 
 ```env
-# Chrome 路径（macOS）
-CHROME_PATH=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+# RSSHub 地址（用于新闻抓取）
+RSSHUB_BASE=http://192.168.2.200:11200
 
 # 默认汇率（CNY/USD，用于国内金价换算）
 DEFAULT_CNY_RATE=6.87
-
-# Ollama 地址（可选，用于新闻翻译）
-OLLAMA_BASE_URL=http://localhost:11434
 ```
 
 ### 启动
@@ -126,10 +123,10 @@ OLLAMA_BASE_URL=http://localhost:11434
 ```bash
 ./run.sh
 # 或直接
-uvicorn backend.main:app --reload --port 8000
+uvicorn backend.main:app --reload --port 18000
 ```
 
-访问 http://localhost:8000
+访问 http://localhost:18000
 
 ---
 
@@ -140,7 +137,10 @@ uvicorn backend.main:app --reload --port 8000
 | `/` | GET | 前端页面 |
 | `/api/prices` | GET | 当前价格 |
 | `/api/history/{symbol}` | GET | K 线历史（?days=1/5/30） |
-| `/api/news` | GET | 新闻资讯（?days=1/5/30） |
+| `/api/news` | GET | 新闻资讯（?days=1） |
+| `/api/news/refresh` | POST | 手动抓取新闻入库 |
+| `/api/briefings` | GET | AI 简报 + 近1小时新闻 |
+| `/api/briefings/trigger` | POST | 手动触发简报生成 |
 | `/api/alerts/` | GET | 预警列表 |
 | `/api/alerts/` | POST | 创建预警规则 |
 | `/api/alerts/{id}` | DELETE | 删除预警 |
@@ -157,8 +157,8 @@ uvicorn backend.main:app --reload --port 8000
 | 国际金价 GCW00 | Yahoo Finance (`yfinance`) |
 | 国内金价 AU9999 | 上海黄金交易所 (`akshare`) |
 | 汇率 USD/CNY | Yahoo Finance (`yfinance`) |
-| K 线历史 | Google Finance (Playwright CDP 抓取) |
-| 新闻资讯 | Google Finance (Playwright 抓取) |
+| K 线历史 | Binance XAUT/USDT K线 |
+| 新闻资讯 | 华尔街见闻 RSS（RSSHub 代理） |
 
 ---
 

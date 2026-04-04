@@ -1,42 +1,73 @@
 """Server-Sent Events (SSE) for real-time price streaming."""
 import asyncio
 import json
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from backend.data.sources.international import fetch_xauusd, fetch_usdcny
-from backend.data.sources.domestic import fetch_au9999
+from backend.data.db import get_latest_price_bar, get_latest_usdcny
 
+BEIJING_TZ = timezone(timedelta(hours=8))
+PRICE_INTERVAL = 30  # 30s
 router = APIRouter(tags=["sse"])
 
-PRICE_INTERVAL = 30  # 30s
+
+def _format_price(bar: dict | None, symbol: str) -> dict | None:
+    """Convert a 1m price bar (with full OHLC) to price card format."""
+    if not bar:
+        return None
+    ts = bar["ts"]
+    price = round(bar["close"], 2)
+    open_px = round(bar["open"], 2)
+    names = {"XAUUSD": ("国际黄金 XAU/USD", "USD/oz"), "AU9999": ("国内黄金 AU9999", "CNY/g")}
+    name, unit = names.get(symbol, (symbol, ""))
+    return {
+        "symbol": symbol,
+        "name": name,
+        "price": price,
+        "change": round(price - open_px, 2),
+        "pct": round((price - open_px) / open_px * 100, 2) if open_px else 0,
+        "open": open_px,
+        "high": round(bar["high"], 2),
+        "low": round(bar["low"], 2),
+        "unit": unit,
+        "updated_at": datetime.fromtimestamp(ts, BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+    }
+
+
+def _format_fx(fx: dict | None) -> dict | None:
+    """Format USDCNY from DB (no OHLC)."""
+    if not fx:
+        return None
+    return {
+        "symbol": "USDCNY",
+        "name": "人民币兑美元 CNY/USD",
+        "price": round(fx["price"], 4),
+        "unit": "CNY/USD",
+        "updated_at": datetime.fromtimestamp(fx["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+    }
 
 
 async def price_generator():
-    """Yield SSE events with current prices every PRICE_INTERVAL seconds."""
+    """Yield SSE events with current prices from DB every PRICE_INTERVAL seconds."""
     while True:
+        xau_bar = await get_latest_price_bar("XAUUSD")
+        au_bar = await get_latest_price_bar("AU9999")
+        fx_bar = await get_latest_usdcny()
+
         payload = {}
-        updated = ""
+        if xau_bar:
+            payload["XAUUSD"] = _format_price(xau_bar, "XAUUSD")
+        if au_bar:
+            payload["AU9999"] = _format_price(au_bar, "AU9999")
+        if fx_bar:
+            payload["USDCNY"] = _format_fx(fx_bar)
 
-        loop = asyncio.get_event_loop()
-        xau, au9999, usdcny = await asyncio.gather(
-            loop.run_in_executor(None, fetch_xauusd),
-            fetch_au9999(),
-            loop.run_in_executor(None, fetch_usdcny),
-        )
-
-        if xau:
-            payload["XAUUSD"] = xau
-            updated = xau.get("updated_at", "")
-        if au9999:
-            payload["AU9999"] = au9999
-            if not updated:
-                updated = au9999.get("updated_at", "")
-        if usdcny:
-            payload["USDCNY"] = usdcny
-            if not updated:
-                updated = usdcny.get("updated_at", "")
-
-        payload["updated_at"] = updated
+        if payload:
+            payload["updated_at"] = (
+                payload.get("XAUUSD", {}).get("updated_at", "") or
+                payload.get("AU9999", {}).get("updated_at", "") or
+                payload.get("USDCNY", {}).get("updated_at", "")
+            )
         yield f"data: {json.dumps(payload)}\n\n"
         await asyncio.sleep(PRICE_INTERVAL)
 

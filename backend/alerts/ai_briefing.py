@@ -21,7 +21,7 @@ _MINIMAX_BASE = "https://api.minimax.chat/v1"
 _MODEL = "MiniMax-M2.7"
 
 # Sources config
-_SOURCES_FILE = Path(os.getenv("SOURCES_FILE", "/Users/chenyanyu/DoSomeThing/gold-dashboard/sources.yaml"))
+_SOURCES_FILE = Path(os.getenv("SOURCES_FILE", Path(__file__).parent.parent.parent / "sources.yaml"))
 _RSSHUB_BASE = os.getenv("RSSHUB_BASE_URL", "http://192.168.2.200:11200")
 
 MINIMAX_SYSTEM_PROMPT = (

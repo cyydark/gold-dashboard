@@ -1,11 +1,11 @@
 """Price and history API routes."""
 import asyncio
-import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 from fastapi import APIRouter
-from backend.data.sources.international import fetch_xauusd, fetch_usdcny, fetch_xauusd_history
-from backend.data.sources.domestic import fetch_au9999, fetch_au9999_history
+from backend.data.sources.international import fetch_usdcny
+from backend.data.db import get_price_bars, get_latest_price_bar
 
 load_dotenv()
 
@@ -14,71 +14,83 @@ router = APIRouter(prefix="/api", tags=["price"])
 
 @router.get("/prices")
 async def get_prices():
-    """Fetch current prices for all tracked symbols."""
-    loop = asyncio.get_event_loop()
-    xau, au9999, usdcny = await asyncio.gather(
-        loop.run_in_executor(None, fetch_xauusd),
-        fetch_au9999(),
-        loop.run_in_executor(None, fetch_usdcny),
-    )
+    """Fetch current prices from database."""
+    from backend.data.db import get_latest_price_bar, get_latest_usdcny
+    from datetime import datetime, timezone, timedelta
+
+    BEIJING_TZ = timezone(timedelta(hours=8))
+
+    xau_bar = await get_latest_price_bar("XAUUSD")
+    au_bar = await get_latest_price_bar("AU9999")
+    fx_bar = await get_latest_usdcny()
 
     result = {}
-    updated = ""
 
-    if xau:
-        result["XAUUSD"] = xau
-        updated = xau.get("updated_at", "")
+    if xau_bar:
+        price = round(xau_bar["close"], 2)
+        open_px = round(xau_bar["open"], 2)
+        result["XAUUSD"] = {
+            "symbol": "XAUUSD",
+            "name": "国际黄金 XAU/USD",
+            "price": price,
+            "change": round(price - open_px, 2),
+            "pct": round((price - open_px) / open_px * 100, 2) if open_px else 0,
+            "open": open_px,
+            "high": round(xau_bar["high"], 2),
+            "low": round(xau_bar["low"], 2),
+            "unit": "USD/oz",
+            "updated_at": datetime.fromtimestamp(xau_bar["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+        }
 
-    if au9999:
-        result["AU9999"] = au9999
-        if not updated:
-            updated = au9999.get("updated_at", "")
+    if au_bar:
+        price = round(au_bar["close"], 2)
+        open_px = round(au_bar["open"], 2)
+        result["AU9999"] = {
+            "symbol": "AU9999",
+            "name": "国内黄金 AU9999",
+            "price": price,
+            "change": round(price - open_px, 2),
+            "pct": round((price - open_px) / open_px * 100, 2) if open_px else 0,
+            "open": open_px,
+            "high": round(au_bar["high"], 2),
+            "low": round(au_bar["low"], 2),
+            "unit": "CNY/g",
+            "updated_at": datetime.fromtimestamp(au_bar["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+        }
 
-    if usdcny:
-        result["USDCNY"] = usdcny
-        if not updated:
-            updated = usdcny.get("updated_at", "")
+    if fx_bar:
+        result["USDCNY"] = {
+            "symbol": "USDCNY",
+            "name": "人民币兑美元 CNY/USD",
+            "price": round(fx_bar["price"], 4),
+            "unit": "CNY/USD",
+            "updated_at": datetime.fromtimestamp(fx_bar["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+        }
 
-    result["updated_at"] = updated
     return result
 
 
 @router.get("/history/{symbol}")
 async def get_history(symbol: str, days: int = 1):
-    """Fetch price history.
+    """Fetch price history from database (1m bars, aggregated from DB)."""
+    symbol_map = {"XAUUSD": "XAUUSD", "AU9999": "AU9999"}
+    db_symbol = symbol_map.get(symbol)
+    if not db_symbol:
+        return []
 
-    XAUUSD: Binance XAUT/USDT klines
-    AU9999: Shanghai Gold Exchange daily bars
-    """
-    try:
-        loop = asyncio.get_running_loop()
+    rows = await get_price_bars(db_symbol, limit=2000)
+    if not rows:
+        return []
 
-        if symbol == "XAUUSD":
-            yf_data = await loop.run_in_executor(None, fetch_xauusd_history, days)
-            if not yf_data:
-                return []
-            bars = [
-                {"time": d["time"], "open": round(d["open"], 2),
-                 "high": round(d["high"], 2), "low": round(d["low"], 2),
-                 "close": round(d["close"], 2)}
-                for d in yf_data
-            ]
-            return {"bars": bars, "xMin": yf_data[0]["time"], "xMax": yf_data[-1]["time"]}
-
-        if symbol == "AU9999":
-            sge_data = await loop.run_in_executor(None, fetch_au9999_history, days)
-            if not sge_data:
-                return []
-            bars = [
-                {"time": d["time"], "open": round(d["open"], 2),
-                 "high": round(d["high"], 2), "low": round(d["low"], 2),
-                 "close": round(d["close"], 2)}
-                for d in sge_data
-            ]
-            return {"bars": bars, "xMin": sge_data[0]["time"], "xMax": sge_data[-1]["time"]}
-    except Exception:
-        pass
-    return []
+    # rows are newest-first; reverse for chart (oldest→newest)
+    rows = list(reversed(rows))
+    bars = [
+        {"time": r["ts"], "open": round(r["open"], 2),
+         "high": round(r["high"], 2), "low": round(r["low"], 2),
+         "close": round(r["close"], 2)}
+        for r in rows
+    ]
+    return {"bars": bars, "xMin": bars[0]["time"], "xMax": bars[-1]["time"]}
 
 
 @router.get("/news")
@@ -105,16 +117,31 @@ async def get_news(days: int = 1):
     return {"news": db_news}
 
 
+@router.post("/news/refresh")
+async def refresh_news():
+    """手动抓取新闻并入库。"""
+    import asyncio
+    from backend.data.sources.international import fetch_news, _sync_save_news
+    loop = asyncio.get_event_loop()
+    news = await loop.run_in_executor(None, fetch_news)
+    if news:
+        await asyncio.to_thread(_sync_save_news, news, "")
+    return {"count": len(news), "message": f"抓取到 {len(news)} 条新闻已入库"}
+
+
 @router.get("/briefings")
 async def get_briefings(limit: int = 24):
-    """返回最近简报 + 对应时段的新闻（无匹配时降级返回最近新闻）。"""
-    from backend.data.db import get_recent_briefings, get_recent_news
-    briefings = await get_recent_briefings(limit)
-    latest_hour = briefings[0]["time_range"] if briefings else None
-    news = await get_recent_news(hour_range=latest_hour, limit=20)
-    if not news and latest_hour:
-        news = await get_recent_news(limit=20)
-    return {"briefings": briefings, "news": news}
+    """返回日报 + 近12小时简报 + 近1小时新闻。"""
+    from backend.data.db import get_hourly_briefings, get_daily_briefing, get_news_last_hours
+    from backend.data.sources.international import BEIJING_TZ
+    from datetime import datetime
+    hourly = await get_hourly_briefings(limit)
+    daily = await get_daily_briefing()
+    news = await get_news_last_hours(hours=1, limit=20)
+    now = datetime.now(BEIJING_TZ)
+    one_hour_ago = now - timedelta(hours=1)
+    time_window = f"{one_hour_ago.strftime('%H:%M')}~{now.strftime('%H:%M')}"
+    return {"daily": daily, "hourly": hourly, "news": news, "time_window": time_window}
 
 
 @router.post("/briefings/trigger")
