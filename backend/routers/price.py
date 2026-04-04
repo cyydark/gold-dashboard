@@ -29,7 +29,7 @@ async def get_prices():
         result["XAUUSD"] = {
             "symbol": "XAUUSD",
             "name": "国际黄金 XAU/USD",
-            "price": round(xau_bar["close"], 2),
+            "price": round(xau_bar["price"], 2),
             "change": round(xau_bar.get("change", 0), 2),
             "pct": round(xau_bar.get("pct", 0), 2),
             "open": round(xau_bar["open"], 2),
@@ -43,7 +43,7 @@ async def get_prices():
         result["AU9999"] = {
             "symbol": "AU9999",
             "name": "国内黄金 AU9999",
-            "price": round(au_bar["close"], 2),
+            "price": round(au_bar["price"], 2),
             "change": round(au_bar.get("change", 0), 2),
             "pct": round(au_bar.get("pct", 0), 2),
             "open": round(au_bar["open"], 2),
@@ -57,7 +57,7 @@ async def get_prices():
         result["USDCNY"] = {
             "symbol": "USDCNY",
             "name": "人民币兑美元 CNY/USD",
-            "price": round(fx_bar["close"], 4),
+            "price": round(fx_bar["price"], 4),
             "change": round(fx_bar.get("change", 0), 4),
             "pct": round(fx_bar.get("pct", 0), 4),
             "open": round(fx_bar["open"], 4),
@@ -87,7 +87,7 @@ async def get_history(symbol: str, days: int = 1):
     bars = [
         {"time": r["ts"], "open": round(r["open"], 2),
          "high": round(r["high"], 2), "low": round(r["low"], 2),
-         "close": round(r["close"], 2)}
+         "close": round(r["price"], 2)}
         for r in rows
     ]
     return {"bars": bars, "xMin": bars[0]["time"], "xMax": bars[-1]["time"]}

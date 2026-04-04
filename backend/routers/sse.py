@@ -17,7 +17,7 @@ def _format_price(bar: dict | None, symbol: str, now_ts: int) -> dict | None:
     if not bar:
         return None
     ts = bar["ts"]
-    price = round(bar["close"], 2)
+    price = round(bar["price"], 2)
     open_px = round(bar["open"], 2)
     names = {"XAUUSD": ("国际黄金 XAU/USD", "USD/oz"), "AU9999": ("国内黄金 AU9999", "CNY/g")}
     name, unit = names.get(symbol, (symbol, ""))

@@ -44,7 +44,7 @@ async def init_db():
                 open REAL NOT NULL,
                 high REAL NOT NULL,
                 low REAL NOT NULL,
-                close REAL NOT NULL,
+                price REAL NOT NULL,
                 volume REAL DEFAULT 0,
                 change REAL DEFAULT 0,
                 pct REAL DEFAULT 0,
@@ -59,7 +59,7 @@ async def init_db():
         """)
         await db.commit()
 
-        # Migration: add change/pct columns if missing
+        # Migration: add change/pct columns if missing, rename close→price
         for col_sql in [
             "ALTER TABLE price_bars ADD COLUMN change REAL DEFAULT 0",
             "ALTER TABLE price_bars ADD COLUMN pct REAL DEFAULT 0",
@@ -69,6 +69,17 @@ async def init_db():
                 await db.commit()
             except Exception:
                 pass
+
+        # Migration: rename close → price
+        try:
+            # Check if old column exists
+            async with db.execute("PRAGMA table_info(price_bars)") as cur:
+                cols = [row[1] for row in await cur.fetchall()]
+            if "close" in cols and "price" not in cols:
+                await db.execute("ALTER TABLE price_bars RENAME COLUMN close TO price")
+                await db.commit()
+        except Exception:
+            pass
 
 
 async def get_news_items(days: int) -> list[dict]:
@@ -186,18 +197,18 @@ async def get_recent_news(hour_range: str | None = None, limit: int = 20) -> lis
 # ---------------------------------------------------------------------------
 
 async def save_price_bar(symbol: str, ts: int, open_: float, high: float,
-                         low: float, close: float, volume: float = 0,
+                         low: float, price: float, volume: float = 0,
                          change: float = 0, pct: float = 0) -> None:
     """Upsert a single price bar."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
-            INSERT INTO price_bars (symbol, ts, open, high, low, close, volume, change, pct)
+            INSERT INTO price_bars (symbol, ts, open, high, low, price, volume, change, pct)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(symbol, ts) DO UPDATE SET
                 open=excluded.open, high=excluded.high, low=excluded.low,
-                close=excluded.close, volume=excluded.volume,
+                price=excluded.price, volume=excluded.volume,
                 change=excluded.change, pct=excluded.pct
-        """, (symbol, ts, open_, high, low, close, volume, change, pct))
+        """, (symbol, ts, open_, high, low, price, volume, change, pct))
         await db.commit()
 
 
@@ -206,7 +217,7 @@ async def get_price_bars(symbol: str, limit: int = 2000) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT ts, open, high, low, close, volume "
+            "SELECT ts, open, high, low, price, volume "
             "FROM price_bars WHERE symbol=? ORDER BY ts DESC LIMIT ?",
             (symbol, limit),
         )
@@ -218,7 +229,7 @@ async def get_latest_price_bar(symbol: str) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT ts, open, high, low, close, change, pct FROM price_bars "
+            "SELECT ts, open, high, low, price, change, pct FROM price_bars "
             "WHERE symbol=? ORDER BY ts DESC LIMIT 1",
             (symbol,),
         )
@@ -241,11 +252,11 @@ async def save_usdcny(price: float, open_px: float | None = None,
         low = price
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
-            INSERT INTO price_bars (symbol, ts, open, high, low, close, volume, change, pct)
+            INSERT INTO price_bars (symbol, ts, open, high, low, price, volume, change, pct)
             VALUES ('USDCNY', ?, ?, ?, ?, ?, 0, ?, ?)
             ON CONFLICT(symbol, ts) DO UPDATE SET
                 open=excluded.open, high=excluded.high, low=excluded.low,
-                close=excluded.close, change=excluded.change, pct=excluded.pct
+                price=excluded.price, change=excluded.change, pct=excluded.pct
         """, (ts, open_px, high, low, price, change, pct))
         await db.commit()
 
@@ -255,7 +266,7 @@ async def get_latest_usdcny() -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT ts, open, high, low, close as price, change, pct "
+            "SELECT ts, open, high, low, price, change, pct "
             "FROM price_bars "
             "WHERE symbol='USDCNY' ORDER BY ts DESC LIMIT 1"
         )

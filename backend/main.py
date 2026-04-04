@@ -80,7 +80,7 @@ async def _price_bars_fetch_loop():
                     open_=xau["open"],
                     high=xau["high"],
                     low=xau["low"],
-                    close=xau["price"],
+                    price=xau["price"],
                     change=xau.get("change", 0),
                     pct=xau.get("pct", 0),
                 )
@@ -97,7 +97,7 @@ async def _price_bars_fetch_loop():
                     open_=au["open"],
                     high=au["high"],
                     low=au["low"],
-                    close=au["price"],
+                    price=au["price"],
                     change=au.get("change", 0),
                     pct=au.get("pct", 0),
                 )
