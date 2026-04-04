@@ -1,0 +1,17 @@
+sources:
+  - name: 华尔街见闻快讯
+    url: http://192.168.2.200:11200/wallstreetcn/live
+    enabled: true
+    keywords:
+      - 黄金
+      - 美元
+      - 美联储
+      - 关税
+      - 央行
+      - 制裁
+      - 战争
+      - CPI
+      - 非农
+      - FOMC
+      - 降息
+      - 加息

@@ -10,11 +10,6 @@ build/
 venv/
 .env
 
-# SQLite
-*.db
-*.sqlite
-*.sqlite3
-
 # Node (if any)
 node_modules/
 *.log
