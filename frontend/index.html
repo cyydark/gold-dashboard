@@ -67,39 +67,38 @@
       </div>
     </section>
 
-    <!-- 新闻 + 简报 左右分栏 -->
-    <section class="content-grid">
-      <div class="briefing-column">
-        <div class="briefing-column-header">🤖 AI 简报</div>
-        <div id="briefing-list-col" class="briefing-list-col"></div>
+    <!-- AI 简报 -->
+    <section class="briefing-section" id="briefing-section">
+      <div class="briefing-header">
+        <span class="briefing-title">🤖 AI 简报</span>
       </div>
-      <div class="news-column" id="news-section">
-        <div class="news-header">
-          <span class="news-title">📰 来源新闻</span>
-          <span class="news-refresh" id="news-refresh-time"></span>
-        </div>
-        <div id="briefing-news-list" class="briefing-news-list"></div>
+      <div id="briefing-list" class="briefing-list">
+        <div class="briefing-loading">加载中...</div>
       </div>
     </section>
 
-    <!-- Chart Section: dual-series, no MA lines -->
+    <!-- Chart Section -->
     <section class="chart-section">
       <div class="chart-controls">
+        <div class="time-range-tabs">
+          <button class="range-btn active" data-days="1">1天</button>
+          <button class="range-btn" data-days="5">5天</button>
+          <button class="range-btn" data-days="30">月</button>
+        </div>
         <div class="legend">
-          <span class="legend-item" style="color:#22c55e">■ XAU/USD (Binance)</span>
-          <span class="legend-item" style="color:#f59e0b">■ AU9999 (SGE)</span>
+          <span class="legend-item" style="color:#22c55e">■ COMEX: GCW00</span>
+          <span class="legend-item" style="color:#f59e0b">■ AU9999</span>
         </div>
       </div>
       <div id="chart-container" style="height:400px;position:relative;background:#1a1d27">
         <canvas id="priceChart" width="1200" height="400"></canvas>
       </div>
       <div id="chart-loader" class="loader" style="display:none">加载中...</div>
-
     </section>
 
     <!-- Footer -->
     <footer class="footer">
-      <p>数据来源：Binance XAUT/USDT（国际金价）| 上海黄金交易所（国内金价）</p>
+      <p>数据来源：Google Finance（国际金价/汇率）| 东方财富（国内金价）</p>
     </footer>
 
   </div>

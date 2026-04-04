@@ -1,5 +1,5 @@
 /**
- * Main app: price cards + dual gold chart + news.
+ * Main app: price cards + gold chart + AI briefing.
  */
 
 let chart = null;
@@ -48,77 +48,32 @@ window.onPriceUpdate = function (data) {
   }
 };
 
-function _timeAgo(tsSec) {
-  if (!tsSec) return "未知";
-  const diffMs = Date.now() - tsSec * 1000;
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "刚刚";
-  if (diffMin < 60) return `${diffMin}分钟前`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}小时前`;
-  const diffDay = Math.floor(diffHr / 24);
-  return `${diffDay}天前`;
+function initControls() {
+  document.querySelectorAll(".range-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.classList.contains("active")) return;
+      document.querySelectorAll(".range-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (chart) chart.load(parseInt(btn.dataset.days));
+    });
+  });
 }
 
-async function loadNews(days = 1) {
-  const list = document.getElementById("news-list");
-  const refreshTime = document.getElementById("news-refresh-time");
-  if (!list) return;
-
-  try {
-    const res = await fetch(`/api/news?days=${days}`);
-    const data = await res.json();
-    const news = data.news || [];
-
-    if (news.length === 0) {
-      list.innerHTML = '<div class="news-loading">暂无资讯</div>';
-      return;
-    }
-
-    list.innerHTML = news.map(item => {
-      const dir = item.direction;
-      const label = dir === "up" ? '<span class="news-tag up">📈 金价升</span>'
-                   : dir === "down" ? '<span class="news-tag down">📉 金价降</span>'
-                   : '<span class="news-tag neutral">📊 中性</span>';
-      // Escape HTML to prevent XSS
-      const escape = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-      // time_ago is computed live from published_ts — never stale
-      const timeAgo = _timeAgo(item.published_ts);
-      return `
-      <a class="news-item" href="${escape(item.url)}" target="_blank" rel="noopener">
-        <div class="news-meta">
-          <span class="news-source">${escape(item.source)}</span>
-          <span class="news-time">${timeAgo}</span>
-        </div>
-        <div class="news-content">
-          <span class="news-headline">${escape(item.title)}</span>
-        </div>
-        <div class="news-dir">${label}</div>
-      </a>
-    `}).join("");
-
-    const nowForDisplay = new Date();
-    if (refreshTime) refreshTime.textContent = `更新于 ${nowForDisplay.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"})}`;
-
-    // Pass news to chart — published_ts is the canonical anchor
-    if (chart) {
-      chart.setNews(news);
-    }
-
-  } catch (e) {
-    list.innerHTML = '<div class="news-loading">加载失败</div>';
-  }
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
-
-let briefings = [];
 
 async function loadBriefings() {
-  const list = document.getElementById("briefing-list-col");
+  const list = document.getElementById("briefing-list");
   if (!list) return;
   try {
     const res = await fetch("/api/briefings");
     const data = await res.json();
-    briefings = data.briefings || [];
+    const briefings = data.briefings || [];
     if (briefings.length === 0) {
       list.innerHTML = '<div class="briefing-empty">暂无简报，将于下一小时生成</div>';
       return;
@@ -129,56 +84,15 @@ async function loadBriefings() {
         <div class="briefing-content">${escapeHtml(b.content)}</div>
       </div>
     `).join("");
-
-    // 渲染右侧来源新闻（按简报顺序展开所有来源）
-    const newsListEl = document.getElementById("briefing-news-list");
-    if (newsListEl) {
-      if (briefings.length === 0) {
-        newsListEl.innerHTML = '<div class="briefing-empty">暂无来源新闻</div>';
-      } else {
-        const allSourceNews = [];
-        for (const b of briefings) {
-          const news = b.source_news || [];
-          for (const n of news) {
-            allSourceNews.push({ ...n, _briefing_time: b.time_range || b.generated_at || "" });
-          }
-        }
-        if (allSourceNews.length === 0) {
-          newsListEl.innerHTML = '<div class="briefing-empty">暂无来源新闻</div>';
-        } else {
-          newsListEl.innerHTML = allSourceNews.map(n => `
-            <div class="source-news-item">
-              <div class="source-news-meta">
-                <span class="source-news-source">${escapeHtml(n.source || "")}</span>
-                <span>·</span>
-                <span>${escapeHtml(n._briefing_time || n.published || "")}</span>
-              </div>
-              <a class="source-news-title" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener">
-                ${escapeHtml(n.title || "")}
-              </a>
-            </div>
-          `).join("");
-        }
-      }
-    }
   } catch (e) {
     list.innerHTML = '<div class="briefing-empty">加载失败</div>';
   }
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
 window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
+  initControls();
   loadBriefings().catch(() => {});
-  await chart.load();
+  await chart.load(1);
   chart.warmup();
-  loadNews(1);
-  setInterval(() => loadNews(1), 5 * 60 * 1000);
 });
