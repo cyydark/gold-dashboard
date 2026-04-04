@@ -125,7 +125,7 @@ async function loadBriefings() {
     }
     list.innerHTML = briefings.map(b => `
       <div class="briefing-item">
-        <div class="briefing-time">${b.time_range || b.generated_at}</div>
+        <div class="briefing-time">${escapeHtml(b.time_range || b.generated_at)}</div>
         <div class="briefing-content">${escapeHtml(b.content)}</div>
       </div>
     `).join("");
