@@ -169,13 +169,14 @@ async function loadBriefings() {
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
-  loadBriefings();
+  loadBriefings().catch(() => {});
   await chart.load();
   chart.warmup();
   loadNews(1);
