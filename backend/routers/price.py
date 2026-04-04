@@ -5,14 +5,13 @@ import os
 from dotenv import load_dotenv
 from fastapi import APIRouter
 from backend.data.sources.international import fetch_xauusd, fetch_usdcny, fetch_xauusd_history
+from backend.data.sources.domestic import fetch_au9999, fetch_au9999_history
 from backend.alerts.checker import get_cached_news
-from backend.data.sources.domestic import fetch_au9999
 
 load_dotenv()
 
 router = APIRouter(prefix="/api", tags=["price"])
 
-OZ_TO_G = 31.1035
 DEFAULT_CNY_RATE = float(os.environ.get("DEFAULT_CNY_RATE", "6.87"))
 
 
@@ -49,43 +48,37 @@ async def get_prices():
 
 @router.get("/history/{symbol}")
 async def get_history(symbol: str, days: int = 1):
-    """Fetch price history via Google Finance batchexecute (GF fallback to yfinance).
+    """Fetch price history.
 
-    1 day:   5-min bars
-    5 days:  15-min bars  (default — matches GF resolution)
-    30+ days: daily bars
+    XAUUSD: Binance XAUT/USDT klines
+    AU9999: Shanghai Gold Exchange daily bars
     """
     try:
         loop = asyncio.get_running_loop()
-        yf_data = await loop.run_in_executor(None, fetch_xauusd_history, days)
-        if not yf_data:
-            return []
 
         if symbol == "XAUUSD":
+            yf_data = await loop.run_in_executor(None, fetch_xauusd_history, days)
+            if not yf_data:
+                return []
             bars = [
                 {"time": d["time"], "open": round(d["open"], 2),
                  "high": round(d["high"], 2), "low": round(d["low"], 2),
                  "close": round(d["close"], 2)}
                 for d in yf_data
             ]
-            x_min = yf_data[0]["time"] if yf_data else None
-            x_max = yf_data[-1]["time"] if yf_data else None
-            return {"bars": bars, "xMin": x_min, "xMax": x_max}
+            return {"bars": bars, "xMin": yf_data[0]["time"], "xMax": yf_data[-1]["time"]}
 
         if symbol == "AU9999":
-            from backend.data.sources.international import _usdcny_cache
-            cny_rate = (_usdcny_cache.get("data") or {}).get("price") or DEFAULT_CNY_RATE
+            sge_data = await loop.run_in_executor(None, fetch_au9999_history, days)
+            if not sge_data:
+                return []
             bars = [
-                {"time": d["time"],
-                 "open": round(d["open"] * cny_rate / OZ_TO_G, 2),
-                 "high": round(d["high"] * cny_rate / OZ_TO_G, 2),
-                 "low": round(d["low"] * cny_rate / OZ_TO_G, 2),
-                 "close": round(d["close"] * cny_rate / OZ_TO_G, 2)}
-                for d in yf_data
+                {"time": d["time"], "open": round(d["open"], 2),
+                 "high": round(d["high"], 2), "low": round(d["low"], 2),
+                 "close": round(d["close"], 2)}
+                for d in sge_data
             ]
-            x_min = yf_data[0]["time"] if yf_data else None
-            x_max = yf_data[-1]["time"] if yf_data else None
-            return {"bars": bars, "xMin": x_min, "xMax": x_max}
+            return {"bars": bars, "xMin": sge_data[0]["time"], "xMax": sge_data[-1]["time"]}
     except Exception:
         pass
     return []
@@ -118,3 +111,11 @@ async def get_news(days: int = 1):
     # Sort cached news descending (newest first)
     cached.sort(key=lambda x: x.get("published_ts") or 0, reverse=True)
     return {"news": cached}
+
+
+@router.get("/briefings")
+async def get_briefings(limit: int = 24):
+    """返回最近 limit 条 AI 简报，按时间倒序。"""
+    from backend.data.db import get_recent_briefings
+    briefings = await get_recent_briefings(limit)
+    return {"briefings": briefings}
