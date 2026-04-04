@@ -43,7 +43,7 @@ async def _generate_briefing_scheduled():
         await generate_briefing_from_news(news, hour_label)
         logger.info(f"Briefing task completed for {hour_label}")
     except Exception as e:
-        logger.warning(f"Briefing task error: {e}")
+        logger.error(f"Briefing task error: {e}")
 
 
 async def _refresh_news():
