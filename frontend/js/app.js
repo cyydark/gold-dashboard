@@ -3,7 +3,6 @@
  */
 
 let chart = null;
-let currentDays = 1;
 let prices = {};
 
 function showToast(msg, type = "info") {
@@ -131,7 +130,7 @@ async function loadNews(days = 1) {
 let briefings = [];
 
 async function loadBriefings() {
-  const list = document.getElementById("briefing-list");
+  const list = document.getElementById("briefing-list-col");
   if (!list) return;
   try {
     const res = await fetch("/api/briefings");

@@ -216,45 +216,35 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* AI 简报样式 (Phase 1) */
-.briefing-section {
+/* 左右分栏布局 */
+.content-grid {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.briefing-column {
   background: #1a1d27;
   border: 1px solid #2a2d37;
   border-radius: 12px;
   padding: 16px;
-  margin-bottom: 16px;
-}
-
-.briefing-header {
+  overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  flex-direction: column;
 }
 
-.briefing-title {
+.briefing-column-header {
   font-size: 1em;
   font-weight: 600;
   color: #f0c040;
+  margin-bottom: 12px;
 }
 
-.briefing-refresh-btn {
-  background: #2a2d37;
-  border: 1px solid #3a3d47;
-  border-radius: 6px;
-  color: #e0e0e0;
-  padding: 4px 12px;
-  cursor: pointer;
-  font-size: 0.85em;
-}
-
-.briefing-refresh-btn:hover {
-  background: #3a3d47;
-}
-
-.briefing-list {
-  max-height: 300px;
+.briefing-list-col {
   overflow-y: auto;
+  max-height: calc(100vh - 380px);
+  flex: 1;
 }
 
 .briefing-item {
@@ -273,20 +263,24 @@ body {
 }
 
 .briefing-content {
-  font-size: 0.9em;
+  font-size: 0.88em;
   color: #d0d0d0;
   line-height: 1.6;
   white-space: pre-wrap;
 }
 
-.briefing-loading {
-  color: #666;
-  text-align: center;
-  padding: 20px;
-}
-
 .briefing-empty {
   color: #666;
-  text-align: center;
-  padding: 20px;
+  font-size: 0.9em;
+  padding: 10px 0;
+}
+
+/* 响应式：移动端上下排列 */
+@media (max-width: 768px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+  .briefing-list-col {
+    max-height: 300px;
+  }
 }
