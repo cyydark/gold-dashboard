@@ -58,6 +58,19 @@ const _hoverPlugin = {
 
     if (!lines.length) return;
 
+    // Y positions for intersection dots
+    const yPxXau = (xauPt && scales.y)
+      ? scales.y.getPixelForValue(xauPt.y)
+      : null;
+    const yPxAu = (auPt && scales.y2)
+      ? scales.y2.getPixelForValue(auPt.y)
+      : null;
+
+    const validYPx = [yPxXau, yPxAu].filter(y => y !== null && y >= chartArea.top && y <= chartArea.bottom);
+    const boxCenterY = validYPx.length > 0
+      ? validYPx.reduce((s, y) => s + y, 0) / validYPx.length
+      : (chartArea.top + chartArea.bottom) / 2;
+
     ctx.save();
 
     // Dashed vertical line
@@ -70,15 +83,22 @@ const _hoverPlugin = {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Floating label box
+    // Floating label box — positioned near intersection points
     const lineH = 18, pad2 = 8;
     ctx.font = "12px Inter, sans-serif";
     const maxW = Math.max(...lines.map(l => ctx.measureText(l.t).width));
     const boxW = maxW + pad2 * 2;
     const boxH = lines.length * lineH + pad2;
+
+    // Horizontal: prefer right of X line, flip left if overflow
     let boxX = xPx + 8;
     if (boxX + boxW > chartArea.right - 4) boxX = xPx - boxW - 8;
-    const boxY = chartArea.top + 8;
+
+    // Vertical: center box on intersection points, clamp to chart
+    const boxHalfH = boxH / 2;
+    let boxY = boxCenterY - boxHalfH;
+    if (boxY < chartArea.top) boxY = chartArea.top;
+    if (boxY + boxH > chartArea.bottom) boxY = chartArea.bottom - boxH;
 
     ctx.fillStyle = "rgba(30,33,48,0.95)";
     ctx.beginPath();
@@ -92,19 +112,13 @@ const _hoverPlugin = {
     });
 
     // Intersection dots
-    if (xauPt && scales.y) {
-      const yPx = scales.y.getPixelForValue(xauPt.y);
-      if (yPx >= chartArea.top && yPx <= chartArea.bottom) {
-        ctx.fillStyle = "#22c55e";
-        ctx.beginPath(); ctx.arc(xPx, yPx, 4, 0, Math.PI * 2); ctx.fill();
-      }
+    if (yPxXau !== null) {
+      ctx.fillStyle = "#22c55e";
+      ctx.beginPath(); ctx.arc(xPx, yPxXau, 4, 0, Math.PI * 2); ctx.fill();
     }
-    if (auPt && scales.y2) {
-      const yPx = scales.y2.getPixelForValue(auPt.y);
-      if (yPx >= chartArea.top && yPx <= chartArea.bottom) {
-        ctx.fillStyle = "#f59e0b";
-        ctx.beginPath(); ctx.arc(xPx, yPx, 4, 0, Math.PI * 2); ctx.fill();
-      }
+    if (yPxAu !== null) {
+      ctx.fillStyle = "#f59e0b";
+      ctx.beginPath(); ctx.arc(xPx, yPxAu, 4, 0, Math.PI * 2); ctx.fill();
     }
 
     ctx.restore();

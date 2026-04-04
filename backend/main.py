@@ -3,31 +3,27 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import price, alert, sse
+from backend.routers import price, alert, sse, rss
 from backend.data.db import init_db
 from backend.alerts.checker import start_scheduler, get_triggered_alerts, get_cached_news
-import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Frontend static files path — set via env var or default to sibling frontend/ dir
 FRONTEND_PATH = os.environ.get("FRONTEND_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend"))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     await init_db()
 
-    # Pre-fetch news immediately so first request is fast
     from backend.alerts.checker import _refresh_news
     asyncio.create_task(_refresh_news())
 
@@ -46,13 +42,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
 app.mount("/static", StaticFiles(directory=FRONTEND_PATH), name="static")
 
-# Include routers
 app.include_router(price.router)
 app.include_router(alert.router)
 app.include_router(sse.router)
+app.include_router(rss.router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -63,7 +58,6 @@ async def root():
 
 @app.get("/api/alerts/triggered")
 async def get_triggered():
-    """Return currently triggered alerts."""
     return get_triggered_alerts()
 
 

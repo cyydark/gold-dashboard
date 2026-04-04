@@ -1,7 +1,7 @@
 """Alert management API routes."""
 from fastapi import APIRouter
 from backend.data.db import get_all_rules, add_rule, delete_rule
-from backend.data.models import AlertCreate, AlertRule
+from backend.data.models import AlertCreate
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
