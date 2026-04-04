@@ -215,3 +215,78 @@ body {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
+/* AI 简报样式 (Phase 1) */
+.briefing-section {
+  background: #1a1d27;
+  border: 1px solid #2a2d37;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.briefing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.briefing-title {
+  font-size: 1em;
+  font-weight: 600;
+  color: #f0c040;
+}
+
+.briefing-refresh-btn {
+  background: #2a2d37;
+  border: 1px solid #3a3d47;
+  border-radius: 6px;
+  color: #e0e0e0;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+
+.briefing-refresh-btn:hover {
+  background: #3a3d47;
+}
+
+.briefing-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.briefing-item {
+  border-bottom: 1px solid #2a2d37;
+  padding: 10px 0;
+}
+
+.briefing-item:last-child {
+  border-bottom: none;
+}
+
+.briefing-time {
+  font-size: 0.75em;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.briefing-content {
+  font-size: 0.9em;
+  color: #d0d0d0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.briefing-loading {
+  color: #666;
+  text-align: center;
+  padding: 20px;
+}
+
+.briefing-empty {
+  color: #666;
+  text-align: center;
+  padding: 20px;
+}

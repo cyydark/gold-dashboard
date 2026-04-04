@@ -128,9 +128,42 @@ async function loadNews(days = 1) {
   }
 }
 
+let briefings = [];
+
+async function loadBriefings() {
+  const list = document.getElementById("briefing-list");
+  if (!list) return;
+  try {
+    const res = await fetch("/api/briefings");
+    const data = await res.json();
+    briefings = data.briefings || [];
+    if (briefings.length === 0) {
+      list.innerHTML = '<div class="briefing-empty">暂无简报，将于下一小时生成</div>';
+      return;
+    }
+    list.innerHTML = briefings.map(b => `
+      <div class="briefing-item">
+        <div class="briefing-time">${b.time_range || b.generated_at}</div>
+        <div class="briefing-content">${escapeHtml(b.content)}</div>
+      </div>
+    `).join("");
+  } catch (e) {
+    list.innerHTML = '<div class="briefing-empty">加载失败</div>';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
+  loadBriefings();
   initControls();
+  document.getElementById("refresh-briefing-btn")?.addEventListener("click", loadBriefings);
   await chart.load(currentDays);
   // Warm up all 3 windows in background (backend caches each for 5 min)
   chart.warmup();
