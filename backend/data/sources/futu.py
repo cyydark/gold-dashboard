@@ -24,11 +24,16 @@ _cache: list[dict] = []
 _cache_ts: float = 0.0
 
 # 黄金相关关键词：标题必须包含，或正文出现 ≥2 次
+# 包含纯金市词 + 驱动金价的地缘/宏观词
 GOLD_KEYWORDS = [
+    # 纯金市词
     "黄金", "金价", "金条", "金币", "金矿", "金饰", "金店",
     "国际金", "现货金", "期货金", "黄金期货", "COMEX", "伦敦金",
     "XAU", "au9999", "au(t+d)", "央行购金", "购金潮",
     "Gold", "gold", "XAUUSD", "Goldman Sachs",
+    # 地缘/宏观驱动词（地缘危机时期，金市新闻大量含此类词）
+    "避险", "美元", "美债", "美联储", "降息", "加息",
+    "央行", "通胀", "白银", "大宗商品",
 ]
 
 
@@ -112,25 +117,31 @@ def _parse_ssr_time(img_src: str, footer_time: str) -> tuple[str, str]:
     )
 
 
-def _fetch_ssr_articles() -> list[dict]:
-    """Fetch 要闻 (important news) from Futu SSR main page.
+SSR_PAGES = [
+    ("https://news.futunn.com/zh/main", "zh-CN"),
+    ("https://news.futunn.com/main",    "en"),
+]
 
-    The /zh/main page embeds article list via server-side rendering (NUXT).
+
+def _fetch_ssr_articles(url: str, lang: str) -> list[dict]:
+    """Fetch 要闻 (important news) from a Futu SSR page.
+
+    The /zh/main and /main pages embed article list via server-side rendering (NUXT).
     Returns list of dicts: {url, title, source, published, time_ago}
     """
     try:
         resp = httpx.get(
-            "https://news.futunn.com/zh/main",
+            url,
             headers={
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-                "Accept-Language": "zh-CN,zh;q=0.9",
+                "Accept-Language": lang,
             },
             timeout=15,
             verify=False,
         )
         html = resp.text
     except Exception as e:
-        logger.warning(f"Futu SSR fetch error: {e}")
+        logger.warning(f"Futu SSR fetch error ({url}): {e}")
         return []
 
     articles = []
@@ -147,7 +158,7 @@ def _fetch_ssr_articles() -> list[dict]:
         url_m = re.search(r'href="([^"]+)"', open_attrs)
         if not url_m:
             continue
-        url = url_m.group(1).strip()
+        article_url = url_m.group(1).strip()
 
         # Title from img alt attribute (most reliable)
         title_m = re.search(r'<img[^>]+alt="([^"]+)"', content)
@@ -166,12 +177,12 @@ def _fetch_ssr_articles() -> list[dict]:
         img_src = img_m.group(1) if img_m else ""
 
         # Footer time
-        time_m = re.search(r'class="footer-time"[^>]*>([^<]+)</span>', content)
+        time_m = re.search(r'class="footer-time"[^>]*>(.*?)</span>', content, re.DOTALL)
         footer_time = time_m.group(1).strip() if time_m else ""
 
         published, time_ago = _parse_ssr_time(img_src, footer_time)
         articles.append({
-            "url": url,
+            "url": article_url,
             "title": title,
             "source": source,
             "published": published,
@@ -197,24 +208,25 @@ def fetch_futu_news() -> list[dict]:
     all_items = []
     seen_urls: Set[str] = set()
 
-    # Source 1: SSR articles from /zh/main
-    for article in _fetch_ssr_articles():
-        title = article["title"]
-        if not _is_gold_news(title):
-            continue
-        url = article["url"]
-        if url in seen_urls:
-            continue
-        seen_urls.add(url)
-        all_items.append({
-            "source": "富途牛牛",
-            "title_en": title,
-            "title": title,
-            "url": url,
-            "published": article["published"],
-            "time_ago": article["time_ago"],
-            "direction": "neutral",
-        })
+    # Source 1–2: SSR articles from /zh/main and /main
+    for url, lang in SSR_PAGES:
+        for article in _fetch_ssr_articles(url, lang):
+            title = article["title"]
+            if not _is_gold_news(title):
+                continue
+            url_key = article["url"]
+            if url_key in seen_urls:
+                continue
+            seen_urls.add(url_key)
+            all_items.append({
+                "source": "富途牛牛",
+                "title_en": title,
+                "title": title,
+                "url": url_key,
+                "published": article["published"],
+                "time_ago": article["time_ago"],
+                "direction": "neutral",
+            })
 
     # Source 2: Flash news from get-flash-list API (快讯)
     try:
