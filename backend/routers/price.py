@@ -119,13 +119,18 @@ async def get_news(days: int = 1):
 
 @router.post("/news/refresh")
 async def refresh_news():
-    """手动抓取新闻并入库。"""
-    from backend.data.sources.futu import fetch_futu_news, _sync_save_news
+    """手动抓取新闻并入库（富途 + Bernama）。"""
+    from backend.data.sources.futu import fetch_futu_news, _sync_save_news as futu_save
+    from backend.data.sources.bernama import fetch_bernama_gold_news, _sync_save_news as bernama_save
     loop = asyncio.get_event_loop()
-    news = await loop.run_in_executor(None, fetch_futu_news)
-    if news:
-        await asyncio.to_thread(_sync_save_news, news, "")
-    return {"count": len(news), "message": f"抓取到 {len(news)} 条新闻已入库"}
+    futu_news = await loop.run_in_executor(None, fetch_futu_news)
+    bernama_news = await loop.run_in_executor(None, fetch_bernama_gold_news)
+    total = len(futu_news) + len(bernama_news)
+    if futu_news:
+        await asyncio.to_thread(futu_save, futu_news)
+    if bernama_news:
+        await asyncio.to_thread(bernama_save, bernama_news)
+    return {"count": total, "message": f"抓取到 {total} 条新闻（Futu: {len(futu_news)}, Bernama: {len(bernama_news)}）已入库"}
 
 
 @router.get("/briefings")
