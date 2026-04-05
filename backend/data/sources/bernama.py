@@ -141,3 +141,7 @@ def fetch_bernama_gold_news() -> list[dict]:
     _cache_ts = now
     logger.info(f"BernamaBiz fetched {len(items)} gold news items")
     return items
+
+
+# Alias for pluggable interface
+fetch_news = fetch_bernama_gold_news

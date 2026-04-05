@@ -119,18 +119,22 @@ async def get_news(days: int = 1):
 
 @router.post("/news/refresh")
 async def refresh_news():
-    """手动抓取新闻并入库（富途 + Bernama）。"""
-    from backend.data.sources.futu import fetch_futu_news, _sync_save_news as futu_save
-    from backend.data.sources.bernama import fetch_bernama_gold_news, _sync_save_news as bernama_save
+    """手动抓取所有配置的新闻源并入库。"""
+    import importlib
+    from backend.data.sources import NEWS_SOURCES
     loop = asyncio.get_event_loop()
-    futu_news = await loop.run_in_executor(None, fetch_futu_news)
-    bernama_news = await loop.run_in_executor(None, fetch_bernama_gold_news)
-    total = len(futu_news) + len(bernama_news)
-    if futu_news:
-        await asyncio.to_thread(futu_save, futu_news)
-    if bernama_news:
-        await asyncio.to_thread(bernama_save, bernama_news)
-    return {"count": total, "message": f"抓取到 {total} 条新闻（Futu: {len(futu_news)}, Bernama: {len(bernama_news)}）已入库"}
+    results: dict[str, int] = {}
+    for name, (module_path, fn_name) in NEWS_SOURCES.items():
+        mod = importlib.import_module(module_path)
+        fetch_fn = getattr(mod, fn_name)
+        save_fn = getattr(mod, "_sync_save_news")
+        news = await loop.run_in_executor(None, fetch_fn)
+        if news:
+            await asyncio.to_thread(save_fn, news)
+        results[name] = len(news) if news else 0
+    total = sum(results.values())
+    detail = ", ".join(f"{name}: {count}" for name, count in results.items())
+    return {"count": total, "message": f"抓取到 {total} 条新闻（{detail}）已入库"}
 
 
 @router.get("/briefings")

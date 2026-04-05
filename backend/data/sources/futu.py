@@ -126,3 +126,7 @@ def fetch_futu_news(page_size: int = 200) -> list[dict]:
     _cache_ts = now_ts
     logger.info(f"Futu gold news: filtered {len(news_list)} total → {len(items)} gold items")
     return items
+
+
+# Alias for pluggable interface
+fetch_news = fetch_futu_news

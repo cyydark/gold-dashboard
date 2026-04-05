@@ -49,17 +49,18 @@ async def _briefing_loop():
 
 
 async def _news_refresh_loop():
-    """Background loop: refresh Futu + Bernama news every 5 minutes."""
-    from backend.data.sources.futu import fetch_futu_news, _sync_save_news as futu_save
-    from backend.data.sources.bernama import fetch_bernama_gold_news, _sync_save_news as bernama_save
+    """Background loop: refresh all configured news sources every 5 minutes."""
+    import importlib
     while True:
         try:
-            futu_news = await asyncio.to_thread(fetch_futu_news)
-            if futu_news:
-                threading.Thread(target=futu_save, args=(futu_news,), daemon=True).start()
-            bernama_news = await asyncio.to_thread(fetch_bernama_gold_news)
-            if bernama_news:
-                threading.Thread(target=bernama_save, args=(bernama_news,), daemon=True).start()
+            from backend.data.sources import NEWS_SOURCES
+            for name, (module_path, fn_name) in NEWS_SOURCES.items():
+                mod = importlib.import_module(module_path)
+                fetch_fn = getattr(mod, fn_name)
+                save_fn = getattr(mod, "_sync_save_news")
+                news = await asyncio.to_thread(fetch_fn)
+                if news:
+                    threading.Thread(target=save_fn, args=(news,), daemon=True).start()
         except Exception:
             pass
         await asyncio.sleep(300)
