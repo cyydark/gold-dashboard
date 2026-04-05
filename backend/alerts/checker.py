@@ -62,7 +62,7 @@ async def _generate_briefing_scheduled():
 
 async def _generate_daily_briefing_scheduled():
     """每日08时（北京时间08:05前后）汇总昨日全天新闻生成'上一日整体'简报。"""
-    from backend.data.sources.futu import BEIJING_TZ
+    from backend.data.sources.futu import BEIJING_TZ, fetch_and_save_news
     from backend.data.db import get_news_by_date_range
     from backend.data.sources.briefing import generate_daily_briefing_from_news
     try:
@@ -72,13 +72,17 @@ async def _generate_daily_briefing_scheduled():
         date_str = yesterday_start.strftime("%Y-%m-%d")
         today_str = today_start.strftime("%Y-%m-%d")
 
+        # 主动触发一次新闻获取+写入，确保昨日数据已落地
+        await asyncio.get_event_loop().run_in_executor(None, fetch_and_save_news)
+        await asyncio.sleep(2)  # 等待写入完成
+
         yesterday_news = await get_news_by_date_range(
             start_iso=date_str,
             end_iso=today_str,
             limit=200,
         )
         if not yesterday_news:
-            logger.info("No news found for yesterday, skipping daily briefing")
+            logger.warning(f"No news found for {date_str}, skipping daily briefing")
             return
 
         await generate_daily_briefing_from_news(yesterday_news, date_str)

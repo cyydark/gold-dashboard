@@ -73,6 +73,14 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
         logger.warning(f"Failed to save Futu news to DB: {e}")
 
 
+def fetch_and_save_news(hour_range: str = "") -> list[dict]:
+    """Fetch gold news and save to DB synchronously. Returns the fetched items."""
+    items = fetch_futu_news()
+    if items:
+        _sync_save_news(items, hour_range)
+    return items
+
+
 def _is_gold_news(title: str, content: str = "") -> bool:
     """Check if a news item is primarily about gold.
 
