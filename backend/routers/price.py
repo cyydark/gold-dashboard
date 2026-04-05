@@ -1,5 +1,6 @@
 """Price and history API routes."""
 import asyncio
+import importlib
 from datetime import timedelta
 
 from dotenv import load_dotenv

@@ -1,6 +1,7 @@
 /**
  * Main app: price cards + dual gold chart + news.
  */
+import { GoldChart } from "./chart/GoldChart.js";
 
 let chart = null;
 let prices = {};
