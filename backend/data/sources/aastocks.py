@@ -29,33 +29,12 @@ EXCLUDE_KEYWORDS = [
     "chinese restaurant", "kimchi",
 ]
 
-UP_KEYWORDS = [
-    "gold surge", "gold rally", "gold gains", "gold rises",
-    "gold climbs", "gold up", "gold higher", "gold jump",
-    "gold spike", "gold record", "gold touches", "gold near",
-    "gold extends", "gold back above",
-]
-DOWN_KEYWORDS = [
-    "gold fall", "gold drop", "gold decline", "gold lower",
-    "gold retreat", "gold slip", "gold down", "gold loses",
-    "gold tumble", "gold under pressure", "gold sinks",
-]
-
 
 def _is_gold_article(title: str) -> bool:
     t = title.lower()
     if any(kw in t for kw in EXCLUDE_KEYWORDS):
         return False
     return any(kw in t for kw in BROAD_GOLD_KEYWORDS)
-
-
-def _detect_direction(title: str) -> str:
-    t = title.lower()
-    if any(kw in t for kw in DOWN_KEYWORDS):
-        return "down"
-    if any(kw in t for kw in UP_KEYWORDS):
-        return "up"
-    return "neutral"
 
 
 def _parse_dt(dt_str: str) -> datetime:
@@ -187,7 +166,7 @@ def _fetch_more_news(news_id: str, newstime: str) -> tuple[list[dict], str, str]
             "url": f"https://www.aastocks.com/en/usq/news/comment.aspx?source={source}&id={nid}&catg=1",
             "published": pub_dt.strftime("%Y-%m-%d %H:%M"),
             "time_ago": pub_dt.strftime("%Y-%m-%d"),
-            "direction": _detect_direction(title_raw),
+            "direction": "neutral",
         })
         # Advance cursor to the oldest (last) item
         next_id = nid
