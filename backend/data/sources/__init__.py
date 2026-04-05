@@ -10,6 +10,6 @@ from backend.data.sources.yfinance_fx import fetch_usdcny as _fx
 # symbol -> (模块路径, 函数名)
 SOURCES: dict[str, tuple[str, str]] = {
     "XAUUSD": ("backend.data.sources.binance_kline",  "fetch_xauusd_history"),
-    "AU9999": ("backend.data.sources.fx678_au9999",   "fetch_au9999_history"),
+    "AU9999": ("backend.data.sources.akshare_sge",  "fetch_au9999_history"),
     "USDCNY": ("backend.data.sources.yfinance_fx",    "fetch_usdcny"),
 }
