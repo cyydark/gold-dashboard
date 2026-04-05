@@ -13,7 +13,11 @@ router = APIRouter(tags=["sse"])
 
 
 def _format_price(bar: dict | None, symbol: str, now_ts: int) -> dict | None:
-    """Convert a 1m price bar (with full OHLC) to price card format."""
+    """Convert a price bar to price card format.
+
+    change/pct come from the data source (not computed from close-open).
+    Falls back to computing from close-open only when bar has no change/pct.
+    """
     if not bar:
         return None
     ts = bar["ts"]
@@ -21,14 +25,25 @@ def _format_price(bar: dict | None, symbol: str, now_ts: int) -> dict | None:
     open_px = round(bar["open"], 2)
     names = {"XAUUSD": ("国际黄金 XAU/USD", "USD/oz"), "AU9999": ("国内黄金 AU9999", "CNY/g")}
     name, unit = names.get(symbol, (symbol, ""))
+
+    # Use stored change/pct from data source when available; otherwise compute
+    stored_change = bar.get("change")
+    stored_pct = bar.get("pct")
+    if stored_change is not None and stored_pct is not None:
+        change_val = round(float(stored_change), 2)
+        pct_val = round(float(stored_pct), 2)
+    else:
+        change_val = round(price - open_px, 2)
+        pct_val = round((price - open_px) / open_px * 100, 2) if open_px else 0
+
     return {
         "symbol": symbol,
         "name": name,
         "price": price,
         "ts": ts,
         "now_ts": now_ts,
-        "change": round(price - open_px, 2),
-        "pct": round((price - open_px) / open_px * 100, 2) if open_px else 0,
+        "change": change_val,
+        "pct": pct_val,
         "open": open_px,
         "high": round(bar["high"], 2),
         "low": round(bar["low"], 2),
