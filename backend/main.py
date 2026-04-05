@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
 from backend.data import constants as c
-from backend.routers import price, sse
+from backend.api.routes import price, news, briefing, sse
 from backend.data.db import init_db
 from dotenv import load_dotenv
 
@@ -116,6 +116,8 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=FRONTEND_PATH), name="static")
 
 app.include_router(price.router)
+app.include_router(news.router)
+app.include_router(briefing.router)
 app.include_router(sse.router)
 
 
