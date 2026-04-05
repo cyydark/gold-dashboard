@@ -3,14 +3,13 @@ import asyncio
 import logging
 import os
 import threading
-import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import price, sse, rss
+from backend.routers import price, sse
 from backend.data.db import init_db
 from dotenv import load_dotenv
 
@@ -109,7 +108,6 @@ app.mount("/static", StaticFiles(directory=FRONTEND_PATH), name="static")
 
 app.include_router(price.router)
 app.include_router(sse.router)
-app.include_router(rss.router)
 
 
 @app.get("/", response_class=HTMLResponse)
