@@ -50,19 +50,15 @@ const _hoverPlugin = {
     const rawTs = xScale.getValueForPixel(xPx);
 
     const nearest = this._nearest;
-    const xauPt = nearest?.xau || null;
-    const auPt  = nearest?.au  || null;
+    const xauRaw = nearest?.xau || null;
+    const auRaw  = nearest?.au  || null;
 
-    // Don't show tooltip if cursor is too far from any real data point (>20px)
-    const GAP_THRESHOLD_PX = 20;
-    const nearestXau = nearest?.xau;
-    const nearestAu  = nearest?.au;
-    const xauPx = nearestXau ? scales.x.getPixelForValue(nearestXau.x) : null;
-    const auPx  = nearestAu  ? scales.x.getPixelForValue(nearestAu.x)  : null;
-    if ((xauPx === null || Math.abs(xPx - xauPx) > GAP_THRESHOLD_PX) &&
-        (auPx  === null || Math.abs(xPx - auPx)  > GAP_THRESHOLD_PX)) {
-      return;
-    }
+    // Only show value if cursor is within 20px of that dataset's data point
+    const THRESHOLD_PX = 20;
+    const xauPt = xauRaw && Math.abs(xPx - scales.x.getPixelForValue(xauRaw.x)) <= THRESHOLD_PX ? xauRaw : null;
+    const auPt  = auRaw  && Math.abs(xPx - scales.x.getPixelForValue(auRaw.x))  <= THRESHOLD_PX ? auRaw  : null;
+
+    if (!xauPt && !auPt) return;
 
     const pad = n => String(n).padStart(2, "0");
     const fmtBJ = (ts) => {
