@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.config import settings
 from backend.data import constants as c
 from backend.routers import price, sse
 from backend.data.db import init_db
@@ -18,7 +19,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-FRONTEND_PATH = os.environ.get("FRONTEND_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend"))
+FRONTEND_PATH = os.environ.get("FRONTEND_PATH", str(settings.frontend_path))
 
 
 @asynccontextmanager
