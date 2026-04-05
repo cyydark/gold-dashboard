@@ -18,7 +18,6 @@ async def init_db():
                 title_en TEXT,
                 source TEXT,
                 url TEXT UNIQUE,
-                direction TEXT DEFAULT 'neutral',
                 time_ago TEXT,
                 published_at TEXT NOT NULL,
                 hour_range TEXT
@@ -74,7 +73,6 @@ async def init_db():
             async with db.execute("PRAGMA table_info(news_items)") as cur:
                 cols = [row[1] for row in await cur.fetchall()]
             if "fetched_at" in cols:
-                # SQLite doesn't support DROP COLUMN directly; recreate table
                 await db.execute("""
                     CREATE TABLE news_items_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,19 +80,28 @@ async def init_db():
                         title_en TEXT,
                         source TEXT,
                         url TEXT UNIQUE,
-                        direction TEXT DEFAULT 'neutral',
                         time_ago TEXT,
                         published_at TEXT NOT NULL,
                         hour_range TEXT
                     )
                 """)
                 await db.execute("""
-                    INSERT INTO news_items_new(id, title, title_en, source, url, direction, time_ago, published_at, hour_range)
-                    SELECT id, title, title_en, source, url, direction, time_ago, published_at, hour_range FROM news_items
+                    INSERT INTO news_items_new(id, title, title_en, source, url, time_ago, published_at, hour_range)
+                    SELECT id, title, title_en, source, url, time_ago, published_at, hour_range FROM news_items
                 """)
                 await db.execute("DROP TABLE news_items")
                 await db.execute("ALTER TABLE news_items_new RENAME TO news_items")
                 await db.execute("CREATE INDEX IF NOT EXISTS idx_news_published ON news_items(published_at)")
+                await db.commit()
+        except Exception:
+            pass
+
+        # Migration: drop direction column if it exists
+        try:
+            async with db.execute("PRAGMA table_info(news_items)") as cur:
+                cols = [row[1] for row in await cur.fetchall()]
+            if "direction" in cols:
+                await db.execute("ALTER TABLE news_items DROP COLUMN direction")
                 await db.commit()
         except Exception:
             pass
@@ -117,7 +124,7 @@ async def get_news_items(days: int) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT title, title_en, source, url, direction, time_ago, published_at "
+            "SELECT title, title_en, source, url, time_ago, published_at "
             "FROM news_items WHERE published_at >= ? ORDER BY published_at DESC",
             (cutoff,),
         )
@@ -185,7 +192,7 @@ async def get_news_by_date_range(start_iso: str, end_iso: str, limit: int = 200)
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT id, title, title_en, source, url, direction, time_ago, published_at "
+            "SELECT id, title, title_en, source, url, time_ago, published_at "
             "FROM news_items "
             "WHERE date(published_at, '-8 hours') >= date(?) "
             "  AND date(published_at, '-8 hours') <  date(?) "
@@ -200,7 +207,7 @@ async def get_news_in_range(start_iso: str, end_iso: str, limit: int = 100) -> l
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT title, title_en, source, url, direction, time_ago, published_at "
+            "SELECT title, title_en, source, url, time_ago, published_at "
             "FROM news_items WHERE published_at >= ? AND published_at < ? "
             "ORDER BY published_at DESC LIMIT ?",
             (start_iso, end_iso, limit),
@@ -215,7 +222,7 @@ async def get_news_last_hours(hours: int = 1, limit: int = 20) -> list[dict]:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
-            "SELECT title, title_en, source, url, direction, time_ago, published_at "
+            "SELECT title, title_en, source, url, time_ago, published_at "
             "FROM news_items WHERE published_at >= ? ORDER BY published_at DESC LIMIT ?",
             (cutoff, limit),
         )
@@ -228,13 +235,13 @@ async def get_recent_news(hour_range: str | None = None, limit: int = 20) -> lis
         db.row_factory = aiosqlite.Row
         if hour_range:
             rows = await db.execute(
-                "SELECT id, title, title_en, source, url, direction, time_ago, published_at "
+                "SELECT id, title, title_en, source, url, time_ago, published_at "
                 "FROM news_items WHERE hour_range = ? ORDER BY published_at DESC LIMIT ?",
                 (hour_range, limit),
             )
         else:
             rows = await db.execute(
-                "SELECT id, title, title_en, source, url, direction, time_ago, published_at "
+                "SELECT id, title, title_en, source, url, time_ago, published_at "
                 "FROM news_items ORDER BY published_at DESC LIMIT ?",
                 (limit,),
             )

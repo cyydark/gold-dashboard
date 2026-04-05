@@ -98,10 +98,6 @@ async function loadNews(days = 1) {
     }
 
     list.innerHTML = news.map(item => {
-      const dir = item.direction;
-      const label = dir === "up" ? '<span class="news-tag up">📈 金价升</span>'
-                   : dir === "down" ? '<span class="news-tag down">📉 金价降</span>'
-                   : '<span class="news-tag neutral">📊 中性</span>';
       const escape = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       const timeAgo = _timeAgo(item.published_ts);
       return `
@@ -113,7 +109,6 @@ async function loadNews(days = 1) {
         <div class="news-content">
           <span class="news-headline">${escape(item.title)}</span>
         </div>
-        <div class="news-dir">${label}</div>
       </a>
     `}).join("");
 

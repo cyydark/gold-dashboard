@@ -137,17 +137,16 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
                     except Exception:
                         pass
                 conn.execute("""
-                    INSERT INTO news_items (title, title_en, source, url, direction, time_ago, published_at, hour_range)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO news_items (title, title_en, source, url, time_ago, published_at, hour_range)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(url) DO UPDATE SET
                         title=excluded.title, title_en=excluded.title_en,
-                        direction=excluded.direction, time_ago=excluded.time_ago,
-                        published_at=excluded.published_at,
+                        time_ago=excluded.time_ago, published_at=excluded.published_at,
                         hour_range=excluded.hour_range
                 """, (
                     item.get("title", ""), item.get("title_en", ""),
                     item.get("source", ""), item.get("url", ""),
-                    item.get("direction", "neutral"), item.get("time_ago", ""),
+                    item.get("time_ago", ""),
                     pub_ts or pub or now_str, hour_range,
                 ))
             conn.commit()
@@ -225,7 +224,6 @@ def fetch_bitcoinworld_gold_news() -> list[dict]:
             "url": article["url"],
             "published": pub_dt.strftime("%Y-%m-%d %H:%M"),
             "time_ago": pub_dt.strftime("%Y-%m-%d"),
-            "direction": "neutral",
         })
 
     # Sort newest first
