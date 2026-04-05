@@ -70,27 +70,21 @@
 
     <!-- AI 简报 + 来源新闻 -->
     <div class="briefing-wrapper">
-      <!-- 左侧：AI 分析 -->
+      <!-- 左侧：AI 周报 -->
       <section class="briefing-section" id="briefing-section">
-        <!-- 上一日整体 -->
+        <!-- 近7日整体 -->
         <div class="briefing-header">
-          <span class="briefing-title">📊 上一日整体</span>
-          <span id="daily-time" class="briefing-period"></span>
+          <span class="briefing-title">📊 近7日整体</span>
+          <span id="weekly-time" class="briefing-period"></span>
         </div>
-        <div id="daily-content" class="briefing-daily"></div>
-
-        <!-- 最近12小时逐时 -->
-        <div class="briefing-header" style="margin-top:14px;">
-          <span class="briefing-title">⏱ 近12小时</span>
-        </div>
-        <div id="hourly-list" class="hourly-list"></div>
+        <div id="weekly-content" class="briefing-daily"></div>
       </section>
 
-      <!-- 右侧：来源新闻（最近1小时） -->
+      <!-- 右侧：新闻列表 -->
       <section class="source-news-section" id="source-news-section">
         <div class="briefing-header">
-          <span class="briefing-title">📰 近1小时新闻</span>
-          <span id="source-time" class="briefing-period"></span>
+          <span class="briefing-title">📰 最新资讯</span>
+          <span id="news-count" class="briefing-period"></span>
         </div>
         <div id="briefing-news-list" class="briefing-news-list"></div>
       </section>

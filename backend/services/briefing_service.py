@@ -14,28 +14,39 @@ class BriefingService:
         self.briefing_repo = briefing_repo or BriefingRepository()
         self.news_repo = news_repo or NewsRepository()
 
-    async def get_briefings(self, limit: int = 24) -> dict:
-        """Get daily briefing + hourly briefings + recent news.
+    async def get_briefings(self, limit: int = 7) -> dict:
+        """Get weekly briefing + all recent news.
 
         Args:
-            limit: Maximum number of hourly briefings to return
+            limit: Number of days to look back for news (default 7)
 
         Returns:
-            dict with daily, hourly, news, and time_window
+            dict with weekly (based on 7 days), news list, and news_count
         """
-        hourly = await self.briefing_repo.get_hourly(limit)
-        daily = await self.briefing_repo.get_daily()
-        news = await self.news_repo.get_last_hours(hours=1, limit=20)
+        weekly = await self.briefing_repo.get_daily()
+        # Get all news from the last N days, sorted by published_at desc
+        news = await self.news_repo.get_by_days(limit)
 
-        now = datetime.now(BEIJING_TZ)
-        one_hour_ago = now - timedelta(hours=1)
-        time_window = f"{one_hour_ago.strftime('%H:%M')}~{now.strftime('%H:%M')}"
+        # Add published_ts to each news item
+        for item in news:
+            try:
+                pub = item.get("published_at", "")
+                if pub:
+                    naive = datetime.fromisoformat(pub)
+                    aware = naive.replace(tzinfo=BEIJING_TZ)
+                    item["published_ts"] = int(aware.timestamp())
+                else:
+                    item["published_ts"] = None
+            except Exception:
+                item["published_ts"] = None
+
+        news.sort(key=lambda x: x.get("published_ts") or 0, reverse=True)
 
         return {
-            "daily": daily,
-            "hourly": hourly,
+            "weekly": weekly,
             "news": news,
-            "time_window": time_window,
+            "news_count": len(news),
+            "days": limit,
         }
 
     async def trigger_briefing_generation(self) -> None:

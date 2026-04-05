@@ -7,10 +7,10 @@ router = APIRouter(prefix="/api", tags=["briefings"])
 
 
 @router.get("/briefings")
-async def get_briefings(limit: int = 24,
+async def get_briefings(days: int = 7,
                         service: BriefingService = Depends(get_briefing_service)):
-    """Return daily briefing + hourly briefings + recent news."""
-    return await service.get_briefings(limit)
+    """Return weekly briefing + recent news list."""
+    return await service.get_briefings(days)
 
 
 @router.post("/briefings/trigger")

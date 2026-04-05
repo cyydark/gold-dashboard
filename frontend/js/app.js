@@ -127,68 +127,41 @@ async function loadNews(days = 1) {
 }
 
 async function loadBriefings() {
-  const dailyEl = document.getElementById("daily-content");
-  const hourlyEl = document.getElementById("hourly-list");
+  const weeklyEl = document.getElementById("weekly-content");
   const newsEl = document.getElementById("briefing-news-list");
-  const dailyTimeEl = document.getElementById("daily-time");
-  const sourceTimeEl = document.getElementById("source-time");
-  if (!dailyEl || !hourlyEl) return;
+  const weeklyTimeEl = document.getElementById("weekly-time");
+  const newsCountEl = document.getElementById("news-count");
+  if (!weeklyEl) return;
 
   try {
-    const res = await fetch("/api/briefings?limit=24");
+    const res = await fetch("/api/briefings?days=7");
     const data = await res.json();
-    const briefings = data.hourly || [];
-    const dailyData = data.daily;
+    const weeklyData = data.weekly;
+    const news = data.news || [];
 
-    if (!dailyData && briefings.length === 0) {
-      dailyEl.innerHTML = '<div class="briefing-empty">暂无简报</div>';
-      hourlyEl.innerHTML = '';
-      return;
-    }
-
-    // 上一日整体：日报独立存储
-    if (dailyData) {
-      dailyTimeEl.textContent = dailyData.time_range || "";
-      dailyEl.innerHTML = `<span class="briefing-daily-text">${escapeHtml(dailyData.content || "")}</span>`;
+    // 左侧：近7日整体
+    if (weeklyData) {
+      weeklyTimeEl.textContent = weeklyData.time_range || "";
+      weeklyEl.innerHTML = `<span class="briefing-daily-text">${escapeHtml(weeklyData.content || "")}</span>`;
     } else {
-      dailyTimeEl.textContent = "";
-      dailyEl.innerHTML = '<span class="briefing-empty">日报将于每日08:05生成</span>';
+      weeklyTimeEl.textContent = "";
+      weeklyEl.innerHTML = '<span class="briefing-empty">暂无周报</span>';
     }
 
-    // 近12小时：小时简报独立存储，相同小时只留最新那条（按generated_at倒序去重）
-    const hourMap = new Map();
-    briefings.forEach(b => {
-      if (!b.time_range) return;
-      const hour = b.time_range.split("~")[0].trim();
-      if (!hourMap.has(hour)) hourMap.set(hour, b);
-    });
-    const hourly = [...hourMap.values()].slice(0, 12);
-    hourlyEl.innerHTML = hourly.map(b => {
-      const timeLabel = b.time_range
-        ? b.time_range.split("~")[0] + "时"
-        : (b.generated_at ? new Date(b.generated_at).toTimeString().slice(0,5) : "");
-      return `
-        <div class="hourly-item">
-          <span class="hourly-time">${escapeHtml(timeLabel)}</span>
-          <span class="hourly-text">${escapeHtml(b.content || "")}</span>
-        </div>`;
-    }).join("");
-
-    // 右侧：近1小时新闻（后端已过滤）
+    // 右侧：新闻列表
     if (newsEl) {
-      const news = data.news || [];
-      if (sourceTimeEl) {
-        sourceTimeEl.textContent = data.time_window || "";
+      if (newsCountEl) {
+        newsCountEl.textContent = `${data.news_count || news.length}条`;
       }
       if (news.length === 0) {
-        newsEl.innerHTML = '<div class="briefing-empty">暂无近1小时新闻</div>';
+        newsEl.innerHTML = '<div class="briefing-empty">暂无资讯</div>';
       } else {
-        newsEl.innerHTML = news.slice(0, 8).map(n => `
+        newsEl.innerHTML = news.map(n => `
           <div class="source-news-item">
             <div class="source-news-meta">
               <span class="source-news-source">${escapeHtml(n.source || "")}</span>
               <span>·</span>
-              <span>${escapeHtml(n.published_at ? n.published_at.slice(11, 16) : (n.time_ago || ""))}</span>
+              <span>${escapeHtml(n.published_at ? _timeAgo(n.published_ts) : (n.time_ago || ""))}</span>
             </div>
             <a class="source-news-title" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener">
               ${escapeHtml(n.title || n.title_en || "")}
@@ -196,9 +169,12 @@ async function loadBriefings() {
           </div>`).join("");
       }
     }
+
+    if (chart) {
+      chart.setNews(news);
+    }
   } catch (e) {
-    dailyEl.innerHTML = '<div class="briefing-empty">加载失败</div>';
-    hourlyEl.innerHTML = '';
+    weeklyEl.innerHTML = '<div class="briefing-empty">加载失败</div>';
     if (newsEl) newsEl.innerHTML = '<div class="briefing-empty">加载失败</div>';
   }
 }
