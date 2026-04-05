@@ -52,34 +52,27 @@ Browser ← SSE/HTTP → FastAPI ←→ 数据源（可插拔配置）
 ```
 gold-dashboard/
 ├── backend/
-│   ├── main.py              # FastAPI 入口 + lifespan 管理
-│   ├── requirements.txt     # Python 依赖
-│   ├── routers/
-│   │   ├── price.py        # 价格/历史数据 API
-│   │   ├── alert.py        # 预警 CRUD API
-│   │   ├── sse.py          # Server-Sent Events 流
-│   │   └── rss.py          # RSS 订阅源
+│   ├── api/                   # API 层
+│   │   ├── dependencies.py     # 依赖注入
+│   │   └── routes/           # 路由 (price, news, briefing, sse)
+│   ├── services/              # Service 层 (业务逻辑)
+│   ├── repositories/          # Repository 层 (数据访问)
+│   ├── workers/              # 后台 Worker (可选独立进程)
+│   │   ├── price_worker.py   # 价格同步
+│   │   ├── news_worker.py    # 新闻抓取
+│   │   └── briefing_worker.py # 简报生成
 │   ├── data/
-│   │   ├── db.py          # SQLite 操作
-│   │   └── sources/        # 可插拔数据源
-│   │       ├── __init__.py      # SOURCES 配置表
-│   │       ├── binance_kline.py  # Binance XAUTUSDT 5m → XAUUSD
-│   │       ├── fx678_au9999.py  # fx678 SGE 5m  → AU9999
-│   │       └── yfinance_fx.py   # yfinance USDCNY=X 5m → USDCNY
-│   ├── alerts/
-│   │   ├── engine.py      # 预警引擎
-│   │   └── checker.py      # 简报生成调度器
-│   └── analysis/
-│       └── indicators.py   # MA / RSI / MACD 指标
+│   │   ├── db.py            # 数据库管理
+│   │   └── sources/         # 可插拔数据源
+│   ├── main.py              # FastAPI 入口
+│   └── config.py            # 配置管理
 ├── frontend/
-│   ├── index.html          # 单页应用入口
-│   ├── css/style.css       # 深色主题样式
-│   └── js/
-│       ├── app.js         # 主逻辑：价格卡片 + 简报
-│       ├── chart.js        # Chart.js 双轴图表 + 十字线悬浮
-│       └── sse.js          # SSE 客户端
-├── run.sh                  # 启动脚本
-└── .env                    # 环境变量（不提交）
+│   ├── index.html           # 单页应用入口
+│   ├── css/style.css        # 样式
+│   └── js/                  # 前端脚本
+├── docs/                    # 设计文档
+├── start.sh                # 启动脚本
+└── README.md
 ```
 
 ---
@@ -89,28 +82,30 @@ gold-dashboard/
 ### 前置依赖
 
 - Python 3.14
-- Node.js（可选，用于前端开发）
 
-### 安装
+### 安装依赖
 
 ```bash
-# 克隆项目
-git clone https://github.com/cyydark/gold-dashboard.git
-cd gold-dashboard
-
-# 安装 Python 依赖
 pip install -r backend/requirements.txt
 ```
 
-### 启动
+### 启动服务
 
 ```bash
-./run.sh
-# 或直接
-uvicorn backend.main:app --reload --port 18000
+./start.sh start
 ```
 
 访问 http://localhost:18000
+
+### 管理命令
+
+```bash
+./start.sh start    # 启动服务
+./start.sh stop     # 停止服务
+./start.sh restart  # 重启服务
+./start.sh status   # 查看状态
+./start.sh logs    # 查看日志
+```
 
 ---
 
