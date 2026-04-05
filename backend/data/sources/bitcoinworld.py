@@ -1,5 +1,4 @@
 """BitcoinWorld gold news via HTML search page: https://bitcoinworld.co.in/?s=gold"""
-import asyncio
 import logging
 import re
 import sqlite3
@@ -99,22 +98,6 @@ def _fetch_article_time(url: str) -> datetime | None:
         return _parse_og_time(resp.text)
     except Exception:
         return None
-
-
-async def _fetch_article_time_async(url: str) -> tuple[str, datetime | None]:
-    """Async fetch of article publish time. Returns (url, dt)."""
-    try:
-        async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
-            resp = await client.get(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
-                },
-            )
-            dt = _parse_og_time(resp.text)
-            return (url, dt)
-    except Exception:
-        return (url, None)
 
 
 def _sync_save_news(items: list[dict], hour_range: str = ""):

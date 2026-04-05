@@ -228,26 +228,6 @@ async def get_news_last_hours(hours: int = 1, limit: int = 20) -> list[dict]:
         )
         return [dict(r) for r in await rows.fetchall()]
 
-
-async def get_recent_news(hour_range: str | None = None, limit: int = 20) -> list[dict]:
-    """Fetch recent news, optionally filtered by hour_range."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        if hour_range:
-            rows = await db.execute(
-                "SELECT id, title, title_en, source, url, time_ago, published_at "
-                "FROM news_items WHERE hour_range = ? ORDER BY published_at DESC LIMIT ?",
-                (hour_range, limit),
-            )
-        else:
-            rows = await db.execute(
-                "SELECT id, title, title_en, source, url, time_ago, published_at "
-                "FROM news_items ORDER BY published_at DESC LIMIT ?",
-                (limit,),
-            )
-        return [dict(r) for r in await rows.fetchall()]
-
-
 # ---------------------------------------------------------------------------
 # Price bars
 # ---------------------------------------------------------------------------

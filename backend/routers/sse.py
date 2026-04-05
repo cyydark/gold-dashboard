@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from backend.data.db import get_latest_price_bar, get_latest_usdcny
+from backend.data.sources.binance_kline import fetch_xauusd_realtime
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 PRICE_INTERVAL = 30  # 30s
@@ -71,16 +72,38 @@ def _format_fx(fx: dict | None) -> dict | None:
 
 
 async def price_generator():
-    """Yield SSE events with current prices from DB every PRICE_INTERVAL seconds."""
+    """Yield SSE events with current prices every PRICE_INTERVAL seconds."""
     while True:
         now_ts = int(time.time())
-        xau_bar = await get_latest_price_bar("XAUUSD")
+
+        # XAUUSD: Binance ticker — 实时涨跌
+        xau_rt = await asyncio.to_thread(fetch_xauusd_realtime)
+        if xau_rt:
+            payload_xau = {
+                "symbol": "XAUUSD",
+                "name": "国际黄金 XAU/USD",
+                "price": xau_rt["price"],
+                "ts": now_ts,
+                "now_ts": now_ts,
+                "change": xau_rt["change"],
+                "pct": xau_rt["pct"],
+                "open": xau_rt["open"],
+                "high": xau_rt["high"],
+                "low": xau_rt["low"],
+                "unit": "USD/oz",
+                "updated_at": datetime.fromtimestamp(now_ts, BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+            }
+        else:
+            xau_bar = await get_latest_price_bar("XAUUSD")
+            payload_xau = _format_price(xau_bar, "XAUUSD", now_ts) if xau_bar else None
+
+        # AU9999 / USDCNY: 从 DB 读（已含涨跌）
         au_bar = await get_latest_price_bar("AU9999")
         fx_bar = await get_latest_usdcny()
 
         payload = {}
-        if xau_bar:
-            payload["XAUUSD"] = _format_price(xau_bar, "XAUUSD", now_ts)
+        if payload_xau:
+            payload["XAUUSD"] = payload_xau
         if au_bar:
             payload["AU9999"] = _format_price(au_bar, "AU9999", now_ts)
         if fx_bar:

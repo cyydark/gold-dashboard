@@ -1,7 +1,8 @@
 """Price and history API routes."""
 import asyncio
 import importlib
-from datetime import timedelta
+import time
+from datetime import datetime, timezone, timedelta
 
 from dotenv import load_dotenv
 from fastapi import APIRouter
@@ -14,31 +15,36 @@ router = APIRouter(prefix="/api", tags=["price"])
 
 @router.get("/prices")
 async def get_prices():
-    """Fetch current prices from latest price_bars rows."""
-    from backend.data.db import get_latest_price_bar
-    from datetime import datetime, timezone, timedelta
+    """Fetch current prices.
+
+    XAUUSD: Binance 24hr ticker (实时涨跌).
+    AU9999 / USDCNY: 从 DB 读取（含涨跌数据）.
+    """
+    from backend.data.sources.binance_kline import fetch_xauusd_realtime
 
     BEIJING_TZ = timezone(timedelta(hours=8))
+    now_ts = int(time.time())
 
-    xau_bar = await get_latest_price_bar("XAUUSD")
-    au_bar = await get_latest_price_bar("AU9999")
-    fx_bar = await get_latest_price_bar("USDCNY")
-
+    # XAUUSD: 实时 ticker
+    xau_rt = await asyncio.to_thread(fetch_xauusd_realtime)
     result = {}
-
-    if xau_bar:
+    if xau_rt:
         result["XAUUSD"] = {
             "symbol": "XAUUSD",
             "name": "国际黄金 XAU/USD",
-            "price": round(xau_bar["price"], 2),
-            "change": round(xau_bar.get("change", 0), 2),
-            "pct": round(xau_bar.get("pct", 0), 2),
-            "open": round(xau_bar["open"], 2),
-            "high": round(xau_bar["high"], 2),
-            "low": round(xau_bar["low"], 2),
+            "price": xau_rt["price"],
+            "change": xau_rt["change"],
+            "pct": xau_rt["pct"],
+            "open": xau_rt["open"],
+            "high": xau_rt["high"],
+            "low": xau_rt["low"],
             "unit": "USD/oz",
-            "updated_at": datetime.fromtimestamp(xau_bar["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+            "updated_at": datetime.fromtimestamp(now_ts, BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
         }
+
+    # AU9999 / USDCNY: 从 DB 读
+    au_bar = await get_latest_price_bar("AU9999")
+    fx_bar = await get_latest_price_bar("USDCNY")
 
     if au_bar:
         result["AU9999"] = {
