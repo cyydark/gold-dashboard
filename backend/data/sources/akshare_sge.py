@@ -28,9 +28,9 @@ def _parse_update_date(df: pd.DataFrame) -> datetime | None:
     if col not in df.columns:
         return None
     raw = str(df.iloc[0][col]).strip()
-    # "2026年04月03日 15:45:00"
+    # "2026年04月03日 15:45:00" — 取前11字符得到日期部分
     try:
-        return datetime.strptime(raw[: len("2026年04月03日 15:45:00") - 9], "%Y年%m月%d日")
+        return datetime.strptime(raw[:11], "%Y年%m月%d日")
     except Exception:
         return None
 
