@@ -5,15 +5,13 @@
 价格数据: SOURCES  — symbol -> (模块路径, fetch 函数名)
 新闻数据: NEWS_SOURCES — name -> (模块路径, fetch_news 函数名)
 """
-from backend.data.sources.binance_kline import fetch_xauusd_history as _xau
 from backend.data.sources.eastmoney_au9999 import fetch_au9999_realtime as _au
-from backend.data.sources.eastmoney_usdcnh import fetch_usdcny as _fx
 
 # symbol -> (模块路径, 函数名)
 SOURCES: dict[str, tuple[str, str]] = {
-    "XAUUSD": ("backend.data.sources.binance_kline", "fetch_xauusd_history"),
-    "AU9999": ("backend.data.sources.akshare_sge",    "fetch_au9999_history"),
-    "USDCNY": ("backend.data.sources.yfinance_fx",     "fetch_usdcny"),
+    "XAUUSD": ("backend.data.sources.eastmoney_xauusd", "fetch_xauusd_history"),
+    "AU9999": ("backend.data.sources.eastmoney_au9999", "fetch_au9999_realtime"),
+    "USDCNY": ("backend.data.sources.yfinance_fx",      "fetch_usdcny"),
 }
 
 # name -> (模块路径, fetch_news 函数名)
