@@ -53,6 +53,17 @@ const _hoverPlugin = {
     const xauPt = nearest?.xau || null;
     const auPt  = nearest?.au  || null;
 
+    // Don't show tooltip if cursor is too far from any real data point (>20px)
+    const GAP_THRESHOLD_PX = 20;
+    const nearestXau = nearest?.xau;
+    const nearestAu  = nearest?.au;
+    const xauPx = nearestXau ? scales.x.getPixelForValue(nearestXau.x) : null;
+    const auPx  = nearestAu  ? scales.x.getPixelForValue(nearestAu.x)  : null;
+    if ((xauPx === null || Math.abs(xPx - xauPx) > GAP_THRESHOLD_PX) &&
+        (auPx  === null || Math.abs(xPx - auPx)  > GAP_THRESHOLD_PX)) {
+      return;
+    }
+
     const pad = n => String(n).padStart(2, "0");
     const fmtBJ = (ts) => {
       const d = new Date(ts);
