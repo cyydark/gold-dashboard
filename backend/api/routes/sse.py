@@ -3,22 +3,19 @@ import asyncio
 import json
 import time
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from backend.data.db import get_latest_price_bar, get_latest_usdcny
+from backend.services.price_service import PriceService
+from backend.api.dependencies import get_price_service
 from backend.data.sources.binance_kline import fetch_xauusd_realtime
 
-
 BEIJING_TZ = timezone(timedelta(hours=8))
+PRICE_INTERVAL = 30  # 30s
 router = APIRouter(tags=["sse"])
 
 
 def _format_price(bar: dict | None, symbol: str, now_ts: int) -> dict | None:
-    """Convert a price bar to price card format.
-
-    change/pct come from the data source (not computed from close-open).
-    Falls back to computing from close-open only when bar has no change/pct.
-    """
+    """Convert a price bar to price card format."""
     if not bar:
         return None
     ts = bar["ts"]
@@ -27,7 +24,6 @@ def _format_price(bar: dict | None, symbol: str, now_ts: int) -> dict | None:
     names = {"XAUUSD": ("国际黄金 XAU/USD", "USD/oz"), "AU9999": ("国内黄金 AU9999", "CNY/g")}
     name, unit = names.get(symbol, (symbol, ""))
 
-    # Use stored change/pct from data source when available; otherwise compute
     stored_change = bar.get("change")
     stored_pct = bar.get("pct")
     if stored_change is not None and stored_pct is not None:
@@ -71,12 +67,12 @@ def _format_fx(fx: dict | None) -> dict | None:
     }
 
 
-async def price_generator():
+async def price_generator(service: PriceService):
     """Yield SSE events with current prices every PRICE_INTERVAL seconds."""
     while True:
         now_ts = int(time.time())
 
-        # XAUUSD: Binance ticker — 实时涨跌
+        # XAUUSD: Binance ticker
         xau_rt = await asyncio.to_thread(fetch_xauusd_realtime)
         if xau_rt:
             payload_xau = {
@@ -94,12 +90,12 @@ async def price_generator():
                 "updated_at": datetime.fromtimestamp(now_ts, BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
             }
         else:
-            xau_bar = await get_latest_price_bar("XAUUSD")
+            xau_bar = await service.get_latest_price("XAUUSD")
             payload_xau = _format_price(xau_bar, "XAUUSD", now_ts) if xau_bar else None
 
-        # AU9999 / USDCNY: 从 DB 读（已含涨跌）
-        au_bar = await get_latest_price_bar("AU9999")
-        fx_bar = await get_latest_usdcny()
+        # AU9999 / USDCNY: 从 DB 读
+        au_bar = await service.get_latest_price("AU9999")
+        fx_bar = await service.repository.get_latest_usdcny()
 
         payload = {}
         if payload_xau:
@@ -116,13 +112,13 @@ async def price_generator():
                 payload.get("USDCNY", {}).get("updated_at", "")
             )
         yield f"data: {json.dumps(payload)}\n\n"
-        await asyncio.sleep(30)  # SSE推送间隔
+        await asyncio.sleep(PRICE_INTERVAL)
 
 
 @router.get("/stream")
-async def stream_prices():
+async def stream_prices(service: PriceService = Depends(get_price_service)):
     return StreamingResponse(
-        price_generator(),
+        price_generator(service),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
