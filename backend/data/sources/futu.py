@@ -9,6 +9,8 @@ import logging
 import re
 import sqlite3
 import time
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from typing import Set
 
@@ -19,9 +21,11 @@ from backend.data.db import DB_PATH
 logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
+
 _TTL = 300  # 5 minutes
 _cache: list[dict] = []
 _cache_ts: float = 0.0
+_save_done_event: concurrent.futures.Future | None = None
 
 # 黄金相关关键词：标题必须包含，或正文出现 ≥2 次
 # 包含纯金市词 + 驱动金价的地缘/宏观词
@@ -73,12 +77,22 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
         logger.warning(f"Failed to save Futu news to DB: {e}")
 
 
-def fetch_and_save_news(hour_range: str = "") -> list[dict]:
-    """Fetch gold news and save to DB synchronously. Returns the fetched items."""
-    items = fetch_futu_news()
-    if items:
-        _sync_save_news(items, hour_range)
-    return items
+def fetch_and_save_news(hour_range: str = "") -> concurrent.futures.Future:
+    """Fetch gold news and save to DB synchronously.
+
+    Returns a Future whose result is the saved news list.
+    Caller can call future.result() to wait for completion.
+    """
+    global _save_done_event
+
+    def _do():
+        items = fetch_futu_news()
+        if items:
+            _sync_save_news(items, hour_range)
+        return items
+
+    _save_done_event = ThreadPoolExecutor(max_workers=1).submit(_do)
+    return _save_done_event
 
 
 def _is_gold_news(title: str, content: str = "") -> bool:

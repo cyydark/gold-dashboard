@@ -195,6 +195,19 @@ async def get_news_by_date_range(start_iso: str, end_iso: str, limit: int = 200)
         return [dict(r) for r in await rows.fetchall()]
 
 
+async def get_news_in_range(start_iso: str, end_iso: str, limit: int = 100) -> list[dict]:
+    """Fetch news items within a UTC timestamp range, newest first."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        rows = await db.execute(
+            "SELECT title, title_en, source, url, direction, time_ago, published_at "
+            "FROM news_items WHERE published_at >= ? AND published_at < ? "
+            "ORDER BY published_at DESC LIMIT ?",
+            (start_iso, end_iso, limit),
+        )
+        return [dict(r) for r in await rows.fetchall()]
+
+
 async def get_news_last_hours(hours: int = 1, limit: int = 20) -> list[dict]:
     """Fetch news published within the last N hours (Beijing time)."""
     now = datetime.now(BEIJING_TZ)

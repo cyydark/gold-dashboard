@@ -7,45 +7,26 @@ logger = logging.getLogger(__name__)
 
 
 async def _generate_briefing_scheduled():
-    """每小时自动从最近1小时新闻生成简报。"""
-    from backend.data.sources.futu import fetch_futu_news, BEIJING_TZ
+    """每小时01分触发AI简报生成（分析上一小时新闻，来自DB全量来源）。"""
+    from backend.data.db import get_news_in_range
+    from backend.data.sources.futu import fetch_and_save_news, BEIJING_TZ
     from backend.data.sources.briefing import generate_briefing_from_news
     try:
-        loop = asyncio.get_event_loop()
-        all_news = await loop.run_in_executor(None, fetch_futu_news)
-        if not all_news:
-            logger.info("No news fetched, skipping briefing")
-            return
-
         now = datetime.now(BEIJING_TZ)
-        # 分析上一整小时：HH:00 ~ HH:59
         this_hour_start = now.replace(minute=0, second=0, microsecond=0)
         last_hour_start = this_hour_start - timedelta(hours=1)
-        last_hour_end = this_hour_start - timedelta(minutes=1)
-        hour_label = f"{last_hour_start.strftime('%H:%M')}~{last_hour_end.strftime('%H:%M')}"
+        hour_label = f"{last_hour_start.strftime('%H:%M')}~{(this_hour_start - timedelta(minutes=1)).strftime('%H:%M')}"
 
-        recent_news = []
-        for n in all_news:
-            pub = n.get("published", "")
-            if not pub:
-                continue
-            try:
-                pub_dt = None
-                try:
-                    from email.utils import parsedate_to_datetime
-                    pub_dt = parsedate_to_datetime(pub).astimezone(BEIJING_TZ)
-                except Exception:
-                    try:
-                        pub_dt = datetime.strptime(pub[:16], "%Y-%m-%d %H:%M")
-                        pub_dt = pub_dt.replace(tzinfo=BEIJING_TZ)
-                    except Exception:
-                        pass
-                if pub_dt is None:
-                    continue
-                if pub_dt >= last_hour_start and pub_dt < this_hour_start:
-                    recent_news.append(n)
-            except Exception:
-                continue
+        # 先触发一次新闻刷新并等待完成，确保上一小时数据已入库
+        future = await asyncio.get_event_loop().run_in_executor(None, fetch_and_save_news)
+        future.result()
+
+        # 从 DB 查全量来源的上一小时新闻
+        recent_news = await get_news_in_range(
+            start_iso=last_hour_start.isoformat(),
+            end_iso=this_hour_start.isoformat(),
+            limit=100,
+        )
 
         if not recent_news:
             logger.info("No news in recent 1-hour window, skipping briefing")
@@ -72,9 +53,9 @@ async def _generate_daily_briefing_scheduled():
         date_str = yesterday_start.strftime("%Y-%m-%d")
         today_str = today_start.strftime("%Y-%m-%d")
 
-        # 主动触发一次新闻获取+写入，确保昨日数据已落地
-        await asyncio.get_event_loop().run_in_executor(None, fetch_and_save_news)
-        await asyncio.sleep(2)  # 等待写入完成
+        # 主动触发一次新闻获取+写入，等待完成后再查 DB
+        future = await asyncio.get_event_loop().run_in_executor(None, fetch_and_save_news)
+        future.result()  # 同步等待写入完成，不依赖固定 sleep
 
         yesterday_news = await get_news_by_date_range(
             start_iso=date_str,

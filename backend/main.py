@@ -61,8 +61,8 @@ async def _news_refresh_loop():
                 news = await asyncio.to_thread(fetch_fn)
                 if news:
                     threading.Thread(target=save_fn, args=(news,), daemon=True).start()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"News refresh error: {e}")
         await asyncio.sleep(300)
 
 
@@ -92,6 +92,8 @@ async def _price_bars_fetch_loop():
                             high=b["high"],
                             low=b["low"],
                             price=b["close"],
+                            change=b.get("change", 0),
+                            pct=b.get("pct", 0),
                         )
                     logger.info(f"Synced {len(bars)} {symbol} bars from {module_path}")
         except Exception as e:
