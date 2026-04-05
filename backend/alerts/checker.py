@@ -8,10 +8,11 @@ from backend.data import constants as c
 logger = logging.getLogger(__name__)
 async def _generate_briefing_scheduled():
     """每小时01分触发AI简报生成（分析上一小时新闻，来自DB全量来源）。"""
-    from backend.data.db import get_news_in_range
+    from backend.repositories.news_repository import NewsRepository
     from backend.data.sources.futu import fetch_and_save_news, BEIJING_TZ
     from backend.data.sources.briefing import generate_briefing_from_news
     try:
+        news_repo = NewsRepository()
         now = datetime.now(BEIJING_TZ)
         this_hour_start = now.replace(minute=0, second=0, microsecond=0)
         last_hour_start = this_hour_start - timedelta(hours=1)
@@ -22,7 +23,7 @@ async def _generate_briefing_scheduled():
         future.result()
 
         # 从 DB 查全量来源的上一小时新闻
-        recent_news = await get_news_in_range(
+        recent_news = await news_repo.get_in_range(
             start_iso=last_hour_start.isoformat(),
             end_iso=this_hour_start.isoformat(),
             limit=c.NEWS_LIMIT_RECENT,
@@ -43,10 +44,11 @@ async def _generate_briefing_scheduled():
 
 async def _generate_daily_briefing_scheduled():
     """每日08时（北京时间08:05前后）汇总昨日全天新闻生成'上一日整体'简报。"""
+    from backend.repositories.news_repository import NewsRepository
     from backend.data.sources.futu import BEIJING_TZ, fetch_and_save_news
-    from backend.data.db import get_news_by_date_range
     from backend.data.sources.briefing import generate_daily_briefing_from_news
     try:
+        news_repo = NewsRepository()
         now = datetime.now(BEIJING_TZ)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
@@ -57,7 +59,7 @@ async def _generate_daily_briefing_scheduled():
         future = await asyncio.get_event_loop().run_in_executor(None, fetch_and_save_news)
         future.result()  # 同步等待写入完成，不依赖固定 sleep
 
-        yesterday_news = await get_news_by_date_range(
+        yesterday_news = await news_repo.get_by_date_range(
             start_iso=date_str,
             end_iso=today_str,
             limit=c.NEWS_LIMIT_DAILY,
