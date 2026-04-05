@@ -57,7 +57,7 @@ def call_claude_cli(prompt: str) -> str:
         raise BriefingGenerationError(f"Claude CLI call failed: {e}")
 
 
-def _build_news_list(news: list[dict], limit: int = c.NEWS_LIMIT_BRIEFING) -> str:
+def _build_news_list(news: list[dict], limit: int = 20) -> str:
     """从新闻列表构建 prompt 文本。"""
     lines = []
     for i, n in enumerate(news[:limit], 1):

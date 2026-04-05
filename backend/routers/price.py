@@ -7,7 +7,6 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from fastapi import APIRouter
 from backend.data.db import get_price_bars, get_latest_price_bar
-from backend.data import constants as c
 
 router = APIRouter(prefix="/api", tags=["price"])
 
@@ -84,7 +83,7 @@ async def get_history(symbol: str, days: int = 1):
     if not db_symbol:
         return []
 
-    rows = await get_price_bars(db_symbol, limit=c.HISTORY_BARS_LIMIT)
+    rows = await get_price_bars(db_symbol, limit=2000)
     if not rows:
         return []
 
@@ -144,14 +143,14 @@ async def refresh_news():
 
 
 @router.get("/briefings")
-async def get_briefings(limit: int = c.BRIEFINGS_LIMIT):
+async def get_briefings(limit: int = 24):
     """返回日报 + 近12小时简报 + 近1小时新闻。"""
     from backend.data.db import get_hourly_briefings, get_daily_briefing, get_news_last_hours
     from backend.data.sources.futu import BEIJING_TZ
     from datetime import datetime
     hourly = await get_hourly_briefings(limit)
     daily = await get_daily_briefing()
-    news = await get_news_last_hours(hours=1, limit=c.NEWS_LIMIT_BRIEFINGS_ENDPOINT)
+    news = await get_news_last_hours(hours=1, limit=20)
     now = datetime.now(BEIJING_TZ)
     one_hour_ago = now - timedelta(hours=1)
     time_window = f"{one_hour_ago.strftime('%H:%M')}~{now.strftime('%H:%M')}"

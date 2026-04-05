@@ -8,7 +8,6 @@ from fastapi.responses import StreamingResponse
 from backend.data.db import get_latest_price_bar, get_latest_usdcny
 from backend.data.sources.binance_kline import fetch_xauusd_realtime
 
-from backend.data import constants as c
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 router = APIRouter(tags=["sse"])
@@ -117,7 +116,7 @@ async def price_generator():
                 payload.get("USDCNY", {}).get("updated_at", "")
             )
         yield f"data: {json.dumps(payload)}\n\n"
-        await asyncio.sleep(c.SSE_INTERVAL)
+        await asyncio.sleep(30)  # SSE推送间隔
 
 
 @router.get("/stream")
