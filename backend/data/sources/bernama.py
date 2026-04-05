@@ -59,8 +59,11 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
                 pub_ts = None
                 if pub:
                     try:
-                        pub_dt = datetime.strptime(pub[:16], "%Y-%m-%d %H:%M")
-                        pub_ts = pub_dt.replace(tzinfo=BEIJING_TZ).isoformat()
+                        pub_dt = datetime.fromisoformat(pub.replace(" ", "T"))
+                        if pub_dt.tzinfo is None:
+                            pub_dt = pub_dt.replace(tzinfo=BEIJING_TZ)
+                        pub_dt = pub_dt.astimezone(BEIJING_TZ)
+                        pub_ts = pub_dt.isoformat()
                     except Exception:
                         pass
                 conn.execute("""

@@ -18,6 +18,7 @@ SOURCES: dict[str, tuple[str, str]] = {
 
 # name -> (模块路径, fetch_news 函数名)
 NEWS_SOURCES: dict[str, tuple[str, str]] = {
-    "futu":    ("backend.data.sources.futu",    "fetch_news"),
-    "bernama": ("backend.data.sources.bernama", "fetch_news"),
+    "futu":       ("backend.data.sources.futu",        "fetch_news"),
+    "bernama":    ("backend.data.sources.bernama",     "fetch_news"),
+    "bitcoinworld": ("backend.data.sources.bitcoinworld", "fetch_news"),
 }

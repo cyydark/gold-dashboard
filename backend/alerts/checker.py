@@ -54,26 +54,27 @@ async def _generate_briefing_scheduled():
         await generate_briefing_from_news(recent_news, hour_label)
         logger.info(f"Hourly briefing completed for {hour_label} with {len(recent_news)} items")
 
-        if now.hour == 0:
+        if now.hour == 8:
             await _generate_daily_briefing_scheduled()
     except Exception as e:
         logger.error(f"Briefing task error: {e}")
 
 
 async def _generate_daily_briefing_scheduled():
-    """每日午夜（北京时间00时）汇总昨日全天新闻生成'上一日整体'简报。"""
+    """每日08时（北京时间08:05前后）汇总昨日全天新闻生成'上一日整体'简报。"""
     from backend.data.sources.futu import BEIJING_TZ
     from backend.data.db import get_news_by_date_range
     from backend.data.sources.briefing import generate_daily_briefing_from_news
     try:
         now = datetime.now(BEIJING_TZ)
-        yesterday_start = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        yesterday_end = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
         date_str = yesterday_start.strftime("%Y-%m-%d")
+        today_str = today_start.strftime("%Y-%m-%d")
 
         yesterday_news = await get_news_by_date_range(
-            start_iso=yesterday_start.isoformat(),
-            end_iso=yesterday_end.isoformat(),
+            start_iso=date_str,
+            end_iso=today_str,
             limit=200,
         )
         if not yesterday_news:

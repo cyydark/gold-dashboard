@@ -34,8 +34,11 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
                 pub_ts = None
                 if pub:
                     try:
-                        pub_dt = datetime.strptime(pub[:16], "%Y-%m-%d %H:%M")
-                        pub_ts = pub_dt.replace(tzinfo=BEIJING_TZ).isoformat()
+                        pub_dt = datetime.fromisoformat(pub.replace(" ", "T"))
+                        if pub_dt.tzinfo is None:
+                            pub_dt = pub_dt.replace(tzinfo=BEIJING_TZ)
+                        pub_dt = pub_dt.astimezone(BEIJING_TZ)
+                        pub_ts = pub_dt.isoformat()
                     except Exception:
                         pass
                 conn.execute("""
@@ -58,9 +61,18 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
 
 
 def _is_gold_news(title: str, content: str = "") -> bool:
-    """Check if a news item is gold-related."""
-    text = (title + content).lower()
-    return any(kw.lower() in text for kw in GOLD_KEYWORDS)
+    """Check if a news item is primarily about gold.
+
+    Rules:
+    - Title must contain gold keywords, OR
+    - Content contains 2+ gold keyword mentions (not just one-off mention)
+    This avoids articles that are about other topics (e.g. geopolitics) but
+    mention gold once in passing (e.g. "bonds, gold, copper are pessimistic").
+    """
+    gold_count = sum(content.lower().count(kw.lower()) for kw in GOLD_KEYWORDS)
+    # Gold must appear in title, or appear 2+ times in full content
+    title_has_gold = any(kw.lower() in title.lower() for kw in GOLD_KEYWORDS)
+    return title_has_gold or gold_count >= 2
 
 
 def fetch_futu_news(page_size: int = 200) -> list[dict]:

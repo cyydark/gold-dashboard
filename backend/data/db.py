@@ -146,13 +146,20 @@ async def get_daily_briefing() -> dict | None:
 
 
 async def get_news_by_date_range(start_iso: str, end_iso: str, limit: int = 200) -> list[dict]:
-    """Fetch news items from DB within a date range."""
+    """Fetch news items from DB within a date range (Beijing time).
+
+    published_at is stored as ISO strings with +08:00 suffix.
+    We convert to UTC via '-8 hours' before comparing dates so that
+    2026-04-05T00:10:00+08:00 (Beijing midnight on Apr 5) is correctly
+    classified as Apr 4 in Beijing time.
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await db.execute(
             "SELECT id, title, title_en, source, url, direction, time_ago, published_at, fetched_at "
             "FROM news_items "
-            "WHERE published_at >= ? AND published_at < ? "
+            "WHERE date(published_at, '-8 hours') >= date(?) "
+            "  AND date(published_at, '-8 hours') <  date(?) "
             "ORDER BY published_at ASC LIMIT ?",
             (start_iso, end_iso, limit),
         )
