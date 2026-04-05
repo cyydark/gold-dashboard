@@ -63,62 +63,36 @@ async def _news_refresh_loop():
 
 
 async def _price_bars_fetch_loop():
-    """Background loop: fetch data from authoritative sources every 5 min.
+    """Background loop: fetch data from configured sources every 5 minutes.
 
-    XAUUSD: Binance 5m (7x24)
-    AU9999: fx678 5m (SGE, ~5 days)
-    USDCNY: yfinance 1m (converted to 5m bars)
+    Sources are defined in backend.data.sources.SOURCES.
+    Adding/switching a source only requires updating that config dict.
     """
-    async def sync_all():
-        from backend.data.db import save_price_bar
-        from backend.data.sources.binance_kline import fetch_xauusd_history
-        from backend.data.sources.fx678_au9999 import fetch_au9999_history
-        from backend.data.sources.yfinance_fx import fetch_usdcny as fetch_fx
-
-        # XAUUSD: Binance 5m klines (7x24, no gaps)
-        xau_bars = await asyncio.to_thread(fetch_xauusd_history)
-        if xau_bars:
-            for b in xau_bars:
-                await save_price_bar(
-                    symbol="XAUUSD",
-                    ts=b["time"],
-                    open_=b["open"],
-                    high=b["high"],
-                    low=b["low"],
-                    price=b["close"],
-                )
-            logger.info(f"Synced {len(xau_bars)} XAUUSD bars from Binance")
-
-        # AU9999: fx678 5m klines (SGE, ~5 days)
-        au_bars = await asyncio.to_thread(fetch_au9999_history)
-        if au_bars:
-            for b in au_bars:
-                await save_price_bar(
-                    symbol="AU9999",
-                    ts=b["time"],
-                    open_=b["open"],
-                    high=b["high"],
-                    low=b["low"],
-                    price=b["close"],
-                )
-            logger.info(f"Synced {len(au_bars)} AU9999 bars from fx678")
-
-        # USDCNY: yfinance 1m (aggregate to 5m)
-        fx_bars = await asyncio.to_thread(fetch_fx)
-        if fx_bars:
-            for b in fx_bars:
-                await save_price_bar(
-                    symbol="USDCNY",
-                    ts=b["time"],
-                    open_=b["open"],
-                    high=b["high"],
-                    low=b["low"],
-                    price=b["close"],
-                )
-            logger.info(f"Synced {len(fx_bars)} USDCNY bars from yfinance")
+    import importlib
 
     while True:
-        await sync_all()
+        try:
+            from backend.data.db import save_price_bar
+            from backend.data.sources import SOURCES
+
+            for symbol, (module_path, fn_name) in SOURCES.items():
+                mod = importlib.import_module(module_path)
+                fn = getattr(mod, fn_name)
+                bars = await asyncio.to_thread(fn)
+                if bars:
+                    for b in bars:
+                        await save_price_bar(
+                            symbol=symbol,
+                            ts=b["time"],
+                            open_=b["open"],
+                            high=b["high"],
+                            low=b["low"],
+                            price=b["close"],
+                        )
+                    logger.info(f"Synced {len(bars)} {symbol} bars from {module_path}")
+        except Exception as e:
+            logger.warning(f"Price sync error: {e}")
+
         await asyncio.sleep(300)  # 5 minutes
 
 
