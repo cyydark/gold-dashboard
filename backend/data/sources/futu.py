@@ -161,7 +161,7 @@ def _fetch_ssr_articles(url: str, lang: str) -> list[dict]:
             timeout=15,
             verify=False,
         )
-        html = resp.text
+        html_content = resp.text
     except Exception as e:
         logger.warning(f"Futu SSR fetch error ({url}): {e}")
         return []
@@ -171,7 +171,7 @@ def _fetch_ssr_articles(url: str, lang: str) -> list[dict]:
     # Extract URL, title, source, time from each block
     for block_m in re.finditer(
         r'<a\b([^>]+class="[^"]*market-item[^"]*"[^>]*)>(.*?)</a>',
-        html, re.DOTALL
+        html_content, re.DOTALL
     ):
         open_attrs = block_m.group(1)
         content = block_m.group(2)

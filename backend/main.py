@@ -78,8 +78,9 @@ async def _price_bars_fetch_loop():
 
     while True:
         try:
-            from backend.data.db import save_price_bar
+            from backend.repositories.price_repository import PriceRepository
             from backend.data.sources import SOURCES
+            repo = PriceRepository()
 
             for symbol, (module_path, fn_name) in SOURCES.items():
                 mod = importlib.import_module(module_path)
@@ -87,7 +88,7 @@ async def _price_bars_fetch_loop():
                 bars = await asyncio.to_thread(fn)
                 if bars:
                     for b in bars:
-                        await save_price_bar(
+                        await repo.save(
                             symbol=symbol,
                             ts=b["time"],
                             open_=b["open"],

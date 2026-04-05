@@ -102,7 +102,7 @@ def fetch_bernama_gold_news() -> list[dict]:
             timeout=15,
             verify=False,
         )
-        html = resp.text
+        html_content = resp.text
     except Exception as e:
         logger.warning(f"BernamaBiz fetch error: {e}")
         _cache = []
@@ -110,7 +110,7 @@ def fetch_bernama_gold_news() -> list[dict]:
         return []
 
     items = []
-    blocks = re.split(r'<div class="d-md-flex post-entry-2 small-img">', html)
+    blocks = re.split(r'<div class="d-md-flex post-entry-2 small-img">', html_content)
 
     for block in blocks[1:]:  # skip header
         id_m = re.search(r'news\.php\?id=(\d+)', block)
