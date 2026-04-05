@@ -4,6 +4,7 @@ import os
 import subprocess
 import threading
 
+from backend.data import constants as c
 from backend.data.db import save_hourly_briefing, save_daily_briefing
 from backend.data.sources.futu import _sync_save_news
 
@@ -42,7 +43,7 @@ def call_claude_cli(prompt: str) -> str:
     try:
         result = subprocess.run(
             ["claude", "-p", prompt, "--output-format", "text"],
-            capture_output=True, text=True, timeout=120, env={**os.environ},
+            capture_output=True, text=True, timeout=c.CLI_TIMEOUT, env={**os.environ},
         )
         if result.returncode != 0:
             logger.warning(f"Claude CLI error: {result.stderr}")
@@ -56,7 +57,7 @@ def call_claude_cli(prompt: str) -> str:
         raise BriefingGenerationError(f"Claude CLI call failed: {e}")
 
 
-def _build_news_list(news: list[dict], limit: int = 20) -> str:
+def _build_news_list(news: list[dict], limit: int = c.NEWS_LIMIT_BRIEFING) -> str:
     """从新闻列表构建 prompt 文本。"""
     lines = []
     for i, n in enumerate(news[:limit], 1):

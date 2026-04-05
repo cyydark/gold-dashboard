@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.data import constants as c
 from backend.routers import price, sse
 from backend.data.db import init_db
 from dotenv import load_dotenv
@@ -45,7 +46,7 @@ async def _briefing_loop():
             await _generate_briefing_scheduled()
         except Exception as e:
             logger.warning(f"Briefing loop error: {e}")
-        await asyncio.sleep(3600)
+        await asyncio.sleep(c.BRIEFING_LOOP_SLEEP)
 
 
 async def _news_refresh_loop():
@@ -63,7 +64,7 @@ async def _news_refresh_loop():
                     threading.Thread(target=save_fn, args=(news,), daemon=True).start()
         except Exception as e:
             logger.warning(f"News refresh error: {e}")
-        await asyncio.sleep(300)
+        await asyncio.sleep(c.REFRESH_INTERVAL)
 
 
 async def _price_bars_fetch_loop():
@@ -99,7 +100,7 @@ async def _price_bars_fetch_loop():
         except Exception as e:
             logger.warning(f"Price sync error: {e}")
 
-        await asyncio.sleep(300)  # 5 minutes
+        await asyncio.sleep(c.REFRESH_INTERVAL)
 
 
 app = FastAPI(title="Gold Dashboard", lifespan=lifespan)

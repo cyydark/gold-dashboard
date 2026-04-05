@@ -3,9 +3,9 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
+from backend.data import constants as c
+
 logger = logging.getLogger(__name__)
-
-
 async def _generate_briefing_scheduled():
     """每小时01分触发AI简报生成（分析上一小时新闻，来自DB全量来源）。"""
     from backend.data.db import get_news_in_range
@@ -25,7 +25,7 @@ async def _generate_briefing_scheduled():
         recent_news = await get_news_in_range(
             start_iso=last_hour_start.isoformat(),
             end_iso=this_hour_start.isoformat(),
-            limit=100,
+            limit=c.NEWS_LIMIT_RECENT,
         )
 
         if not recent_news:
@@ -35,7 +35,7 @@ async def _generate_briefing_scheduled():
         await generate_briefing_from_news(recent_news, hour_label)
         logger.info(f"Hourly briefing completed for {hour_label} with {len(recent_news)} items")
 
-        if now.hour == 8:
+        if now.hour == c.DAILY_BRIEFING_HOUR:
             await _generate_daily_briefing_scheduled()
     except Exception as e:
         logger.error(f"Briefing task error: {e}")
@@ -60,7 +60,7 @@ async def _generate_daily_briefing_scheduled():
         yesterday_news = await get_news_by_date_range(
             start_iso=date_str,
             end_iso=today_str,
-            limit=200,
+            limit=c.NEWS_LIMIT_DAILY,
         )
         if not yesterday_news:
             logger.warning(f"No news found for {date_str}, skipping daily briefing")
