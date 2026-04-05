@@ -1,4 +1,5 @@
 """AAStocks AAFN gold news via search page + getmorenews.ashx pagination API."""
+import html
 import logging
 import re
 import sqlite3
@@ -150,7 +151,7 @@ def _fetch_more_news(news_id: str, newstime: str) -> tuple[list[dict], str, str]
     next_id = ""
     next_time = ""
     for n in data:
-        title_raw = (n.get("h") or "").strip()
+        title_raw = html.unescape((n.get("h") or "").strip())
         if not _is_gold_article(title_raw):
             continue
         dt_str = n.get("dt", "")

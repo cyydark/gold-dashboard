@@ -5,6 +5,7 @@
 
 两个来源都会经过黄金关键词过滤。
 """
+import html
 import logging
 import re
 import sqlite3
@@ -187,7 +188,7 @@ def _fetch_ssr_articles(url: str, lang: str) -> list[dict]:
             title_m = re.search(r'<h2[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)</h2>', content)
         if not title_m:
             continue
-        title = title_m.group(1).strip()
+        title = html.unescape(title_m.group(1).strip())
 
         # Source
         source_m = re.search(r'class="footer-source"[^>]*>([^<]+)</span>', content)

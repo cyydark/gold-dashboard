@@ -1,4 +1,5 @@
 """BernamaBiz gold futures news via search page scraping."""
+import html
 import logging
 import re
 import sqlite3
@@ -120,7 +121,7 @@ def fetch_bernama_gold_news() -> list[dict]:
             continue
 
         news_id = id_m.group(1)
-        title = title_m.group(1).strip()
+        title = html.unescape(title_m.group(1).strip())
         time_str = time_m.group(1).strip() if time_m else ""
 
         # Parse relative time → base datetime
