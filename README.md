@@ -1,6 +1,6 @@
 # 黄金行情分析仪表盘 (Gold Dashboard)
 
-实时黄金价格监控与行情分析平台，覆盖国际黄金（COMEX GCW00）、国内黄金（AU9999）及美元兑人民币汇率，支持 K 线图表、新闻资讯、价格预警。
+实时黄金价格监控与行情分析平台，覆盖国际黄金（XAU/USD）、国内黄金（AU9999）及美元兑人民币汇率，支持 K 线图表、新闻资讯、AI 简报。
 
 ![Python](https://img.shields.io/badge/Python-3.14-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
@@ -11,43 +11,40 @@
 ## 功能特性
 
 ### 实时价格
-- **国际黄金** COMEX GCW00 (USD/oz) — Yahoo Finance
-- **国内黄金** AU9999 (CNY/g) — 上海黄金交易所
-- **美元/人民币** USD/CNY 汇率
-- 数据每 30 秒自动刷新（Server-Sent Events）
+- **国际黄金** XAU/USD (USD/oz) — Binance XAUTUSDT 5m K线
+- **国内黄金** AU9999 (CNY/g) — fx678 / 上海黄金交易所
+- **美元/人民币** USDCNY — yfinance
+- 数据每 5 分钟自动同步（Server-Sent Events 30s 推送最新价）
 
 ### K 线图表
 - Chart.js 双轴折线图（国际金价 vs 国内金价）
-- 支持 1 天 / 5 天 / 月 时间范围切换
-- 新闻 emoji 标注 + 虚线定位
+- 72 小时 5 分钟 K 线
+- 鼠标悬停十字线：显示北京时间、美东时间、国际金价、国内金价
+- 支持鼠标滚轮缩放、拖拽平移、双击重置
 
 ### 新闻资讯
-- 抓取华尔街见闻等 RSS 新闻源
-- AI 简报：每小时汇总 + 每日整体摘要（Claude CLI 生成）
-- 近1小时新闻实时展示
+- 富途牛牛 RSS 新闻源
+- AI 简报：每小时汇总 + 每日整体摘要（Claude API 生成）
+- 近 1 小时新闻实时展示
 
 ### AI 简报
-- **近12小时逐时简报**：每小时自动生成，一句话判断方向
-- **上一日整体摘要**：每日08:05生成，汇总全天走势与驱动因素
+- **近 12 小时逐时简报**：每小时自动生成，一句话判断方向
+- **上一日整体摘要**：每日 08:05 生成，汇总全天走势与驱动因素
 - **新闻来源**：每条简报关联对应时段原始新闻，可点击跳转原文
-
-### 价格预警
-- 设置高价/低价阈值，突破即触发
-- 预警历史记录（SQLite 持久化）
 
 ---
 
 ## 技术架构
 
 ```
-Browser ← SSE/HTTP → FastAPI ←→ 数据源
-                             ├── yfinance       (国际金价/汇率)
-                             ├── akshare        (国内金价)
-                             └── RSSHub         (新闻 RSS)
+Browser ← SSE/HTTP → FastAPI ←→ 数据源（可插拔配置）
+                             ├── Binance XAUTUSDT 5m  → XAUUSD
+                             ├── fx678 AU9999 5m   → AU9999
+                             └── yfinance USDCNY 5m → USDCNY
                           ↕
-                      SQLite (预警/新闻/简报)
+                      SQLite (price_bars / news / ai_briefings / alerts)
                           ↕
-                   APScheduler (定时任务 + 简报生成)
+                   asyncio (定时任务 + 简报生成)
 ```
 
 ### 目录结构
@@ -56,34 +53,33 @@ Browser ← SSE/HTTP → FastAPI ←→ 数据源
 gold-dashboard/
 ├── backend/
 │   ├── main.py              # FastAPI 入口 + lifespan 管理
-│   ├── requirements.txt      # Python 依赖
+│   ├── requirements.txt     # Python 依赖
 │   ├── routers/
-│   │   ├── price.py         # 价格/历史数据/简报 API
-│   │   ├── alert.py         # 预警 CRUD API
-│   │   ├── sse.py           # Server-Sent Events 流
-│   │   └── rss.py           # RSS 订阅源
+│   │   ├── price.py        # 价格/历史数据 API
+│   │   ├── alert.py        # 预警 CRUD API
+│   │   ├── sse.py          # Server-Sent Events 流
+│   │   └── rss.py          # RSS 订阅源
 │   ├── data/
-│   │   ├── models.py        # Pydantic 数据模型
-│   │   ├── db.py            # SQLite 操作
-│   │   └── sources/
-│   │       ├── international.py  # yfinance + RSS 新闻
-│   │       ├── domestic.py        # akshare 国内金价
-│   │       └── briefing.py        # AI 简报生成（Claude CLI）
-│   ├── analysis/
-│   │   └── indicators.py    # MA / RSI / MACD 指标
+│   │   ├── db.py          # SQLite 操作
+│   │   └── sources/        # 可插拔数据源
+│   │       ├── __init__.py      # SOURCES 配置表
+│   │       ├── binance_kline.py  # Binance XAUTUSDT 5m → XAUUSD
+│   │       ├── fx678_au9999.py  # fx678 SGE 5m  → AU9999
+│   │       └── yfinance_fx.py   # yfinance USDCNY=X 5m → USDCNY
 │   ├── alerts/
-│   │   ├── engine.py        # 预警引擎
-│   │   └── checker.py       # APScheduler 调度器
-│   └── tests/               # 单元测试 (pytest)
+│   │   ├── engine.py      # 预警引擎
+│   │   └── checker.py      # 简报生成调度器
+│   └── analysis/
+│       └── indicators.py   # MA / RSI / MACD 指标
 ├── frontend/
-│   ├── index.html           # 单页应用入口
-│   ├── css/style.css        # 深色主题样式
+│   ├── index.html          # 单页应用入口
+│   ├── css/style.css       # 深色主题样式
 │   └── js/
-│       ├── app.js           # 主逻辑：价格卡片 + 简报
-│       ├── chart.js         # Chart.js 双轴图表 + emoji 标注
-│       └── sse.js           # SSE 客户端
-├── run.sh                   # 启动脚本
-└── .env                     # 环境变量（不提交）
+│       ├── app.js         # 主逻辑：价格卡片 + 简报
+│       ├── chart.js        # Chart.js 双轴图表 + 十字线悬浮
+│       └── sse.js          # SSE 客户端
+├── run.sh                  # 启动脚本
+└── .env                    # 环境变量（不提交）
 ```
 
 ---
@@ -106,18 +102,6 @@ cd gold-dashboard
 pip install -r backend/requirements.txt
 ```
 
-### 配置
-
-创建 `.env` 文件：
-
-```env
-# RSSHub 地址（用于新闻抓取）
-RSSHUB_BASE=http://192.168.2.200:11200
-
-# 默认汇率（CNY/USD，用于国内金价换算）
-DEFAULT_CNY_RATE=6.87
-```
-
 ### 启动
 
 ```bash
@@ -136,15 +120,14 @@ uvicorn backend.main:app --reload --port 18000
 |------|------|------|
 | `/` | GET | 前端页面 |
 | `/api/prices` | GET | 当前价格 |
-| `/api/history/{symbol}` | GET | K 线历史（?days=1/5/30） |
+| `/api/history/{symbol}` | GET | K 线历史（XAUUSD / AU9999 / USDCNY） |
 | `/api/news` | GET | 新闻资讯（?days=1） |
 | `/api/news/refresh` | POST | 手动抓取新闻入库 |
-| `/api/briefings` | GET | AI 简报 + 近1小时新闻 |
+| `/api/briefings` | GET | AI 简报 + 近 1 小时新闻 |
 | `/api/briefings/trigger` | POST | 手动触发简报生成 |
 | `/api/alerts/` | GET | 预警列表 |
 | `/api/alerts/` | POST | 创建预警规则 |
 | `/api/alerts/{id}` | DELETE | 删除预警 |
-| `/api/alerts/triggered` | GET | 已触发预警 |
 | `/stream` | GET | SSE 实时流（30s 间隔） |
 | `/api/health` | GET | 健康检查 |
 
@@ -152,29 +135,32 @@ uvicorn backend.main:app --reload --port 18000
 
 ## 数据源
 
-| 数据 | 来源 |
-|------|------|
-| 国际金价 GCW00 | Yahoo Finance (`yfinance`) |
-| 国内金价 AU9999 | 上海黄金交易所 (`akshare`) |
-| 汇率 USD/CNY | Yahoo Finance (`yfinance`) |
-| K 线历史 | Binance XAUT/USDT K线 |
-| 新闻资讯 | 华尔街见闻 RSS（RSSHub 代理） |
+可插拔架构，配置于 `backend/data/sources/__init__.py` 的 `SOURCES` 字典。
+
+| 数据 | Symbol | 数据源 | 粒度 | 历史深度 |
+|------|--------|--------|------|----------|
+| 国际金价 | XAUUSD | Binance `binance_kline.py` | 5m | ~3.5 天 |
+| 国内金价 | AU9999 | fx678 `fx678_au9999.py` | 5m | ~5 天 |
+| 汇率 | USDCNY | yfinance `yfinance_fx.py` | 5m | ~70 天 |
+
+切换数据源：修改 `SOURCES` 字典对应条目即可，main.py 无需改动。
 
 ---
 
 ## 开发
-
-### 运行测试
-
-```bash
-pytest backend/tests/ -v
-```
 
 ### 前端热重载
 
 ```bash
 # 修改 frontend/ 后直接刷新浏览器即可
 # FastAPI 静态文件服务会自动提供最新文件
+```
+
+### 数据库
+
+```bash
+# 查看价格数据
+sqlite3 backend/alerts.db "SELECT symbol, COUNT(*) FROM price_bars GROUP BY symbol;"
 ```
 
 ---
