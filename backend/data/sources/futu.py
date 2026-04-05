@@ -34,8 +34,7 @@ GOLD_KEYWORDS = [
 
 def _sync_save_news(items: list[dict], hour_range: str = ""):
     """Save news items to DB synchronously."""
-    now_bj = datetime.now(BEIJING_TZ)
-    fetched_at = now_bj.isoformat()
+    now_str = datetime.now(BEIJING_TZ).isoformat()
     try:
         with sqlite3.connect(DB_PATH) as conn:
             for item in items:
@@ -51,18 +50,18 @@ def _sync_save_news(items: list[dict], hour_range: str = ""):
                     except Exception:
                         pass
                 conn.execute("""
-                    INSERT INTO news_items (title, title_en, source, url, direction, time_ago, published_at, fetched_at, hour_range)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO news_items (title, title_en, source, url, direction, time_ago, published_at, hour_range)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(url) DO UPDATE SET
                         title=excluded.title, title_en=excluded.title_en,
                         direction=excluded.direction, time_ago=excluded.time_ago,
-                        published_at=excluded.published_at, fetched_at=excluded.fetched_at,
+                        published_at=excluded.published_at,
                         hour_range=excluded.hour_range
                 """, (
                     item.get("title", ""), item.get("title_en", ""),
                     item.get("source", ""), item.get("url", ""),
                     item.get("direction", "neutral"), item.get("time_ago", ""),
-                    pub_ts or pub or fetched_at, fetched_at, hour_range,
+                    pub_ts or pub or now_str, hour_range,
                 ))
             conn.commit()
     except Exception as e:
