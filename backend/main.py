@@ -63,65 +63,63 @@ async def _news_refresh_loop():
 
 
 async def _price_bars_fetch_loop():
-    """Background loop: fetch current price every 1 minute and store bar + latest snapshot."""
-    from backend.data.db import save_price_bar, save_usdcny
-    from backend.data.sources.eastmoney_gold import fetch_xauusd
-    from backend.data.sources.eastmoney_fx import fetch_usdcny
-    from backend.data.sources.domestic import fetch_au9999
+    """Background loop: fetch data from authoritative sources every 5 min.
 
-    while True:
-        bar_ts = int(time.time()) // 60 * 60  # 1分钟时间戳
-        try:
-            xau = await asyncio.to_thread(fetch_xauusd)
-            if xau:
+    XAUUSD: Binance 5m (7x24)
+    AU9999: fx678 5m (SGE, ~5 days)
+    USDCNY: yfinance 1m (converted to 5m bars)
+    """
+    async def sync_all():
+        from backend.data.db import save_price_bar
+        from backend.data.sources.binance_kline import fetch_xauusd_history
+        from backend.data.sources.fx678_au9999 import fetch_au9999_history
+        from backend.data.sources.yfinance_fx import fetch_usdcny as fetch_fx
+
+        # XAUUSD: Binance 5m klines (7x24, no gaps)
+        xau_bars = await asyncio.to_thread(fetch_xauusd_history)
+        if xau_bars:
+            for b in xau_bars:
                 await save_price_bar(
                     symbol="XAUUSD",
-                    ts=bar_ts,
-                    open_=xau["open"],
-                    high=xau["high"],
-                    low=xau["low"],
-                    price=xau["price"],
-                    change=xau.get("change", 0),
-                    pct=xau.get("pct", 0),
+                    ts=b["time"],
+                    open_=b["open"],
+                    high=b["high"],
+                    low=b["low"],
+                    price=b["close"],
                 )
-                logger.info(f"Stored XAUUSD bar at {bar_ts}")
-        except Exception as e:
-            logger.warning(f"XAUUSD bar error: {e}")
+            logger.info(f"Synced {len(xau_bars)} XAUUSD bars from Binance")
 
-        try:
-            au = await fetch_au9999()
-            if au:
+        # AU9999: fx678 5m klines (SGE, ~5 days)
+        au_bars = await asyncio.to_thread(fetch_au9999_history)
+        if au_bars:
+            for b in au_bars:
                 await save_price_bar(
                     symbol="AU9999",
-                    ts=bar_ts,
-                    open_=au["open"],
-                    high=au["high"],
-                    low=au["low"],
-                    price=au["price"],
-                    change=au.get("change", 0),
-                    pct=au.get("pct", 0),
+                    ts=b["time"],
+                    open_=b["open"],
+                    high=b["high"],
+                    low=b["low"],
+                    price=b["close"],
                 )
-                logger.info(f"Stored AU9999 bar at {bar_ts}")
-        except Exception as e:
-            logger.warning(f"AU9999 bar error: {e}")
+            logger.info(f"Synced {len(au_bars)} AU9999 bars from fx678")
 
-        try:
-            fx = await asyncio.to_thread(fetch_usdcny)
-            if fx:
-                await save_usdcny(
-                    price=fx["price"],
-                    open_px=fx["open"],
-                    high=fx["high"],
-                    low=fx["low"],
-                    change=fx.get("change", 0),
-                    pct=fx.get("pct", 0),
-                    ts=bar_ts,
+        # USDCNY: yfinance 1m (aggregate to 5m)
+        fx_bars = await asyncio.to_thread(fetch_fx)
+        if fx_bars:
+            for b in fx_bars:
+                await save_price_bar(
+                    symbol="USDCNY",
+                    ts=b["time"],
+                    open_=b["open"],
+                    high=b["high"],
+                    low=b["low"],
+                    price=b["close"],
                 )
-                logger.info(f"Stored USDCNY bar at {bar_ts}")
-        except Exception as e:
-            logger.warning(f"USDCNY bar error: {e}")
+            logger.info(f"Synced {len(fx_bars)} USDCNY bars from yfinance")
 
-        await asyncio.sleep(60)
+    while True:
+        await sync_all()
+        await asyncio.sleep(300)  # 5 minutes
 
 
 app = FastAPI(title="Gold Dashboard", lifespan=lifespan)

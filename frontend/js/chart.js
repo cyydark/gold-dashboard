@@ -6,13 +6,37 @@
 
 /**
  * Hover crosshair plugin:
- * - afterEvent: track mouse X, trigger redraw
+ * - afterEvent: pixel→timestamp + binary search in each dataset, throttle redraw
  * - afterDatasetsDraw: draw dashed vertical line + floating label
  */
 const _hoverPlugin = {
   id: "goldHover",
 
   _mouseX: null,
+  _nearest: null,   // { xau, au }
+  _lastDraw: 0,
+
+  // Binary search: nearest bar to targetTs in O(log n)
+  _findNearest(data, targetTs) {
+    if (!data || !data.length) return null;
+    let lo = 0, hi = data.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (data[mid].x < targetTs) lo = mid + 1;
+      else hi = mid;
+    }
+    let best = data[lo];
+    let bestDiff = Math.abs(best.x - targetTs);
+    if (lo > 0) {
+      const diff = Math.abs(data[lo - 1].x - targetTs);
+      if (diff < bestDiff) { bestDiff = diff; best = data[lo - 1]; }
+    }
+    if (lo < data.length - 1) {
+      const diff = Math.abs(data[lo + 1].x - targetTs);
+      if (diff < bestDiff) best = data[lo + 1];
+    }
+    return best;
+  },
 
   afterDatasetsDraw(chart) {
     const { ctx, chartArea, scales } = chart;
@@ -25,23 +49,9 @@ const _hoverPlugin = {
     const xScale = scales.x;
     const rawTs = xScale.getValueForPixel(xPx);
 
-    // Find nearest point by timestamp (no window tolerance)
-    const findAtX = (data) => {
-      if (!data || !data.length) return null;
-      let nearest = null;
-      let minDiff = Infinity;
-      for (const pt of data) {
-        const diff = Math.abs(pt.x - rawTs);
-        if (diff < minDiff) {
-          minDiff = diff;
-          nearest = pt;
-        }
-      }
-      return nearest;
-    };
-
-    const xauPt = findAtX(chart.data.datasets[0]?.data || []);
-    const auPt  = findAtX(chart.data.datasets[1]?.data || []);
+    const nearest = this._nearest;
+    const xauPt = nearest?.xau || null;
+    const auPt  = nearest?.au  || null;
 
     const pad = n => String(n).padStart(2, "0");
     const fmtBJ = (ts) => {
@@ -132,10 +142,26 @@ const _hoverPlugin = {
   afterEvent(chart, args) {
     if (args.event.type === "mousemove") {
       this._mouseX = args.inChartArea ? args.event.x : null;
-      chart.draw(false); // no animation
+      if (args.inChartArea) {
+        const xScale = chart.scales.x;
+        const rawTs = xScale.getValueForPixel(args.event.x);
+        const xauData = chart.data.datasets[0]?.data || [];
+        const auData  = chart.data.datasets[1]?.data || [];
+        this._nearest = {
+          xau: this._findNearest(xauData, rawTs),
+          au:  this._findNearest(auData,  rawTs),
+        };
+      }
+      const now = Date.now();
+      if (now - this._lastDraw >= 16) {
+        chart.draw(false);
+        this._lastDraw = now;
+      }
     } else if (args.event.type === "mouseout" || args.event.type === "mouseleave") {
       this._mouseX = null;
+      this._nearest = null;
       chart.draw(false);
+      this._lastDraw = 0;
     }
   },
 };
