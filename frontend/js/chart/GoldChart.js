@@ -48,7 +48,7 @@ const _yRange = (pts, minPad = 1) => {
   return [dataMin - pad, dataMax + pad];
 };
 
-/**
+class GoldChart {
   constructor() {
     this.chart = null;
     this.loading = false;
