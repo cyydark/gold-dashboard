@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "alerts.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "alerts.db")
 
 
 def _parse_update_date(df: pd.DataFrame) -> datetime | None:
