@@ -1,5 +1,5 @@
 """Price API routes."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from backend.services.price_service import PriceService
 from backend.api.dependencies import get_price_service
 
@@ -38,7 +38,7 @@ async def switch_xau_source(
 
 
 @router.get("/history/{symbol}")
-async def get_history(symbol: str, days: int = 1,
+async def get_history(symbol: str, days: int = Query(default=1, ge=1, le=30),
                       service: PriceService = Depends(get_price_service)):
     """Fetch price history from database.
 

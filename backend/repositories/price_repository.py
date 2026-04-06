@@ -47,6 +47,27 @@ class PriceRepository:
             """, (symbol, ts, open_, high, low, price, volume, change, pct))
             await db.commit()
 
+    async def save_many(self, bars: list[dict], symbol: str) -> int:
+        """Batch upsert price bars in a single transaction. Returns count saved."""
+        if not bars:
+            return 0
+        rows = [
+            (symbol, b["time"], b["open"], b["high"], b["low"],
+             b["close"], b.get("volume", 0), b.get("change", 0), b.get("pct", 0))
+            for b in bars
+        ]
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.executemany("""
+                INSERT INTO price_bars (symbol, ts, open, high, low, price, volume, change, pct)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(symbol, ts) DO UPDATE SET
+                    open=excluded.open, high=excluded.high, low=excluded.low,
+                    price=excluded.price, volume=excluded.volume,
+                    change=excluded.change, pct=excluded.pct
+            """, rows)
+            await db.commit()
+        return len(rows)
+
     async def get_latest_usdcny(self) -> dict | None:
         """Fetch the most recent USD/CNY rate."""
         return await self.get_latest("USDCNY")

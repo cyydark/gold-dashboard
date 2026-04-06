@@ -19,8 +19,7 @@ async def _generate_briefing_scheduled():
         hour_label = f"{last_hour_start.strftime('%H:%M')}~{(this_hour_start - timedelta(minutes=1)).strftime('%H:%M')}"
 
         # 先触发一次新闻刷新并等待完成，确保上一小时数据已入库
-        future = await asyncio.get_event_loop().run_in_executor(None, fetch_and_save_news)
-        future.result()
+        await asyncio.to_thread(fetch_and_save_news)
 
         # 从 DB 查全量来源的上一小时新闻
         recent_news = await news_repo.get_in_range(
@@ -43,32 +42,26 @@ async def _generate_briefing_scheduled():
 
 
 async def _generate_daily_briefing_scheduled():
-    """每日08时（北京时间08:05前后）汇总昨日全天新闻生成'上一日整体'简报。"""
+    """每日08时（北京时间08:05前后）汇总近7天新闻生成'近7日综合'简报。"""
     from backend.repositories.news_repository import NewsRepository
     from backend.data.sources.futu import BEIJING_TZ, fetch_and_save_news
     from backend.data.sources.briefing import generate_daily_briefing_from_news
     try:
         news_repo = NewsRepository()
         now = datetime.now(BEIJING_TZ)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        yesterday_start = today_start - timedelta(days=1)
-        date_str = yesterday_start.strftime("%Y-%m-%d")
-        today_str = today_start.strftime("%Y-%m-%d")
 
         # 主动触发一次新闻获取+写入，等待完成后再查 DB
-        future = await asyncio.get_event_loop().run_in_executor(None, fetch_and_save_news)
-        future.result()  # 同步等待写入完成，不依赖固定 sleep
+        await asyncio.to_thread(fetch_and_save_news)
 
-        yesterday_news = await news_repo.get_by_date_range(
-            start_iso=date_str,
-            end_iso=today_str,
-            limit=c.NEWS_LIMIT_DAILY,
-        )
-        if not yesterday_news:
-            logger.warning(f"No news found for {date_str}, skipping daily briefing")
+        # 近7天新闻
+        recent_news = await news_repo.get_by_days(7)
+        if not recent_news:
+            logger.warning("No news found in last 7 days, skipping daily briefing")
             return
 
-        await generate_daily_briefing_from_news(yesterday_news, date_str)
-        logger.info(f"Daily briefing completed for {date_str} with {len(yesterday_news)} items")
+        # 标注近7日
+        date_str = "近7日"
+        await generate_daily_briefing_from_news(recent_news, date_str)
+        logger.info(f"Daily briefing completed ({date_str}) with {len(recent_news)} items")
     except Exception as e:
         logger.error(f"Daily briefing task error: {e}")

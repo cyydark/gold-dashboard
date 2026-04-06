@@ -2,16 +2,20 @@
 import asyncio
 import logging
 import os
-import threading
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from backend.config import settings
 from backend.data import constants as c
 from backend.api.routes import price, news, briefing, sse
+from backend.api.limiter import limiter
+from backend.api.models import ApiResponse
 from backend.data.db import init_db
 from dotenv import load_dotenv
 
@@ -51,67 +55,68 @@ async def _briefing_loop():
 
 
 async def _news_refresh_loop():
-    """Background loop: refresh all configured news sources every 6 minutes."""
+    """Background loop: refresh all configured news sources every REFRESH_INTERVAL seconds.
+
+    All sources are fetched concurrently; saves run in background threads via
+    asyncio.to_thread (non-blocking).
+    """
     import importlib
     await asyncio.sleep(30)  # Wait 30s on startup before first fetch (let caches warm up)
     while True:
         try:
             from backend.data.sources import NEWS_SOURCES
-            for name, (module_path, fn_name) in NEWS_SOURCES.items():
+
+            async def fetch_and_save(module_path: str, fn_name: str):
                 mod = importlib.import_module(module_path)
                 fetch_fn = getattr(mod, fn_name)
                 save_fn = getattr(mod, "_sync_save_news")
                 news = await asyncio.to_thread(fetch_fn)
                 if news:
-                    threading.Thread(target=save_fn, args=(news,), daemon=True).start()
+                    # save_fn is blocking (DB write); run in background
+                    asyncio.get_event_loop().run_in_executor(None, save_fn, news)
+
+            await asyncio.gather(
+                *(fetch_and_save(mp, fn) for mp, fn in NEWS_SOURCES.values()),
+                return_exceptions=True,
+            )
         except Exception as e:
             logger.warning(f"News refresh error: {e}")
         await asyncio.sleep(c.REFRESH_INTERVAL)
 
 
 async def _price_bars_fetch_loop():
-    """Background loop: fetch data from configured sources every 5 minutes.
+    """Background loop: fetch price data from all configured sources every REFRESH_INTERVAL seconds.
 
     Sources are defined in backend.data.sources.SOURCES.
-    每次同步前检测数据断层，超过 1 根 K 线则补录。
+    所有 symbol 并发获取，每 symbol 用 save_many 批量写入。
     """
     import importlib
-
     while True:
         try:
             from backend.repositories.price_repository import PriceRepository
             from backend.data.sources import SOURCES
             repo = PriceRepository()
 
-            for symbol, (module_path, fn_name) in SOURCES.items():
-                # 检测 gap
+            async def fetch_and_save(symbol: str, module_path: str, fn_name: str):
                 latest = await repo.get_latest(symbol)
                 last_ts = latest["ts"] if latest else None
-
                 mod = importlib.import_module(module_path)
                 fn = getattr(mod, fn_name)
                 bars = await asyncio.to_thread(fn)
-
                 if not bars:
-                    continue
-
-                # 补漏：只存 DB 之后的新 bars
+                    return 0
                 if last_ts is not None:
                     bars = [b for b in bars if b["time"] > last_ts]
-
-                for b in bars:
-                    await repo.save(
-                        symbol=symbol,
-                        ts=b["time"],
-                        open_=b["open"],
-                        high=b["high"],
-                        low=b["low"],
-                        price=b["close"],
-                        change=b.get("change", 0),
-                        pct=b.get("pct", 0),
-                    )
                 if bars:
-                    logger.info(f"Synced {len(bars)} {symbol} bars from {module_path}")
+                    saved = await repo.save_many(bars, symbol)
+                    logger.info(f"Synced {saved} {symbol} bars from {module_path}")
+                    return saved
+                return 0
+
+            await asyncio.gather(
+                *(fetch_and_save(sym, mp, fn) for sym, (mp, fn) in SOURCES.items()),
+                return_exceptions=True,
+            )
         except Exception as e:
             logger.warning(f"Price sync error: {e}")
 
@@ -119,10 +124,29 @@ async def _price_bars_fetch_loop():
 
 
 app = FastAPI(title="Gold Dashboard", lifespan=lifespan)
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content=ApiResponse.error("Rate limit exceeded. Please slow down.", code="RATE_LIMITED"),
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.warning(f"Unhandled exception: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content=ApiResponse.error("Internal server error", code="INTERNAL_ERROR"),
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.get_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

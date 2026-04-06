@@ -2,14 +2,13 @@
 import html
 import logging
 import re
-import sqlite3
 import time
 from datetime import datetime, timezone, timedelta
 
 import httpx
 from bs4 import BeautifulSoup
 
-from backend.data.db import DB_PATH
+from backend.data.sources.news_evaluation import _sync_save_processed_news
 
 logger = logging.getLogger(__name__)
 
@@ -46,39 +45,8 @@ def _parse_dt(dt_str: str) -> datetime:
 
 
 def _sync_save_news(items: list[dict], hour_range: str = ""):
-    if not items:
-        return
-    now_str = datetime.now(BEIJING_TZ).isoformat()
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            for item in items:
-                pub = item.get("published", "")
-                pub_ts = None
-                if pub:
-                    try:
-                        pub_dt = datetime.fromisoformat(pub.replace(" ", "T"))
-                        if pub_dt.tzinfo is None:
-                            pub_dt = pub_dt.replace(tzinfo=BEIJING_TZ)
-                        pub_dt = pub_dt.astimezone(BEIJING_TZ)
-                        pub_ts = pub_dt.isoformat()
-                    except Exception:
-                        pass
-                conn.execute("""
-                    INSERT INTO news_items (title, title_en, source, url, time_ago, published_at, hour_range)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(url) DO UPDATE SET
-                        title=excluded.title, title_en=excluded.title_en,
-                        time_ago=excluded.time_ago, published_at=excluded.published_at,
-                        hour_range=excluded.hour_range
-                """, (
-                    item.get("title", ""), item.get("title_en", ""),
-                    item.get("source", ""), item.get("url", ""),
-                    item.get("time_ago", ""),
-                    pub_ts or pub or now_str, hour_range,
-                ))
-            conn.commit()
-    except Exception as e:
-        logger.warning(f"Failed to save AASTOCKS news to DB: {e}")
+    """Save news items to DB synchronously with AI evaluation."""
+    _sync_save_processed_news(items, hour_range)
 
 
 def _fetch_initial_page() -> tuple[list[dict], str, str]:

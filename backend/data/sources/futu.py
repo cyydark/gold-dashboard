@@ -8,7 +8,6 @@
 import html
 import logging
 import re
-import sqlite3
 import time
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
@@ -17,7 +16,7 @@ from typing import Set
 
 import httpx
 
-from backend.data.db import DB_PATH
+from backend.data.sources.news_evaluation import _sync_save_processed_news
 
 logger = logging.getLogger(__name__)
 
@@ -29,52 +28,21 @@ _cache_ts: float = 0.0
 _save_done_event: concurrent.futures.Future | None = None
 
 # 黄金相关关键词：标题必须包含，或正文出现 ≥2 次
-# 包含纯金市词 + 驱动金价的地缘/宏观词
+# 白名单策略：只保留直接指向黄金的词，不含宏观/地缘词
 GOLD_KEYWORDS = [
-    # 纯金市词
+    # 纯金市词（强相关）
     "黄金", "金价", "金条", "金币", "金矿", "金饰", "金店",
     "国际金", "现货金", "期货金", "黄金期货", "COMEX", "伦敦金",
     "XAU", "au9999", "au(t+d)", "央行购金", "购金潮",
     "Gold", "gold", "XAUUSD", "Goldman Sachs",
-    # 地缘/宏观驱动词（地缘危机时期，金市新闻大量含此类词）
-    "避险", "美元", "美债", "美联储", "降息", "加息",
-    "央行", "通胀", "白银", "大宗商品",
+    # 贵金属关联词
+    "白银", "贵金属",
 ]
 
 
 def _sync_save_news(items: list[dict], hour_range: str = ""):
-    """Save news items to DB synchronously."""
-    now_str = datetime.now(BEIJING_TZ).isoformat()
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            for item in items:
-                pub = item.get("published", "")
-                pub_ts = None
-                if pub:
-                    try:
-                        pub_dt = datetime.fromisoformat(pub.replace(" ", "T"))
-                        if pub_dt.tzinfo is None:
-                            pub_dt = pub_dt.replace(tzinfo=BEIJING_TZ)
-                        pub_dt = pub_dt.astimezone(BEIJING_TZ)
-                        pub_ts = pub_dt.isoformat()
-                    except Exception:
-                        pass
-                conn.execute("""
-                    INSERT INTO news_items (title, title_en, source, url, time_ago, published_at, hour_range)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(url) DO UPDATE SET
-                        title=excluded.title, title_en=excluded.title_en,
-                        time_ago=excluded.time_ago, published_at=excluded.published_at,
-                        hour_range=excluded.hour_range
-                """, (
-                    item.get("title", ""), item.get("title_en", ""),
-                    item.get("source", ""), item.get("url", ""),
-                    item.get("time_ago", ""),
-                    pub_ts or pub or now_str, hour_range,
-                ))
-            conn.commit()
-    except Exception as e:
-        logger.warning(f"Failed to save Futu news to DB: {e}")
+    """Save news items to DB synchronously with AI evaluation."""
+    _sync_save_processed_news(items, hour_range)
 
 
 def fetch_and_save_news(hour_range: str = "") -> concurrent.futures.Future:

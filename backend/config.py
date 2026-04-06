@@ -1,4 +1,5 @@
 """Configuration management for Gold Dashboard."""
+import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -17,11 +18,22 @@ class Settings(BaseSettings):
     # API
     frontend_path: Path = Path(__file__).parent.parent / "frontend"
 
+    # Security
+    rate_limit: str = "30/minute"  # per IP
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def get_cors_origins(self) -> list[str]:
+        """Get CORS origins from env var (comma-separated) or fallback to defaults."""
+        raw = os.getenv("CORS_ORIGINS", "")
+        if raw:
+            return [o.strip() for o in raw.split(",") if o.strip()]
+        # Fallback: allow frontend dev/prod if env var not set
+        return ["http://localhost:3000", "http://localhost:8000"]
 
 
 settings = Settings()
