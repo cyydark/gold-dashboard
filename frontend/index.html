@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>黄金行情分析</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=2" />
+  <link rel="stylesheet" href="/static/css/style.css?v=3" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -16,51 +16,98 @@
 
     <!-- Header -->
     <header class="header">
-      <h1>🏆 黄金行情</h1>
-      <div class="header-meta">
-        <span class="live-badge">● LIVE</span>
+      <h1 class="header__title">
+        <span>📊</span>
+        <span>黄金行情</span>
+      </h1>
+      <div class="header__meta">
+        <span class="live-badge">LIVE</span>
         <span id="last-update" class="update-time">加载中...</span>
       </div>
     </header>
 
     <!-- Price Cards -->
     <section class="price-cards" id="price-cards">
-      <div class="price-card" id="card-XAUUSD">
-        <div class="card-header">
-          <span class="card-symbol">🌍 国际黄金 XAU/USD</span>
-          <span class="card-unit">USD/oz</span>
+      <!-- Skeleton State -->
+      <div class="price-card" id="skeleton-XAUUSD">
+        <div class="price-card__header">
+          <div class="skeleton skeleton--text skeleton--shimmer" style="width:120px"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
         </div>
-        <div class="card-price" id="price-XAUUSD">--</div>
-        <div class="card-change" id="change-XAUUSD">--</div>
-        <div class="card-ohlc">
+        <div class="skeleton skeleton--price skeleton--shimmer" style="margin: 12px 0"></div>
+        <div class="skeleton skeleton--small skeleton--shimmer" style="width:80px"></div>
+        <div class="price-card__ohlc" style="margin-top: 12px">
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+        </div>
+      </div>
+
+      <div class="price-card" id="skeleton-AU9999">
+        <div class="price-card__header">
+          <div class="skeleton skeleton--text skeleton--shimmer" style="width:120px"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+        </div>
+        <div class="skeleton skeleton--price skeleton--shimmer" style="margin: 12px 0"></div>
+        <div class="skeleton skeleton--small skeleton--shimmer" style="width:80px"></div>
+        <div class="price-card__ohlc" style="margin-top: 12px">
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+        </div>
+      </div>
+
+      <div class="price-card" id="skeleton-USDCNY">
+        <div class="price-card__header">
+          <div class="skeleton skeleton--text skeleton--shimmer" style="width:120px"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+        </div>
+        <div class="skeleton skeleton--price skeleton--shimmer" style="margin: 12px 0"></div>
+        <div class="skeleton skeleton--small skeleton--shimmer" style="width:80px"></div>
+        <div class="price-card__ohlc" style="margin-top: 12px">
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+          <div class="skeleton skeleton--small skeleton--shimmer"></div>
+        </div>
+      </div>
+
+      <!-- Real Data (hidden initially) -->
+      <div class="price-card" id="card-XAUUSD" style="display:none">
+        <div class="price-card__header">
+          <span class="price-card__symbol">🌍 国际黄金 XAU/USD</span>
+          <span class="price-card__unit">USD/oz</span>
+        </div>
+        <div class="price-card__price" id="price-XAUUSD">--</div>
+        <div class="price-card__change" id="change-XAUUSD">--</div>
+        <div class="price-card__ohlc">
           <span>昨收 <em id="open-XAUUSD">--</em></span>
           <span>高 <em id="high-XAUUSD">--</em></span>
           <span>低 <em id="low-XAUUSD">--</em></span>
         </div>
       </div>
 
-      <div class="price-card" id="card-AU9999">
-        <div class="card-header">
-          <span class="card-symbol">🇨🇳 国内黄金 AU9999</span>
-          <span class="card-unit">CNY/g</span>
+      <div class="price-card" id="card-AU9999" style="display:none">
+        <div class="price-card__header">
+          <span class="price-card__symbol">🇨🇳 国内黄金 AU9999</span>
+          <span class="price-card__unit">CNY/g</span>
         </div>
-        <div class="card-price" id="price-AU9999">--</div>
-        <div class="card-change" id="change-AU9999">--</div>
-        <div class="card-ohlc">
+        <div class="price-card__price" id="price-AU9999">--</div>
+        <div class="price-card__change" id="change-AU9999">--</div>
+        <div class="price-card__ohlc">
           <span>今开 <em id="open-AU9999">--</em></span>
           <span>高 <em id="high-AU9999">--</em></span>
           <span>低 <em id="low-AU9999">--</em></span>
         </div>
       </div>
 
-      <div class="price-card" id="card-USDCNY">
-        <div class="card-header">
-          <span class="card-symbol">💱 人民币兑美元 CNY/USD</span>
-          <span class="card-unit" id="unit-USDCNY">CNY/USD</span>
+      <div class="price-card" id="card-USDCNY" style="display:none">
+        <div class="price-card__header">
+          <span class="price-card__symbol">💱 人民币兑美元</span>
+          <span class="price-card__unit" id="unit-USDCNY">CNY/USD</span>
         </div>
-        <div class="card-price" id="price-USDCNY">--</div>
-        <div class="card-change" id="change-USDCNY">--</div>
-        <div class="card-ohlc">
+        <div class="price-card__price" id="price-USDCNY">--</div>
+        <div class="price-card__change" id="change-USDCNY">--</div>
+        <div class="price-card__ohlc">
           <span>今开 <em id="open-USDCNY">--</em></span>
           <span>高 <em id="high-USDCNY">--</em></span>
           <span>低 <em id="low-USDCNY">--</em></span>
@@ -72,32 +119,55 @@
     <div class="briefing-wrapper">
       <!-- 左侧：AI 周报 -->
       <section class="briefing-section" id="briefing-section">
-        <!-- 近7日整体 -->
-        <div class="briefing-header">
-          <span class="briefing-title">📊 近7日整体</span>
-          <span id="weekly-time" class="briefing-period"></span>
+        <!-- Skeleton -->
+        <div id="briefing-skeleton">
+          <div class="briefing__header">
+            <div class="skeleton skeleton--shimmer" style="width:80px;height:18px"></div>
+          </div>
+          <div class="skeleton skeleton--shimmer" style="width:100%;height:60px;margin-bottom:8px"></div>
+          <div class="skeleton skeleton--shimmer" style="width:80%;height:60px"></div>
         </div>
-        <div id="weekly-content" class="briefing-daily"></div>
+        <!-- Real Content -->
+        <div id="briefing-content" style="display:none">
+          <div class="briefing__header">
+            <span class="briefing__title">📊 近7日整体</span>
+            <span id="weekly-time" class="briefing__period"></span>
+          </div>
+          <div id="weekly-content" class="briefing__content"></div>
+        </div>
       </section>
 
       <!-- 右侧：新闻列表 -->
       <section class="source-news-section" id="source-news-section">
-        <div class="briefing-header">
-          <span class="briefing-title">📰 最新资讯</span>
-          <span id="news-count" class="briefing-period"></span>
+        <div class="briefing__header">
+          <span class="briefing__title">📰 最新资讯</span>
+          <span id="news-count" class="briefing__period"></span>
         </div>
-        <div id="briefing-news-list" class="briefing-news-list"></div>
+        <!-- Skeleton -->
+        <div id="news-skeleton">
+          <div class="skeleton skeleton--shimmer" style="width:100%;height:50px;margin-bottom:8px"></div>
+          <div class="skeleton skeleton--shimmer" style="width:100%;height:50px;margin-bottom:8px"></div>
+          <div class="skeleton skeleton--shimmer" style="width:100%;height:50px"></div>
+        </div>
+        <!-- Real Content -->
+        <div id="briefing-news-list" class="news-list" style="display:none"></div>
       </section>
     </div>
 
     <!-- Chart Section -->
     <section class="chart-section">
       <div class="chart-controls">
-        <div class="legend">
-          <span class="legend-item" style="color:#22c55e">■ <span id="legend-xau">COMEX GC00Y</span></span>
-          <span class="legend-item" style="color:#f59e0b">■ <span id="legend-au">AU9999</span></span>
+        <div class="chart-controls__left">
+          <div class="legend">
+            <span class="legend__item legend__item--xau">
+              <span id="legend-xau">COMEX GC00Y</span>
+            </span>
+            <span class="legend__item legend__item--au">
+              <span id="legend-au">AU9999</span>
+            </span>
+          </div>
         </div>
-        <div class="source-selectors">
+        <div class="chart-controls__selectors">
           <label>
             国际金：
             <select id="sel-xau">
@@ -113,10 +183,13 @@
           </label>
         </div>
       </div>
-      <div id="chart-container" style="height:400px;position:relative;background:#1a1d27">
+      <div class="chart-container">
         <canvas id="priceChart" width="1200" height="400"></canvas>
       </div>
-      <div id="chart-loader" class="loader" style="display:none">加载中...</div>
+      <div id="chart-loader" class="chart-loader" style="display:none">
+        <div class="chart-loader__spinner"></div>
+        <span>加载中...</span>
+      </div>
     </section>
 
     <!-- Footer -->
@@ -126,9 +199,9 @@
 
   </div>
 
-  <div id="toast-container"></div>
+  <div id="toast-container" class="toast-container"></div>
   <script src="/static/js/sse.js?v=2"></script>
-  <script type="module" src="/static/js/chart/GoldChart.js?v=10"></script>
-  <script type="module" src="/static/js/app.js?v=18"></script>
+  <script type="module" src="/static/js/chart/GoldChart.js?v=11"></script>
+  <script type="module" src="/static/js/app.js?v=19"></script>
 </body>
 </html>

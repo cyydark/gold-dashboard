@@ -147,7 +147,7 @@ class GoldChart {
     if (!canvas) { console.error("canvas not found"); return; }
 
     const loader = document.getElementById("chart-loader");
-    if (loader) { loader.style.display = "block"; loader.textContent = "加载中..."; }
+    if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
 
     try {
       const xauSymbol = this.xauSource === "binance" ? "XAUUSD_BINANCE" : "XAUUSD";
@@ -172,7 +172,7 @@ class GoldChart {
         : [];
 
       if (xauPts.length === 0 && auPts.length === 0) {
-        if (loader) { loader.textContent = "暂无数据"; }
+        if (loader) { loader.querySelector('span').textContent = "暂无数据"; }
         this.loading = false;
         return;
       }
@@ -315,7 +315,7 @@ class GoldChart {
 
     } catch (e) {
       console.error("Chart error:", e);
-      if (loader) { loader.textContent = "加载失败: " + e.message; }
+      if (loader) { loader.querySelector('span').textContent = "加载失败"; }
     }
 
     this.loading = false;

@@ -1,67 +1,125 @@
 /**
  * Main app: price cards + dual gold chart + news.
+ * Enhanced with skeleton loading, animations, and glass effects.
  */
 import { GoldChart } from "./chart/GoldChart.js";
 
 let chart = null;
 let prices = {};
+let hasInitialData = false;
 
+/**
+ * Animate a number change with a flash effect
+ */
+function animatePriceChange(element, newValue) {
+  if (!element) return;
+  const oldValue = element.textContent;
+  if (oldValue !== newValue) {
+    element.style.transform = 'scale(1.05)';
+    element.style.transition = 'transform 0.15s ease-out';
+    setTimeout(() => {
+      element.textContent = newValue;
+      element.style.transform = 'scale(1)';
+    }, 50);
+  }
+}
+
+/**
+ * Show toast notification
+ */
 function showToast(msg, type = "info") {
   const container = document.getElementById("toast-container");
+  if (!container) return;
   const toast = document.createElement("div");
-  toast.className = `toast ${type}`;
+  toast.className = `toast toast--${type}`;
   toast.textContent = msg;
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(20px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
 }
 window.showToast = showToast;
 
+/**
+ * Update a price card with new data
+ */
 function updatePriceCard(symbol, data) {
   if (!data) return;
-  const priceEl  = document.getElementById(`price-${symbol}`);
+
+  // Hide skeleton, show real card
+  const skeletonEl = document.getElementById(`skeleton-${symbol}`);
+  const cardEl = document.getElementById(`card-${symbol}`);
+
+  if (skeletonEl && cardEl) {
+    skeletonEl.style.display = 'none';
+    cardEl.style.display = 'block';
+  }
+
+  const priceEl = document.getElementById(`price-${symbol}`);
   const changeEl = document.getElementById(`change-${symbol}`);
-  const card     = document.getElementById(`card-${symbol}`);
-  const openEl   = document.getElementById(`open-${symbol}`);
-  const highEl   = document.getElementById(`high-${symbol}`);
-  const lowEl    = document.getElementById(`low-${symbol}`);
-  const ohlcEl   = document.getElementById(`ohlc-${symbol}`);
+  const card = document.getElementById(`card-${symbol}`);
+  const openEl = document.getElementById(`open-${symbol}`);
+  const highEl = document.getElementById(`high-${symbol}`);
+  const lowEl = document.getElementById(`low-${symbol}`);
+
   if (!priceEl) return;
 
-  priceEl.textContent = `${data.price} ${data.unit || ""}`;
+  // Animate price change
+  animatePriceChange(priceEl, `${data.price} ${data.unit || ""}`);
+
   const hasChange = data.change != null && data.pct != null;
   if (hasChange) {
     const sign = data.change >= 0 ? "+" : "";
-    changeEl.textContent = `${sign}${data.change} (${sign}${data.pct}%)`;
-    changeEl.className = `card-change ${data.change >= 0 ? "up" : "down"}`;
+    const changeText = `${sign}${data.change} (${sign}${data.pct}%)`;
+    animatePriceChange(changeEl, changeText);
+    changeEl.className = `price-card__change price-card__change--${data.change >= 0 ? "up" : "down"}`;
+
     if (card) {
-      card.classList.remove("up", "down");
-      card.classList.add(data.change >= 0 ? "up" : "down");
+      card.classList.remove("price-card--up", "price-card--down");
+      // Add animation class
+      const animClass = data.change >= 0 ? "price-card--up" : "price-card--down";
+      card.classList.add(animClass);
+      // Remove animation class after animation completes
+      setTimeout(() => {
+        card.classList.remove(animClass);
+      }, 600);
     }
   } else {
     changeEl.textContent = "";
-    changeEl.className = "card-change";
-    if (card) card.classList.remove("up", "down");
+    changeEl.className = "price-card__change";
+    if (card) card.classList.remove("price-card--up", "price-card--down");
   }
 
   const hasOHLC = data.open != null && data.high != null && data.low != null;
-  if (ohlcEl) ohlcEl.style.display = hasOHLC ? "" : "none";
   if (hasOHLC) {
     if (openEl) openEl.textContent = data.open;
     if (highEl) highEl.textContent = data.high;
-    if (lowEl)  lowEl.textContent  = data.low;
+    if (lowEl) lowEl.textContent = data.low;
   }
+
+  hasInitialData = true;
 }
 
+/**
+ * Handle price update from SSE or polling
+ */
 window.onPriceUpdate = function (data) {
   if (!data) return;
   prices = data;
   const el = document.getElementById("last-update");
   if (el) el.textContent = data.updated_at ? `更新于 ${data.updated_at}` : "";
+
   for (const sym of ["XAUUSD", "AU9999", "USDCNY"]) {
     if (data[sym]) updatePriceCard(sym, data[sym]);
   }
 };
 
+/**
+ * Format timestamp to relative time
+ */
 function _timeAgo(tsSec) {
   if (!tsSec) return "未知";
   const diffMs = Date.now() - tsSec * 1000;
@@ -74,6 +132,9 @@ function _timeAgo(tsSec) {
   return `${diffDay}天前`;
 }
 
+/**
+ * Escape HTML to prevent XSS
+ */
 function escapeHtml(s) {
   return String(s || "")
     .replace(/&/g, '&amp;')
@@ -82,8 +143,12 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
+/**
+ * Load and display news list
+ */
 async function loadNews(days = 1) {
-  const list = document.getElementById("news-list");
+  const list = document.getElementById("briefing-news-list");
+  const newsSkeleton = document.getElementById("news-skeleton");
   const refreshTime = document.getElementById("news-refresh-time");
   if (!list) return;
 
@@ -92,45 +157,51 @@ async function loadNews(days = 1) {
     const data = await res.json();
     const news = data.news || [];
 
+    // Hide skeleton, show list
+    if (newsSkeleton) newsSkeleton.style.display = 'none';
+    list.style.display = 'block';
+
     if (news.length === 0) {
-      list.innerHTML = '<div class="news-loading">暂无资讯</div>';
+      list.innerHTML = '<div class="state-message">暂无资讯</div>';
       return;
     }
 
-    list.innerHTML = news.map(item => {
-      const escape = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    list.innerHTML = news.map((item, index) => {
       const timeAgo = _timeAgo(item.published_ts);
       return `
-      <a class="news-item" href="${escape(item.url)}" target="_blank" rel="noopener">
-        <div class="news-meta">
-          <span class="news-source">${escape(item.source)}</span>
-          <span class="news-time">${timeAgo}</span>
+      <a class="news-item" href="${escapeHtml(item.url)}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
+        <div class="news-item__meta">
+          <span class="news-item__source">${escapeHtml(item.source)}</span>
+          <span>·</span>
+          <span>${timeAgo}</span>
         </div>
-        <div class="news-content">
-          <span class="news-headline">${escape(item.title)}</span>
-        </div>
+        <div class="news-item__title">${escapeHtml(item.title)}</div>
       </a>
     `}).join("");
-
-    if (refreshTime) {
-      const now = new Date();
-      refreshTime.textContent = `更新于 ${now.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"})}`;
-    }
 
     if (chart) {
       chart.setNews(news);
     }
 
   } catch (e) {
-    list.innerHTML = '<div class="news-loading">加载失败</div>';
+    if (newsSkeleton) newsSkeleton.style.display = 'none';
+    list.style.display = 'block';
+    list.innerHTML = '<div class="state-message">加载失败</div>';
   }
 }
 
+/**
+ * Load and display briefings
+ */
 async function loadBriefings() {
   const weeklyEl = document.getElementById("weekly-content");
   const newsEl = document.getElementById("briefing-news-list");
   const weeklyTimeEl = document.getElementById("weekly-time");
   const newsCountEl = document.getElementById("news-count");
+  const briefingSkeleton = document.getElementById("briefing-skeleton");
+  const briefingContent = document.getElementById("briefing-content");
+  const newsSkeleton = document.getElementById("news-skeleton");
+
   if (!weeklyEl) return;
 
   try {
@@ -139,13 +210,19 @@ async function loadBriefings() {
     const weeklyData = data.weekly;
     const news = data.news || [];
 
+    // Hide skeletons, show content
+    if (briefingSkeleton) briefingSkeleton.style.display = 'none';
+    if (briefingContent) briefingContent.style.display = 'block';
+    if (newsSkeleton) newsSkeleton.style.display = 'none';
+    if (newsEl) newsEl.style.display = 'block';
+
     // 左侧：近7日整体
     if (weeklyData) {
       weeklyTimeEl.textContent = weeklyData.time_range || "";
       weeklyEl.innerHTML = `<span class="briefing-daily-text">${escapeHtml(weeklyData.content || "")}</span>`;
     } else {
       weeklyTimeEl.textContent = "";
-      weeklyEl.innerHTML = '<span class="briefing-empty">暂无周报</span>';
+      weeklyEl.innerHTML = '<div class="state-message">暂无周报</div>';
     }
 
     // 右侧：新闻列表
@@ -154,48 +231,54 @@ async function loadBriefings() {
         newsCountEl.textContent = `${data.news_count || news.length}条`;
       }
       if (news.length === 0) {
-        newsEl.innerHTML = '<div class="briefing-empty">暂无资讯</div>';
+        newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
       } else {
-        newsEl.innerHTML = news.map(n => `
-          <div class="source-news-item">
-            <div class="source-news-meta">
-              <span class="source-news-source">${escapeHtml(n.source || "")}</span>
+        newsEl.innerHTML = news.map((n, index) => `
+          <a class="news-item" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
+            <div class="news-item__meta">
+              <span class="news-item__source">${escapeHtml(n.source || "")}</span>
               <span>·</span>
               <span>${escapeHtml(n.published_at ? _timeAgo(n.published_ts) : (n.time_ago || ""))}</span>
             </div>
-            <a class="source-news-title" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener">
-              ${escapeHtml(n.title || n.title_en || "")}
-            </a>
-          </div>`).join("");
+            <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
+          </a>`).join("");
       }
     }
 
     if (chart) {
       chart.setNews(news);
     }
+
   } catch (e) {
-    weeklyEl.innerHTML = '<div class="briefing-empty">加载失败</div>';
-    if (newsEl) newsEl.innerHTML = '<div class="briefing-empty">加载失败</div>';
+    if (briefingSkeleton) briefingSkeleton.style.display = 'none';
+    if (briefingContent) briefingContent.style.display = 'block';
+    if (newsSkeleton) newsSkeleton.style.display = 'none';
+    if (newsEl) newsEl.style.display = 'block';
+    weeklyEl.innerHTML = '<div class="state-message">加载失败</div>';
+    if (newsEl) newsEl.innerHTML = '<div class="state-message">加载失败</div>';
   }
 }
 
+/**
+ * Initialize app on DOM ready
+ */
 window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
 
-  // 绑定图表数据源切换
+  // Bind chart data source switching
   const selXau = document.getElementById("sel-xau");
-  const selAu  = document.getElementById("sel-au");
+  const selAu = document.getElementById("sel-au");
   const legendXau = document.getElementById("legend-xau");
 
   const reloadChart = async () => {
     const xau = selXau ? selXau.value : "comex";
-    const au  = selAu  ? selAu.value  : "au9999";
+    const au = selAu ? selAu.value : "au9999";
     if (legendXau) {
       legendXau.textContent = xau === "binance" ? "XAUTUSDT (Binance)" : "COMEX GC00Y";
     }
     if (xau === "binance" && chart.xauSource !== "binance") {
       const loader = document.getElementById("chart-loader");
-      if (loader) { loader.style.display = "block"; loader.textContent = "切换数据源中..."; }
+      if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "切换数据源中..."; }
       const r = await fetch(`/api/xau-source?source=${xau}`, { method: "POST" });
       const json = await r.json();
       console.log("[reloadChart] import result:", json);
@@ -209,7 +292,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   };
 
   if (selXau) selXau.addEventListener("change", reloadChart);
-  if (selAu)  selAu.addEventListener("change", reloadChart);
+  if (selAu) selAu.addEventListener("change", reloadChart);
 
   loadBriefings();
   await chart.load();
