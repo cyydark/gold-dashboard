@@ -136,37 +136,29 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
+/** Render briefing text with basic HTML escaping. */
+function renderBriefing(text) {
+  return escapeHtml(text || "");
+}
+
+/**
+ * Load news immediately (fast) + AI briefing in background (slow).
+ * News shows right away; AI skeleton disappears when ready.
+ */
 async function loadBriefings() {
-  const weeklyEl = document.getElementById("weekly-content");
   const newsEl = document.getElementById("briefing-news-list");
-  const weeklyTimeEl = document.getElementById("weekly-time");
   const newsCountEl = document.getElementById("news-count");
-  const briefingSkeleton = document.getElementById("briefing-skeleton");
-  const briefingContent = document.getElementById("briefing-content");
   const newsSkeleton = document.getElementById("news-skeleton");
-  if (!weeklyEl) return;
+  if (!newsEl) return;
 
-  try {
-    const res = await fetch("/api/briefings?days=3");
-    const data = await res.json();
-    const weeklyData = data.weekly;
-    const news = data.news || [];
-
-    if (briefingSkeleton) briefingSkeleton.style.display = 'none';
-    if (briefingContent) briefingContent.style.display = 'block';
-    if (newsSkeleton) newsSkeleton.style.display = 'none';
-    if (newsEl) newsEl.style.display = 'block';
-
-    if (weeklyData) {
-      weeklyTimeEl.textContent = weeklyData.time_range || "";
-      weeklyEl.innerHTML = `<span class="briefing__daily-text">${escapeHtml(weeklyData.content || "")}</span>`;
-    } else {
-      weeklyTimeEl.textContent = "";
-      weeklyEl.innerHTML = '<div class="state-message">暂无周报</div>';
-    }
-
-    if (newsEl) {
-      if (newsCountEl) newsCountEl.textContent = `${data.news_count || news.length}条`;
+  // Step 1: Load news immediately (no AI involved, 3 days)
+  fetch("/api/news?days=3")
+    .then(r => r.json())
+    .then(data => {
+      const news = data.news || [];
+      if (newsSkeleton) newsSkeleton.style.display = 'none';
+      if (newsEl) newsEl.style.display = 'block';
+      if (newsCountEl) newsCountEl.textContent = `${news.length}条`;
       if (news.length === 0) {
         newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
       } else {
@@ -180,16 +172,38 @@ async function loadBriefings() {
             <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
           </a>`).join("");
       }
-    }
+      if (chart) chart.setNews(news);
+    })
+    .catch(() => {
+      if (newsSkeleton) newsSkeleton.style.display = 'none';
+      if (newsEl) newsEl.style.display = 'block';
+      newsEl.innerHTML = '<div class="state-message">资讯加载失败</div>';
+    });
 
-    if (chart) chart.setNews(news);
+  // Step 2: Load AI briefing in background (uses TTL cache, ~1h)
+  try {
+    const res = await fetch("/api/briefings?days=3");
+    const data = await res.json();
+    _showBriefing(data);
   } catch (e) {
-    if (briefingSkeleton) briefingSkeleton.style.display = 'none';
-    if (briefingContent) briefingContent.style.display = 'block';
-    if (newsSkeleton) newsSkeleton.style.display = 'none';
-    if (newsEl) newsEl.style.display = 'block';
-    weeklyEl.innerHTML = '<div class="state-message">加载失败</div>';
-    if (newsEl) newsEl.innerHTML = '<div class="state-message">加载失败</div>';
+    const weeklyEl = document.getElementById("weekly-content");
+    const weeklySkeleton = document.getElementById("briefing-skeleton");
+    const weeklyContent = document.getElementById("briefing-content");
+    if (weeklySkeleton) weeklySkeleton.style.display = 'none';
+    if (weeklyContent) weeklyContent.style.display = 'block';
+    if (weeklyEl) weeklyEl.innerHTML = '<div class="state-message">AI 分析加载失败</div>';
+  }
+}
+
+/** Show AI briefing content, hide skeleton. */
+function _showBriefing(data) {
+  const weeklyEl = document.getElementById("weekly-content");
+  const weeklySkeleton = document.getElementById("briefing-skeleton");
+  const weeklyContent = document.getElementById("briefing-content");
+  if (weeklySkeleton) weeklySkeleton.style.display = 'none';
+  if (weeklyContent) weeklyContent.style.display = 'block';
+  if (weeklyEl) {
+    weeklyEl.innerHTML = `<span class="briefing__daily-text">${renderBriefing(data.weekly?.content || "")}</span>`;
   }
 }
 
@@ -258,25 +272,72 @@ window.addEventListener("DOMContentLoaded", async () => {
   polling.start("news");
 
   // DEBUG: refresh buttons
+  const btnNews = document.getElementById("btn-refresh-news");
   const btnBriefing = document.getElementById("btn-refresh-briefing");
   const debugStatus = document.getElementById("debug-status");
+
+  if (btnNews) {
+    btnNews.addEventListener("click", async () => {
+      btnNews.disabled = true;
+      btnNews.textContent = "⏳...";
+      if (debugStatus) debugStatus.textContent = "刷新资讯...";
+      try {
+        const res = await fetch("/api/news?days=3");
+        const data = await res.json();
+        const news = data.news || [];
+        const newsEl = document.getElementById("briefing-news-list");
+        const newsCountEl = document.getElementById("news-count");
+        if (newsCountEl) newsCountEl.textContent = `${news.length}条`;
+        if (newsEl) {
+          if (news.length === 0) {
+            newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
+          } else {
+            newsEl.innerHTML = news.map((n, index) => `
+              <a class="news-item" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
+                <div class="news-item__meta">
+                  <span class="news-item__source">${escapeHtml(n.source || "")}</span>
+                  <span>·</span>
+                  <span title="${escapeHtml(_bjTime(n.published_ts))}">${escapeHtml(_timeAgo(n.published_ts))}</span>
+                </div>
+                <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
+              </a>`).join("");
+          }
+        }
+        if (chart) chart.setNews(news);
+        if (debugStatus) debugStatus.textContent = "";
+        showToast(`资讯已更新，共 ${news.length} 条`, "info");
+      } catch (e) {
+        if (debugStatus) debugStatus.textContent = "";
+        showToast("刷新失败: " + e.message, "error");
+      } finally {
+        btnNews.disabled = false;
+        btnNews.textContent = "🔄 刷新资讯";
+      }
+    });
+  }
+
   if (btnBriefing) {
     btnBriefing.addEventListener("click", async () => {
+      const weeklySkeleton = document.getElementById("briefing-skeleton");
+      const weeklyContent = document.getElementById("briefing-content");
+      const weeklyEl = document.getElementById("weekly-content");
       btnBriefing.disabled = true;
-      btnBriefing.textContent = "⏳ 生成中...";
-      if (debugStatus) debugStatus.textContent = "正在生成 AI 分析...";
+      btnBriefing.textContent = "⏳...";
+      if (debugStatus) debugStatus.textContent = "生成中...";
+      if (weeklyContent) weeklyContent.style.display = 'none';
+      if (weeklySkeleton) weeklySkeleton.style.display = 'block';
+      if (weeklyEl) weeklyEl.innerHTML = '';
       try {
-        const res = await fetch("/api/briefings/trigger", { method: "POST" });
+        const res = await fetch("/api/briefings/briefing/refresh?days=3", { method: "POST" });
         const data = await res.json();
-        const weekly = data.weekly;
-        const weeklyEl = document.getElementById("weekly-content");
-        const weeklyTimeEl = document.getElementById("weekly-time");
-        if (weeklyEl) weeklyEl.innerHTML = `<span class="briefing__daily-text">${escapeHtml(weekly?.content || "")}</span>`;
-        if (weeklyTimeEl) weeklyTimeEl.textContent = weekly?.time_range || "";
-        if (debugStatus) debugStatus.textContent = "AI 分析已更新";
+        _showBriefing(data);
+        if (debugStatus) debugStatus.textContent = "";
         showToast("AI 分析已更新", "info");
       } catch (e) {
-        if (debugStatus) debugStatus.textContent = "生成失败";
+        if (weeklySkeleton) weeklySkeleton.style.display = 'none';
+        if (weeklyContent) weeklyContent.style.display = 'block';
+        if (weeklyEl) weeklyEl.innerHTML = '<div class="state-message">生成失败</div>';
+        if (debugStatus) debugStatus.textContent = "";
         showToast("AI 分析生成失败: " + e.message, "error");
       } finally {
         btnBriefing.disabled = false;

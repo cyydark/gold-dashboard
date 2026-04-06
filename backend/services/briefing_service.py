@@ -1,24 +1,79 @@
-"""Briefing service — no DB, pure in-memory cache."""
+"""Briefing service — news scrapers + AI briefing, in-memory cache.
+
+News cache (10 min) and briefing cache (1 hour) are independent.
+"""
 import asyncio
 import logging
 import time
 
 logger = logging.getLogger(__name__)
 
-# TTL: 1 hour
-_CACHE_TTL = 3600
-_cache: dict = {"ts": 0, "data": None}
+_NEWS_TTL = 600      # 10 minutes
+_ANALYSIS_TTL = 3600  # 1 hour
+
+_news_cache: dict = {"ts": 0, "data": None}
+_analysis_cache: dict = {"ts": 0, "data": ""}
 
 
 def get_briefing(days: int = 3) -> dict:
-    """Return cached briefing + news. Refreshes if TTL expired."""
-    now = time.monotonic()
-    if _cache["data"] is not None and (now - _cache["ts"]) < _CACHE_TTL:
-        return _cache["data"]
-    # Refresh: fetch news and generate briefing
+    """Return cached briefing + news. Each refreshed independently on TTL."""
+    news = _get_news(days)
+    brief = _get_briefing(news, days)
+    return {
+        "weekly": {
+            "content": brief,
+            "time_range": _time_range(days),
+            "news_count": len(news),
+        },
+        "news": news,
+        "news_count": len(news),
+    }
+
+
+def _get_news(days: int) -> list:
+    if _news_cache["data"] is not None and (time.time() - _news_cache["ts"]) < _NEWS_TTL:
+        return _news_cache["data"]
     news = _fetch_news(days)
+    _news_cache["data"] = news
+    _news_cache["ts"] = time.time()
+    return news
+
+
+def _get_briefing(news: list, days: int) -> str:
+    if _analysis_cache["data"] is not None and (time.time() - _analysis_cache["ts"]) < _ANALYSIS_TTL:
+        return _analysis_cache["data"]
     content = _generate_briefing(news, days)
-    result = {
+    _analysis_cache["data"] = content
+    _analysis_cache["ts"] = time.time()
+    return content
+
+
+def refresh_news(days: int = 3) -> dict:
+    """Force refresh news. AI analysis is only regenerated when its TTL (1h) has expired."""
+    news = _fetch_news(days)
+    _news_cache["data"] = news
+    _news_cache["ts"] = time.time()
+
+    # AI 分析只在 TTL 过期时才重新生成
+    brief = _get_briefing(news, days)
+    return {
+        "weekly": {
+            "content": brief,
+            "time_range": _time_range(days),
+            "news_count": len(news),
+        },
+        "news": news,
+        "news_count": len(news),
+    }
+
+
+def refresh_briefing_only(days: int = 3) -> dict:
+    """Force regenerate briefing only, keep existing news."""
+    news = _get_news(days)
+    content = _generate_briefing(news, days)
+    _analysis_cache["data"] = content
+    _analysis_cache["ts"] = time.time()
+    return {
         "weekly": {
             "content": content,
             "time_range": _time_range(days),
@@ -27,51 +82,12 @@ def get_briefing(days: int = 3) -> dict:
         "news": news,
         "news_count": len(news),
     }
-    _cache["data"] = result
-    _cache["ts"] = now
-    return result
 
 
 def _fetch_news(days: int) -> list:
-    """Fetch news from available news sources."""
-    all_news: list = []
-    fetchers = [
-        _fetch_bernama,
-        _fetch_futu,
-        _fetch_aastocks,
-    ]
-    for fn in fetchers:
-        try:
-            items = fn()
-            if isinstance(items, list):
-                all_news.extend(items)
-        except Exception:
-            pass
-    return all_news
-
-
-def _fetch_bernama() -> list:
-    try:
-        from backend.data.sources.bernama import fetch_bernama_gold_news
-        return fetch_bernama_gold_news()
-    except Exception:
-        return []
-
-
-def _fetch_futu() -> list:
-    try:
-        from backend.data.sources.futu import fetch_futu_news
-        return fetch_futu_news()
-    except Exception:
-        return []
-
-
-def _fetch_aastocks() -> list:
-    try:
-        from backend.data.sources.aastocks import fetch_aastocks_news
-        return fetch_aastocks_news()
-    except Exception:
-        return []
+    """Fetch news via news_service (filtered by days) and merge from all sources."""
+    from backend.services.news_service import get_news as ns_get_news
+    return ns_get_news(days=days)
 
 
 def _generate_briefing(news: list, days: int) -> str:
