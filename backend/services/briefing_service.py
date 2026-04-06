@@ -33,6 +33,7 @@ def _fetch_news(days: int) -> list:
     all_news: list = []
     fetchers = [
         _fetch_bernama,
+        _fetch_futu,
         _fetch_aastocks,
     ]
     for fn in fetchers:
@@ -49,6 +50,14 @@ def _fetch_bernama() -> list:
     try:
         from backend.data.sources.bernama import fetch_bernama_gold_news
         return fetch_bernama_gold_news()
+    except Exception:
+        return []
+
+
+def _fetch_futu() -> list:
+    try:
+        from backend.data.sources.futu import fetch_futu_news
+        return fetch_futu_news()
     except Exception:
         return []
 
