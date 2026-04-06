@@ -95,12 +95,12 @@ async def init_db():
         except Exception:
             pass
 
-        # Migration: drop direction column if it exists
+        # Migration: add direction column if missing
         try:
             async with db.execute("PRAGMA table_info(news_items)") as cur:
                 cols = [row[1] for row in await cur.fetchall()]
-            if "direction" in cols:
-                await db.execute("ALTER TABLE news_items DROP COLUMN direction")
+            if "direction" not in cols:
+                await db.execute("ALTER TABLE news_items ADD COLUMN direction TEXT")
                 await db.commit()
         except Exception:
             pass
@@ -111,6 +111,16 @@ async def init_db():
                 cols = [row[1] for row in await cur.fetchall()]
             if "close" in cols and "price" not in cols:
                 await db.execute("ALTER TABLE price_bars RENAME COLUMN close TO price")
+                await db.commit()
+        except Exception:
+            pass
+
+        # Migration: add title_hash for title-based deduplication
+        try:
+            async with db.execute("PRAGMA table_info(news_items)") as cur:
+                cols = [row[1] for row in await cur.fetchall()]
+            if "title_hash" not in cols:
+                await db.execute("ALTER TABLE news_items ADD COLUMN title_hash TEXT")
                 await db.commit()
         except Exception:
             pass

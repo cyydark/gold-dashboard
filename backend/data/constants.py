@@ -11,7 +11,7 @@ load_dotenv()
 
 import os
 
-REFRESH_INTERVAL = 300     # 5 minutes — 新闻/价格刷新间隔
+REFRESH_INTERVAL = 360     # 6 minutes — 新闻/价格刷新间隔（> TTL 300s，避免 cache miss）
 BRIEFING_LOOP_SLEEP = 3600 # 1 hour — 简报生成后等待
 CLI_TIMEOUT = 120          # seconds — Claude CLI 超时
 DAILY_BRIEFING_HOUR = 8    # 北京时间

@@ -2,11 +2,9 @@
 import logging
 import os
 import subprocess
-import threading
 
 from backend.data import constants as c
 from backend.repositories.briefing_repository import BriefingRepository
-from backend.data.sources.futu import _sync_save_news
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +85,6 @@ async def generate_briefing_from_news(news: list[dict], hour_range: str):
     except BriefingGenerationError:
         logger.warning("Briefing generation failed, skipping save")
         return
-
-    # 保存新闻时标记时段
-    threading.Thread(target=_sync_save_news, args=(news, hour_range), daemon=True).start()
 
     briefing_repo = BriefingRepository()
     await briefing_repo.save_hourly(
