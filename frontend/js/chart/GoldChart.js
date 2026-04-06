@@ -47,6 +47,22 @@ const _yRange = (pts, minPad = 1) => {
   return [dataMin - pad, dataMax + pad];
 };
 
+const XAU_SYMBOL_MAP = {
+  comex:   "XAUUSD",
+  binance: "XAUUSD_BINANCE",
+  sina:    "XAUUSD_SINA",
+  metals:  "XAUUSD_METALS",
+  omkar:   "XAUUSD_OMKAR",
+};
+
+const XAU_LEGEND_MAP = {
+  comex:   "COMEX GC00Y",
+  binance: "XAUTUSDT (Binance)",
+  sina:    "Sina 伦敦金 (hf_XAU)",
+  metals:  "LBMA Gold (Metals-API)",
+  omkar:   "CME Gold (Omkar)",
+};
+
 class GoldChart {
   constructor() {
     this.chart = null;
@@ -74,9 +90,8 @@ class GoldChart {
   }
 
   warmup() {
-    const xau = this.xauSource === "binance" ? "XAUUSD_BINANCE" : "XAUUSD";
-    fetch(`/api/history/${xau}`).catch(() => {});
-    fetch(`/api/history/AU9999`).catch(() => {});
+    fetch(`/api/chart/xau?source=${this.xauSource}`).catch(() => {});
+    fetch(`/api/chart/au?source=${this.auSource}`).catch(() => {});
   }
 
   _updateNowLine() {
@@ -116,6 +131,28 @@ class GoldChart {
     this.chart.options.scales[axisID].max = range[1];
   }
 
+  /** Called by PollingManager with fresh chart data */
+  loadXauFromCache(data) {
+    if (!data || !data.bars || data.bars.length === 0) return;
+    const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })));
+    if (this.chart && this.chart.data.datasets[0]) {
+      this.chart.data.datasets[0].data = pts;
+      this._updateScales(0);
+      this.chart.update("none");
+      this._updateNowLine();
+    }
+  }
+
+  loadAuFromCache(data) {
+    if (!data || !data.bars || data.bars.length === 0) return;
+    const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })));
+    if (this.chart && this.chart.data.datasets[1]) {
+      this.chart.data.datasets[1].data = pts;
+      this._updateScales(1);
+      this.chart.update("none");
+    }
+  }
+
   /**
    * Append a real-time bar to the chart.
    * Inserts a null at the gap midpoint if gap > 30 min, then recomputes Y scale.
@@ -150,10 +187,9 @@ class GoldChart {
     if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
 
     try {
-      const xauSymbol = this.xauSource === "binance" ? "XAUUSD_BINANCE" : "XAUUSD";
       const [xauRes, auRes] = await Promise.all([
-        fetch(`/api/history/${xauSymbol}`),
-        fetch(`/api/history/AU9999`),
+        fetch(`/api/chart/xau?source=${this.xauSource}`),
+        fetch(`/api/chart/au?source=${this.auSource}`),
       ]);
 
       const [xauData, auData] = await Promise.all([
@@ -180,7 +216,7 @@ class GoldChart {
       const datasets = [];
       if (xauPts.length > 0) {
         datasets.push({
-          label: this.xauSource === "binance" ? "XAUTUSDT (Binance)" : "COMEX GC00Y",
+          label: XAU_LEGEND_MAP[this.xauSource] || "COMEX GC00Y",
           data: xauPts,
           borderColor: "#22c55e",
           backgroundColor: "rgba(34,197,94,0.08)",
@@ -220,7 +256,7 @@ class GoldChart {
         this.chart.options.scales.x.max = xMax;
         this.chart.options.scales.y.min = yau ? yau[0] : undefined;
         this.chart.options.scales.y.max = yau ? yau[1] : undefined;
-        this.chart.options.scales.y.title.text = this.xauSource === "binance" ? "XAUTUSDT (USD/USDOZ)" : "COMEX GC00Y (USD/oz)";
+        this.chart.options.scales.y.title.text = XAU_LEGEND_MAP[this.xauSource] + " (USD/oz)";
         this.chart.options.scales.y2.min = yau2 ? yau2[0] : undefined;
         this.chart.options.scales.y2.max = yau2 ? yau2[1] : undefined;
         this.chart.update("none");
@@ -281,7 +317,7 @@ class GoldChart {
               position: "right",
               title: {
                 display: true,
-                text: this.xauSource === "binance" ? "XAUTUSDT (USD/USDOZ)" : "COMEX GC00Y (USD/oz)",
+                text: XAU_LEGEND_MAP[this.xauSource] + " (USD/oz)",
                 color: "#22c55e",
                 font: { size: 11 },
               },
