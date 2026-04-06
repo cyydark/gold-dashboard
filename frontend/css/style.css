@@ -279,6 +279,21 @@ body {
   border-radius: var(--radius-sm);
 }
 
+.price-card__source {
+  font-size: var(--font-size-xs);
+  background: var(--color-border);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.price-card__source:focus {
+  outline: 1px solid var(--color-primary);
+}
+
 .price-card__price {
   font-size: var(--font-size-3xl);
   font-weight: 700;

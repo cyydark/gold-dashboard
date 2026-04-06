@@ -1,0 +1,90 @@
+<h2>数据源权威性与稳定性排序</h2>
+<p class="subtitle">按优先级排列，依次尝试，成功即返回</p>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+
+  <div>
+    <div class="label" style="margin-bottom:6px">🌍 XAUUSD（国际黄金，USD/oz）</div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#166534;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#1</span>
+        <span style="font-weight:600">COMEX</span>
+        <span style="color:#64748b;font-size:12px">纽约商品期货交易所 · 黄金期货GC00Y · 最权威</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#166534;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#2</span>
+        <span style="font-weight:600">LBMA (Metals-API)</span>
+        <span style="color:#64748b;font-size:12px">伦敦金银市场协会每日定盘价 · 权威但非实时</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#0c4a6e;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#3</span>
+        <span style="font-weight:600">Sina 伦敦金</span>
+        <span style="color:#64748b;font-size:12px">新浪贵金属数据 · hf_XAU · 国内访问稳定</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#0c4a6e;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#4</span>
+        <span style="font-weight:600">Binance XAUTUSDT</span>
+        <span style="color:#64748b;font-size:12px">币安金本位合约 · 流动性好 · 实时</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#4a1d96;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#5</span>
+        <span style="font-weight:600">CME (Omkar)</span>
+        <span style="color:#64748b;font-size:12px">芝加哥商业交易所 · 需要API Key</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label" style="margin-bottom:6px">🇨🇳 AU9999（国内黄金，CNY/g）</div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#166534;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#1</span>
+        <span style="font-weight:600">AU9999（东方财富）</span>
+        <span style="color:#64748b;font-size:12px">实物黄金现货 · 国内最权威现价</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#0c4a6e;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#2</span>
+        <span style="font-weight:600">Sina AU9999</span>
+        <span style="color:#64748b;font-size:12px">新浪Au99.99数据 · 备用</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#0c4a6e;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#3</span>
+        <span style="font-weight:600">黄金 T+D（东方财富）</span>
+        <span style="color:#64748b;font-size:12px">上海金交所延期合约 · 期货参考价</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#4a1d96;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#4</span>
+        <span style="font-weight:600">沪金期货 AU0（AkShare）</span>
+        <span style="color:#64748b;font-size:12px">沪期货主力合约 · 需要期货数据</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label" style="margin-bottom:6px">💱 USDCNY（汇率，CNY/USD）</div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#166534;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#1</span>
+        <span style="font-weight:600">Yahoo Finance（yfinance）</span>
+        <span style="color:#64748b;font-size:12px">美元兑离岸人民币 · 广泛使用</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;background:#0f172a;border-radius:6px;padding:8px 12px">
+        <span style="background:#0c4a6e;border-radius:4px;padding:2px 8px;font-size:11px;color:#fff">#2</span>
+        <span style="font-weight:600">Sina 美元/人民币</span>
+        <span style="color:#64748b;font-size:12px">新浪在岸汇率 · 国内访问稳定</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:16px">
+  <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px">
+    <div class="label" style="margin-bottom:6px">📌 后端 fallback 机制</div>
+    <p style="font-size:12px;color:#94a3b8;margin:0">
+      每个源按排序依次尝试（try COMEX → fail → try Metals → fail → try Sina → ...），
+      任意一个成功立即返回，保证数据可用性。
+      前端只调用用户选定的源，失败时提示用户手动切换。
+    </p>
+  </div>
+</div>

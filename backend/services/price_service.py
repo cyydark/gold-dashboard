@@ -1,27 +1,36 @@
-"""Price business logic service."""
+"""Price business logic service — stateless REST-only.
+
+DB layer removed; all price data comes from REST sources (browse routes/price.py
+for the actual API endpoints, which call source modules directly).
+"""
 import asyncio
 import time
 from datetime import datetime, timezone, timedelta
-from backend.repositories.price_repository import PriceRepository
-from backend.data.sources.binance_kline import fetch_xauusd_realtime
+
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 
 class PriceService:
-    """Service for price-related business logic."""
+    """Service for price-related business logic (REST-only, no DB)."""
 
-    def __init__(self, repository: PriceRepository = None):
-        self.repository = repository or PriceRepository()
+    def __init__(self, repository=None):
+        # repository argument accepted for backwards-compatible signatures;
+        # it is never used.
+        pass
 
     async def get_current_prices(self) -> dict:
-        """Fetch current prices for all symbols.
+        """Fetch current prices for all symbols from REST sources.
 
         Returns dict with XAUUSD, AU9999, USDCNY if available.
         """
-        BEIJING_TZ = timezone(timedelta(hours=8))
+        from backend.data.sources.binance_kline import fetch_xauusd_realtime
+        from backend.data.sources.sina_au9999 import fetch_au9999_realtime
+        from backend.data.sources.yfinance_fx import fetch_usdcny
+
         now_ts = int(time.time())
         result = {}
 
-        # XAUUSD: 实时 ticker
+        # XAUUSD: realtime ticker via Binance
         xau_rt = await asyncio.to_thread(fetch_xauusd_realtime)
         if xau_rt:
             result["XAUUSD"] = {
@@ -37,109 +46,49 @@ class PriceService:
                 "updated_at": datetime.fromtimestamp(now_ts, BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
             }
 
-        # AU9999 / USDCNY: 从 DB 读
-        au_bar = await self.repository.get_latest("AU9999")
-        fx_bar = await self.repository.get_latest_usdcny()
-
-        if au_bar:
+        # AU9999: realtime via Sina
+        au_rt = await asyncio.to_thread(fetch_au9999_realtime)
+        if au_rt:
             result["AU9999"] = {
                 "symbol": "AU9999",
                 "name": "国内黄金 AU9999",
-                "price": round(au_bar["price"], 2),
-                "change": round(au_bar.get("change", 0), 2),
-                "pct": round(au_bar.get("pct", 0), 2),
-                "open": round(au_bar["open"], 2),
-                "high": round(au_bar["high"], 2),
-                "low": round(au_bar["low"], 2),
+                "price": round(au_rt["price"], 2),
+                "change": round(au_rt.get("change", 0), 2),
+                "pct": round(au_rt.get("pct", 0), 2),
+                "open": round(au_rt["open"], 2),
+                "high": round(au_rt["high"], 2),
+                "low": round(au_rt["low"], 2),
                 "unit": "CNY/g",
-                "updated_at": datetime.fromtimestamp(au_bar["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+                "updated_at": datetime.fromtimestamp(now_ts, BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
             }
 
-        if fx_bar:
+        # USDCNY: latest bar via yfinance
+        fx_bars = await asyncio.to_thread(fetch_usdcny)
+        if fx_bars:
+            fx_bar = fx_bars[-1]
             result["USDCNY"] = {
                 "symbol": "USDCNY",
                 "name": "人民币兑美元 CNY/USD",
-                "price": round(fx_bar["price"], 4),
+                "price": round(fx_bar["close"], 4),
                 "change": round(fx_bar.get("change", 0), 4),
                 "pct": round(fx_bar.get("pct", 0), 4),
-                "open": round(fx_bar.get("open", fx_bar["price"]), 4),
-                "high": round(fx_bar.get("high", fx_bar["price"]), 4),
-                "low": round(fx_bar.get("low", fx_bar["price"]), 4),
+                "open": round(fx_bar.get("open", fx_bar["close"]), 4),
+                "high": round(fx_bar.get("high", fx_bar["close"]), 4),
+                "low": round(fx_bar.get("low", fx_bar["close"]), 4),
                 "unit": "CNY/USD",
-                "updated_at": datetime.fromtimestamp(fx_bar["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
+                "updated_at": datetime.fromtimestamp(fx_bar.get("time", now_ts), BEIJING_TZ).strftime("%m月%d日 %H:%M:%S 北京时间"),
             }
 
         return result
 
     async def get_price_history(self, symbol: str, days: int = 1) -> dict:
-        """Fetch price history from database.
-
-        Args:
-            symbol: Symbol name (XAUUSD, AU9999)
-            days: Number of days (unused, kept for API compatibility)
-
-        Returns:
-            dict with 'bars', 'xMin', 'xMax'
-        """
-        symbol_map = {"XAUUSD": "XAUUSD", "XAUUSD_BINANCE": "XAUUSD_BINANCE", "AU9999": "AU9999"}
-        db_symbol = symbol_map.get(symbol)
-        if not db_symbol:
-            return {"bars": [], "xMin": 0, "xMax": 0}
-
-        rows = await self.repository.get_history(db_symbol, limit=2000)
-        if not rows:
-            return {"bars": [], "xMin": 0, "xMax": 0}
-
-        # rows are newest-first; reverse for chart (oldest→newest)
-        rows = list(reversed(rows))
-        bars = [
-            {
-                "time": r["ts"],
-                "open": round(r["open"], 2),
-                "high": round(r["high"], 2),
-                "low": round(r["low"], 2),
-                "close": round(r["price"], 2),
-            }
-            for r in rows
-        ]
-        return {"bars": bars, "xMin": bars[0]["time"], "xMax": bars[-1]["time"]}
+        """Price history is served directly by routes/price.py — this is a stub."""
+        return {"bars": [], "xMin": 0, "xMax": 0}
 
     async def get_latest_price(self, symbol: str) -> dict | None:
-        """Get the latest price for a single symbol."""
-        return await self.repository.get_latest(symbol)
+        """Latest price is served directly by routes/price.py — this is a stub."""
+        return None
 
     async def switch_xauusd_source(self, source: str) -> dict:
-        """Switch XAUUSD data source.
-
-        source: 'binance' — clear XAUUSD_BINANCE, import Binance XAUTUSDT.
-               'comex'   — clear XAUUSD, import COMEX GC00Y.
-        Returns dict with symbol, count of imported bars.
-        """
-        import asyncio
-        from backend.data.sources.binance_kline import fetch_xauusd_kline
-        from backend.data.sources.eastmoney_xauusd import fetch_xauusd_history
-
-        if source == "binance":
-            symbol = "XAUUSD_BINANCE"
-            await self.repository.clear_symbol(symbol)
-            bars = await asyncio.to_thread(fetch_xauusd_kline)
-        else:
-            symbol = "XAUUSD"
-            await self.repository.clear_symbol(symbol)
-            bars = await asyncio.to_thread(fetch_xauusd_history)
-
-        if not bars:
-            return {"symbol": symbol, "source": source, "count": 0}
-
-        for b in bars:
-            await self.repository.save(
-                symbol=symbol,
-                ts=b["time"],
-                open_=b["open"],
-                high=b["high"],
-                low=b["low"],
-                price=b["close"],
-                change=b.get("change", 0),
-                pct=b.get("pct", 0),
-            )
-        return {"symbol": symbol, "source": source, "count": len(bars)}
+        """Source switching is handled by routes/price.py — this is a stub."""
+        return {"error": "source switching is now handled by frontend via /api/realtime/xau/{source}"}

@@ -1,0 +1,80 @@
+<h2>当前架构概览</h2>
+<p class="subtitle">实时金价、汇率、图表数据的流向</p>
+
+<div class="mockup">
+  <div class="mockup-header">当前数据流</div>
+  <div class="mockup-body">
+    <div style="display:flex;align-items:flex-start;gap:12px;font-size:13px;font-family:monospace;">
+      <!-- Data Sources column -->
+      <div style="flex:1;text-align:center">
+        <div class="label" style="margin-bottom:8px">数据源</div>
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px">
+          <div style="background:#166534;border-radius:4px;padding:4px 8px;font-size:12px">🌍 COMEX/Binance<br><span style="color:#86efac">XAUUSD (USD/oz)</span></div>
+          <div style="background:#166534;border-radius:4px;padding:4px 8px;font-size:12px">🇨🇳 AU9999 (东方财富)<br><span style="color:#86efac">CNY/g</span></div>
+          <div style="background:#166534;border-radius:4px;padding:4px 8px;font-size:12px">💱 USDCNY<br><span style="color:#86efac">DB → yfinance</span></div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;color:#64748b;font-size:20px">→</div>
+
+      <!-- Backend column -->
+      <div style="flex:1.2;text-align:center">
+        <div class="label" style="margin-bottom:8px">后端 (FastAPI)</div>
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px">
+          <div style="background:#0c4a6e;border-radius:4px;padding:4px 8px;font-size:12px">
+            <b>📡 SSE /stream</b><br>
+            <span style="color:#7dd3fc;font-size:11px">每10秒推送全量数据</span><br>
+            <span style="color:#64748b;font-size:11px">xau_source + au_source</span>
+          </div>
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;font-size:11px">
+            <b>GET /api/history/{symbol}</b><br>
+            <span style="color:#64748b">图表历史（DB查询）</span>
+          </div>
+          <div style="background:#0f172a;border-radius:4px;padding:4px 8px;font-size:11px">
+            <b>POST /api/xau-source</b><br>
+            <span style="color:#64748b">切换源→写DB</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow -->
+      <div style="display:flex;align-items:center;color:#64748b;font-size:20px">→</div>
+
+      <!-- Frontend column -->
+      <div style="flex:1.5;text-align:center">
+        <div class="label" style="margin-bottom:8px">前端 (HTML/JS)</div>
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px">
+          <div style="background:#4a1d96;border-radius:4px;padding:4px 8px;font-size:12px">
+            <b>💳 价格卡片</b><br>
+            <span style="color:#c4b5fd;font-size:11px">由SSE驱动（每10秒）</span><br>
+            <span style="color:#f87171;font-size:11px">⚠ src-xau/src-au 下拉框<br>无事件监听（未连接）</span>
+          </div>
+          <div style="background:#4a1d96;border-radius:4px;padding:4px 8px;font-size:12px">
+            <b>📈 图表 (Chart.js)</b><br>
+            <span style="color:#c4b5fd;font-size:11px">sel-xau / sel-au 切换器<br>→ setSources() + 重新load</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <div class="label" style="margin-bottom:8px">⚠ 当前问题</div>
+  <div class="pros-cons">
+    <div class="cons">
+      <h4>存在的问题</h4>
+      <ul>
+        <li><b>卡片源切换无效：</b>#src-xau / #src-au 下拉框没有绑定任何事件</li>
+        <li><b>SSE默认源硬编码：</b>前端默认 binance，后端默认 binance，不一致</li>
+        <li><b>图表和卡片源耦合：</b>切换图表源会影响卡片实时价格，两者混淆</li>
+        <li><b>USDCNY无切换器：</b>只能看DB数据，无法切换数据源</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p style="font-size:13px;color:#94a3b8;margin-top:12px">
+  这是当前架构。你想优先解决哪些问题？或者有其他痛点要解决？
+</p>

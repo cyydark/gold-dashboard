@@ -1,0 +1,66 @@
+<h2>重构后系统架构</h2>
+<p class="subtitle">全部 REST 轮询 · 数据库可移除</p>
+
+<div style="display:flex;align-items:flex-start;gap:12px;font-size:13px;font-family:monospace;">
+  <!-- Data Sources -->
+  <div style="flex:1;text-align:center">
+    <div class="label" style="margin-bottom:8px">数据源</div>
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px">
+      <div style="background:#166534;border-radius:4px;padding:6px 8px;font-size:12px">🌍 XAUUSD 5个源</div>
+      <div style="background:#166534;border-radius:4px;padding:6px 8px;font-size:12px">🇨🇳 AU9999 4个源</div>
+      <div style="background:#166534;border-radius:4px;padding:6px 8px;font-size:12px">💱 USDCNY 2个源</div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div style="display:flex;align-items:center;color:#64748b;font-size:20px">→</div>
+
+  <!-- Backend -->
+  <div style="flex:1.5;text-align:center">
+    <div class="label" style="margin-bottom:8px">后端（轻量 API）</div>
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px">
+      <div style="background:#0c4a6e;border-radius:4px;padding:6px 8px;font-size:12px">GET /api/realtime/{xau|au|fx}/{source}</div>
+      <div style="background:#0c4a6e;border-radius:4px;padding:6px 8px;font-size:12px">GET /api/chart/xau?source=...</div>
+      <div style="background:#0c4a6e;border-radius:4px;padding:6px 8px;font-size:12px">GET /api/chart/au?source=...</div>
+      <div style="color:#f87171;font-size:11px;margin-top:4px">❌ SSE /stream 废弃</div>
+      <div style="color:#f87171;font-size:11px">❌ /api/history 废弃</div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div style="display:flex;align-items:center;color:#64748b;font-size:20px">→</div>
+
+  <!-- Frontend -->
+  <div style="flex:1.5;text-align:center">
+    <div class="label" style="margin-bottom:8px">前端（PollingManager）</div>
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px">
+      <div style="background:#4a1d96;border-radius:4px;padding:6px 8px;font-size:12px">💳 XAU卡片 → 10秒轮询</div>
+      <div style="background:#4a1d96;border-radius:4px;padding:6px 8px;font-size:12px">💳 AU9999卡片 → 10秒轮询</div>
+      <div style="background:#4a1d96;border-radius:4px;padding:6px 8px;font-size:12px">💳 USDCNY卡片 → 10秒轮询</div>
+      <div style="background:#4a1d96;border-radius:4px;padding:6px 8px;font-size:12px">📈 图表 → 30秒轮询</div>
+      <div style="color:#94a3b8;font-size:11px;margin-top:4px">各子系统独立 · localStorage 持久化</div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:16px">
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>✅ 移除 DB 后收益</h4>
+      <ul>
+        <li>无 SQLite 文件，无迁移，无 ORM</li>
+        <li>无定时写入任务，无 worker</li>
+        <li>无数据库连接，无 session 管理</li>
+        <li>部署更简单（纯 stateless API）</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>⚠ 需确认</h4>
+      <ul>
+        <li>Alerts/周报等是否依赖 DB？需确认 scope</li>
+        <li>历史数据（超过72小时的K线）如需保留，也依赖 DB</li>
+        <li>如果不需要历史数据，则可完全移除 DB</li>
+      </ul>
+    </div>
+  </div>
+</div>
