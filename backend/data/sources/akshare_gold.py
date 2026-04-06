@@ -29,7 +29,7 @@ def fetch_au_history() -> list[dict[str, Any]] | None:
         records = []
         for _, row in df.iterrows():
             # date 列可能是 datetime 或字符串
-            ts = row["date"]
+            ts = row["datetime"]
             if not isinstance(ts, (int, float)):
                 ts = pd.Timestamp(ts).timestamp()
             records.append({

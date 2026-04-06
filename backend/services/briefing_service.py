@@ -29,15 +29,36 @@ def get_briefing(days: int = 3) -> dict:
 
 
 def _fetch_news(days: int) -> list:
-    """Fetch news from backend.data.sources.briefing.fetch_news if available."""
+    """Fetch news from available news sources."""
+    all_news: list = []
+    fetchers = [
+        _fetch_bernama,
+        _fetch_aastocks,
+    ]
+    for fn in fetchers:
+        try:
+            items = fn()
+            if isinstance(items, list):
+                all_news.extend(items)
+        except Exception:
+            pass
+    return all_news
+
+
+def _fetch_bernama() -> list:
     try:
-        from backend.data.sources import briefing
-        fn = getattr(briefing, "fetch_news", None)
-        if fn:
-            return fn()
+        from backend.data.sources.bernama import fetch_bernama_gold_news
+        return fetch_bernama_gold_news()
     except Exception:
-        pass
-    return []
+        return []
+
+
+def _fetch_aastocks() -> list:
+    try:
+        from backend.data.sources.aastocks import fetch_aastocks_news
+        return fetch_aastocks_news()
+    except Exception:
+        return []
 
 
 def _generate_briefing(news: list, days: int) -> str:

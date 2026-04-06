@@ -10,8 +10,6 @@ BEIJING_TZ = timezone(timedelta(hours=8))
 # → use sina_xau for comex since it provides fetch_xauusd_realtime
 _XAU_FETCHERS = {
     "sina":    ("backend.data.sources.sina_xau", "fetch_xauusd_realtime"),
-    "metals":  ("backend.data.sources.metals_api", "fetch_xauusd_realtime"),
-    "omkar":   ("backend.data.sources.omkar_cme", "fetch_xauusd_realtime"),
     "comex":   ("backend.data.sources.sina_xau", "fetch_xauusd_realtime"),
     "binance": ("backend.data.sources.binance_kline", "fetch_xauusd_realtime"),
 }
@@ -36,8 +34,6 @@ _XAU_BAR_FETCHERS = {
     "comex":   ("backend.data.sources.eastmoney_xauusd", "fetch_xauusd_history"),
     "binance": ("backend.data.sources.binance_kline", "fetch_xauusd_kline"),
     "sina":    ("backend.data.sources.sina_xau", "fetch_xauusd_history"),
-    "metals":  ("backend.data.sources.metals_api", "fetch_xauusd_history"),
-    "omkar":   ("backend.data.sources.omkar_cme", "fetch_xauusd_history"),
 }
 # eastmoney_au9999.fetch_au9999_realtime returns Kline bars — use as chart source
 _AU_BAR_FETCHERS = {

@@ -19,14 +19,33 @@ def get_news(days: int = 1) -> list:
 
 
 def _fetch_news_from_sources() -> list:
-    """Try to fetch news from backend.data.sources.briefing."""
+    """Fetch news from available news sources."""
+    all_news: list = []
+    fetchers = [
+        _fetch_bernama,
+        _fetch_aastocks,
+    ]
+    for fn in fetchers:
+        try:
+            items = fn()
+            if isinstance(items, list):
+                all_news.extend(items)
+        except Exception:
+            pass
+    return all_news
+
+
+def _fetch_bernama() -> list:
     try:
-        from backend.data.sources import briefing
-        fn = getattr(briefing, "fetch_news", None)
-        if fn:
-            result = fn()
-            if isinstance(result, list):
-                return result
+        from backend.data.sources.bernama import fetch_bernama_gold_news
+        return fetch_bernama_gold_news()
     except Exception:
-        pass
-    return []
+        return []
+
+
+def _fetch_aastocks() -> list:
+    try:
+        from backend.data.sources.aastocks import fetch_aastocks_news
+        return fetch_aastocks_news()
+    except Exception:
+        return []

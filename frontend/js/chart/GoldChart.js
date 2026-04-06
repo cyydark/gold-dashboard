@@ -51,16 +51,12 @@ const XAU_SYMBOL_MAP = {
   comex:   "XAUUSD",
   binance: "XAUUSD_BINANCE",
   sina:    "XAUUSD_SINA",
-  metals:  "XAUUSD_METALS",
-  omkar:   "XAUUSD_OMKAR",
 };
 
 const XAU_LEGEND_MAP = {
   comex:   "COMEX GC00Y",
   binance: "XAUTUSDT (Binance)",
   sina:    "Sina 伦敦金 (hf_XAU)",
-  metals:  "LBMA Gold (Metals-API)",
-  omkar:   "CME Gold (Omkar)",
 };
 
 class GoldChart {

@@ -186,8 +186,6 @@ const XAU_LEGEND = {
   comex:   "COMEX GC00Y",
   binance: "XAUTUSDT (Binance)",
   sina:    "Sina 伦敦金 (hf_XAU)",
-  metals:  "LBMA Gold (Metals-API)",
-  omkar:   "CME Gold (Omkar)",
 };
 
 async function reloadChart() {
