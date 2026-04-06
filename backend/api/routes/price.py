@@ -18,13 +18,13 @@ _XAU_FETCHERS = {
 _AU_FETCHERS = {
     "au9999":  ("backend.data.sources.sina_au9999", "fetch_au9999_realtime"),
     "akshare": ("backend.data.sources.akshare_gold", "fetch_au_realtime"),
-    "autd":    ("backend.data.sources.sina_autd", "fetch_autd_realtime"),
 }
 
 # ── FX fetchers ────────────────────────────────────────────────────
 # yfinance_fx.fetch_usdcny returns a list of bars → we take the last one
 _FX_FETCHERS = {
     "yfinance": ("backend.data.sources.yfinance_fx", "fetch_usdcny"),
+    "sina":     ("backend.data.sources.sina_fx",     "fetch_usdcny"),
 }
 
 # ── Chart bar fetchers ─────────────────────────────────────────────
@@ -32,13 +32,12 @@ _FX_FETCHERS = {
 _XAU_BAR_FETCHERS = {
     "comex":   ("backend.data.sources.eastmoney_xauusd", "fetch_xauusd_history"),
     "binance": ("backend.data.sources.binance_kline", "fetch_xauusd_kline"),
-    "sina":    ("backend.data.sources.sina_xau", "fetch_xauusd_history"),
+    "sina":    ("backend.data.sources.eastmoney_xauusd", "fetch_xauusd_history"),
 }
 # eastmoney_au9999.fetch_au9999_realtime returns Kline bars — use as chart source
 _AU_BAR_FETCHERS = {
     "au9999":  ("backend.data.sources.eastmoney_au9999", "fetch_au9999_realtime"),
     "akshare": ("backend.data.sources.akshare_gold", "fetch_au_history"),
-    "autd":    ("backend.data.sources.sina_autd", "fetch_autd_history"),
 }
 
 router = APIRouter(prefix="/api", tags=["price"])

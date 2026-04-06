@@ -112,6 +112,10 @@
         <div class="price-card__header">
           <span class="price-card__symbol">💱 人民币兑美元</span>
           <span class="price-card__unit" id="unit-USDCNY">CNY/USD</span>
+          <select id="src-fx" class="price-card__source" title="切换数据源">
+            <option value="yfinance">Yahoo Finance</option>
+            <option value="sina">Sina 在岸人民币</option>
+          </select>
         </div>
         <div class="price-card__price" id="price-USDCNY">--</div>
         <div class="price-card__change" id="change-USDCNY">--</div>
@@ -216,6 +220,6 @@
   </div>
 
   <div id="toast-container" class="toast-container"></div>
-  <script type="module" src="/static/js/app.js?v=25"></script>
+  <script type="module" src="/static/js/app.js?v=26"></script>
 </body>
 </html>

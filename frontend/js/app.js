@@ -117,6 +117,17 @@ function _timeAgo(tsSec) {
   return `${Math.floor(diffHr / 24)}天前`;
 }
 
+function _bjTime(tsSec) {
+  if (!tsSec) return "";
+  const d = new Date(tsSec * 1000);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${day} ${h}:${min} 北京`;
+}
+
 function escapeHtml(s) {
   return String(s || "")
     .replace(/&/g, '&amp;')
@@ -164,7 +175,7 @@ async function loadBriefings() {
             <div class="news-item__meta">
               <span class="news-item__source">${escapeHtml(n.source || "")}</span>
               <span>·</span>
-              <span>${escapeHtml(n.published_at ? _timeAgo(n.published_ts) : (n.time_ago || ""))}</span>
+              <span title="${escapeHtml(_bjTime(n.published_ts))}">${escapeHtml(_timeAgo(n.published_ts))}</span>
             </div>
             <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
           </a>`).join("");
@@ -211,6 +222,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Wire up card source selectors
   const srcXau = document.getElementById("src-xau");
   const srcAu = document.getElementById("src-au");
+  const srcFx = document.getElementById("src-fx");
   if (srcXau) {
     srcXau.value = polling.getSource("xau");
     srcXau.addEventListener("change", () => polling.setSource("xau", srcXau.value));
@@ -218,6 +230,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (srcAu) {
     srcAu.value = polling.getSource("au");
     srcAu.addEventListener("change", () => polling.setSource("au", srcAu.value));
+  }
+  if (srcFx) {
+    srcFx.value = polling.getSource("fx");
+    srcFx.addEventListener("change", () => polling.setSource("fx", srcFx.value));
   }
 
   chart = new GoldChart();
