@@ -17,7 +17,6 @@ _XAU_FETCHERS = {
 # ── AU realtime fetchers ───────────────────────────────────────────
 _AU_FETCHERS = {
     "au9999":  ("backend.data.sources.sina_au9999", "fetch_au9999_realtime"),
-    "sina":    ("backend.data.sources.sina_au9999", "fetch_au9999_realtime"),
     "akshare": ("backend.data.sources.akshare_gold", "fetch_au_realtime"),
     "autd":    ("backend.data.sources.sina_autd", "fetch_autd_realtime"),
 }
@@ -38,7 +37,6 @@ _XAU_BAR_FETCHERS = {
 # eastmoney_au9999.fetch_au9999_realtime returns Kline bars — use as chart source
 _AU_BAR_FETCHERS = {
     "au9999":  ("backend.data.sources.eastmoney_au9999", "fetch_au9999_realtime"),
-    "sina":    ("backend.data.sources.sina_au9999", "fetch_au9999_history"),
     "akshare": ("backend.data.sources.akshare_gold", "fetch_au_history"),
     "autd":    ("backend.data.sources.sina_autd", "fetch_autd_history"),
 }
