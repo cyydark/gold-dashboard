@@ -55,7 +55,6 @@ start() {
     nohup python3 -m uvicorn backend.main:app \
         --host "$HOST" \
         --port "$PORT" \
-        --reload \
         >> "$LOG_FILE" 2>&1 &
 
     local pid=$!

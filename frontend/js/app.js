@@ -181,6 +181,36 @@ async function loadBriefings() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
+
+  // 绑定图表数据源切换
+  const selXau = document.getElementById("sel-xau");
+  const selAu  = document.getElementById("sel-au");
+  const legendXau = document.getElementById("legend-xau");
+
+  const reloadChart = async () => {
+    const xau = selXau ? selXau.value : "comex";
+    const au  = selAu  ? selAu.value  : "au9999";
+    if (legendXau) {
+      legendXau.textContent = xau === "binance" ? "XAUTUSDT (Binance)" : "COMEX GC00Y";
+    }
+    if (xau === "binance" && chart.xauSource !== "binance") {
+      const loader = document.getElementById("chart-loader");
+      if (loader) { loader.style.display = "block"; loader.textContent = "切换数据源中..."; }
+      const r = await fetch(`/api/xau-source?source=${xau}`, { method: "POST" });
+      const json = await r.json();
+      console.log("[reloadChart] import result:", json);
+      if (loader) loader.style.display = "none";
+    }
+    chart.xauSource = xau;
+    chart.auSource = au;
+    chart.loading = false;
+    console.log("[reloadChart] calling load(), xauSource=" + chart.xauSource);
+    await chart.load();
+  };
+
+  if (selXau) selXau.addEventListener("change", reloadChart);
+  if (selAu)  selAu.addEventListener("change", reloadChart);
+
   loadBriefings();
   await chart.load();
   chart.warmup();

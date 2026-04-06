@@ -25,7 +25,6 @@ const insertGaps = (pts, thresholdMs = 30 * 60 * 1000) => {
     if (i > 0) {
       const gap = pts[i].x - pts[i - 1].x;
       if (gap > thresholdMs) {
-        // null at MIDPOINT of gap — avoids timestamp collision
         result.push({
           x: new Date((pts[i - 1].x.getTime() + pts[i].x.getTime()) / 2),
           y: null,
@@ -52,8 +51,18 @@ class GoldChart {
   constructor() {
     this.chart = null;
     this.loading = false;
-    this.currentDays = 1;
     this.news = [];
+    this.xauSource = "comex";
+    this.auSource = "au9999";
+  }
+
+  setSources(xau, au) {
+    const changed = this.xauSource !== xau || this.auSource !== au;
+    this.xauSource = xau;
+    this.auSource = au;
+    if (changed) {
+      this.load();
+    }
   }
 
   setNews(news) {
@@ -65,7 +74,8 @@ class GoldChart {
   }
 
   warmup() {
-    fetch(`/api/history/XAUUSD`).catch(() => {});
+    const xau = this.xauSource === "binance" ? "XAUUSD_BINANCE" : "XAUUSD";
+    fetch(`/api/history/${xau}`).catch(() => {});
     fetch(`/api/history/AU9999`).catch(() => {});
   }
 
@@ -140,8 +150,9 @@ class GoldChart {
     if (loader) { loader.style.display = "block"; loader.textContent = "加载中..."; }
 
     try {
+      const xauSymbol = this.xauSource === "binance" ? "XAUUSD_BINANCE" : "XAUUSD";
       const [xauRes, auRes] = await Promise.all([
-        fetch(`/api/history/XAUUSD`),
+        fetch(`/api/history/${xauSymbol}`),
         fetch(`/api/history/AU9999`),
       ]);
 
@@ -153,7 +164,6 @@ class GoldChart {
       const xauResp = (xauData && xauData.bars && xauData.bars.length > 0) ? xauData : null;
       const auResp  = (auData  && auData.bars  && auData.bars.length  > 0) ? auData  : null;
 
-      // Map bars and insert gap nulls at midpoints
       const xauPts = xauResp
         ? insertGaps(xauResp.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })))
         : [];
@@ -170,7 +180,7 @@ class GoldChart {
       const datasets = [];
       if (xauPts.length > 0) {
         datasets.push({
-          label: "COMEX GC00Y",
+          label: this.xauSource === "binance" ? "XAUTUSDT (Binance)" : "COMEX GC00Y",
           data: xauPts,
           borderColor: "#22c55e",
           backgroundColor: "rgba(34,197,94,0.08)",
@@ -200,13 +210,30 @@ class GoldChart {
       const now = new Date();
       const xMax = now;
       const xMin = new Date(now.getTime() - 72 * 60 * 60 * 1000);
-      canvas._goldXMin = xMin;
-      canvas._goldXMax = xMax;
-
       const yau  = _yRange(xauPts, 10);
       const yau2 = _yRange(auPts, 1);
 
-      if (this.chart) this.chart.destroy();
+      // 更新已有实例，避免 destroy→重建导致的 Y 轴不更新问题
+      if (this.chart) {
+        this.chart.data.datasets = datasets;
+        this.chart.options.scales.x.min = xMin;
+        this.chart.options.scales.x.max = xMax;
+        this.chart.options.scales.y.min = yau ? yau[0] : undefined;
+        this.chart.options.scales.y.max = yau ? yau[1] : undefined;
+        this.chart.options.scales.y.title.text = this.xauSource === "binance" ? "XAUTUSDT (USD/USDOZ)" : "COMEX GC00Y (USD/oz)";
+        this.chart.options.scales.y2.min = yau2 ? yau2[0] : undefined;
+        this.chart.options.scales.y2.max = yau2 ? yau2[1] : undefined;
+        this.chart.update("none");
+        this.chart._goldNews    = this.news;
+        this.chart._goldXauData = xauPts;
+        this._updateNowLine();
+        this.loading = false;
+        if (loader) loader.style.display = "none";
+        return;
+      }
+
+      canvas._goldXMin = xMin;
+      canvas._goldXMax = xMax;
 
       this.chart = new Chart(canvas, {
         type: "line",
@@ -252,7 +279,12 @@ class GoldChart {
             },
             y: {
               position: "right",
-              title: { display: true, text: "COMEX GC00Y (USD/oz)", color: "#22c55e", font: { size: 11 } },
+              title: {
+                display: true,
+                text: this.xauSource === "binance" ? "XAUTUSDT (USD/USDOZ)" : "COMEX GC00Y (USD/oz)",
+                color: "#22c55e",
+                font: { size: 11 },
+              },
               ticks: { color: "#22c55e", callback: v => v.toFixed(2) },
               grid: { color: "#2a2d3a" },
               border: { color: "#2a2d3a" },
@@ -275,7 +307,7 @@ class GoldChart {
       this.chart._goldNews    = this.news;
       this.chart._goldXauData = xauPts;
 
-      this._updateNowLine();
+      this.chart.update("none");
 
       canvas.addEventListener("dblclick", () => {
         if (this.chart?._resetZoom) this.chart._resetZoom();

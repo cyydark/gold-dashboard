@@ -1,4 +1,4 @@
-"""Price sync worker - independent background process."""
+"""Price sync worker - single process, used by main.py lifespan."""
 import asyncio
 import importlib
 import logging
@@ -6,7 +6,6 @@ from backend.config import settings
 from backend.repositories.price_repository import PriceRepository
 from backend.data.sources import SOURCES
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -34,19 +33,9 @@ async def sync_prices():
 
 
 async def run_price_sync():
-    """Run price sync once."""
+    """Run price sync once (供 cron / 手动调用)."""
     await sync_prices()
 
 
-async def run_worker():
-    """Run price sync worker continuously."""
-    while True:
-        try:
-            await sync_prices()
-        except Exception as e:
-            logger.warning(f"Price sync error: {e}")
-        await asyncio.sleep(settings.price_sync_interval)
-
-
 if __name__ == "__main__":
-    asyncio.run(run_worker())
+    asyncio.run(run_price_sync())

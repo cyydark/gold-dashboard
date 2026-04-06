@@ -81,7 +81,7 @@ class PriceService:
         Returns:
             dict with 'bars', 'xMin', 'xMax'
         """
-        symbol_map = {"XAUUSD": "XAUUSD", "AU9999": "AU9999"}
+        symbol_map = {"XAUUSD": "XAUUSD", "XAUUSD_BINANCE": "XAUUSD_BINANCE", "AU9999": "AU9999"}
         db_symbol = symbol_map.get(symbol)
         if not db_symbol:
             return {"bars": [], "xMin": 0, "xMax": 0}
@@ -107,3 +107,39 @@ class PriceService:
     async def get_latest_price(self, symbol: str) -> dict | None:
         """Get the latest price for a single symbol."""
         return await self.repository.get_latest(symbol)
+
+    async def switch_xauusd_source(self, source: str) -> dict:
+        """Switch XAUUSD data source.
+
+        source: 'binance' — clear XAUUSD_BINANCE, import Binance XAUTUSDT.
+               'comex'   — clear XAUUSD, import COMEX GC00Y.
+        Returns dict with symbol, count of imported bars.
+        """
+        import asyncio
+        from backend.data.sources.binance_kline import fetch_xauusd_kline
+        from backend.data.sources.eastmoney_xauusd import fetch_xauusd_history
+
+        if source == "binance":
+            symbol = "XAUUSD_BINANCE"
+            await self.repository.clear_symbol(symbol)
+            bars = await asyncio.to_thread(fetch_xauusd_kline)
+        else:
+            symbol = "XAUUSD"
+            await self.repository.clear_symbol(symbol)
+            bars = await asyncio.to_thread(fetch_xauusd_history)
+
+        if not bars:
+            return {"symbol": symbol, "source": source, "count": 0}
+
+        for b in bars:
+            await self.repository.save(
+                symbol=symbol,
+                ts=b["time"],
+                open_=b["open"],
+                high=b["high"],
+                low=b["low"],
+                price=b["close"],
+                change=b.get("change", 0),
+                pct=b.get("pct", 0),
+            )
+        return {"symbol": symbol, "source": source, "count": len(bars)}

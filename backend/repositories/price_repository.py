@@ -50,3 +50,9 @@ class PriceRepository:
     async def get_latest_usdcny(self) -> dict | None:
         """Fetch the most recent USD/CNY rate."""
         return await self.get_latest("USDCNY")
+
+    async def clear_symbol(self, symbol: str) -> None:
+        """Delete all rows for a symbol."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM price_bars WHERE symbol = ?", (symbol,))
+            await db.commit()

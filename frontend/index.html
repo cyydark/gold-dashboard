@@ -94,8 +94,23 @@
     <section class="chart-section">
       <div class="chart-controls">
         <div class="legend">
-          <span class="legend-item" style="color:#22c55e">■ XAU/USD</span>
-          <span class="legend-item" style="color:#f59e0b">■ AU9999</span>
+          <span class="legend-item" style="color:#22c55e">■ <span id="legend-xau">COMEX GC00Y</span></span>
+          <span class="legend-item" style="color:#f59e0b">■ <span id="legend-au">AU9999</span></span>
+        </div>
+        <div class="source-selectors">
+          <label>
+            国际金：
+            <select id="sel-xau">
+              <option value="comex">COMEX GC00Y</option>
+              <option value="binance">XAUTUSDT (Binance)</option>
+            </select>
+          </label>
+          <label>
+            国内金：
+            <select id="sel-au">
+              <option value="au9999">AU9999</option>
+            </select>
+          </label>
         </div>
       </div>
       <div id="chart-container" style="height:400px;position:relative;background:#1a1d27">
@@ -113,7 +128,7 @@
 
   <div id="toast-container"></div>
   <script src="/static/js/sse.js?v=2"></script>
-  <script type="module" src="/static/js/chart/GoldChart.js"></script>
-  <script type="module" src="/static/js/app.js?v=12"></script>
+  <script type="module" src="/static/js/chart/GoldChart.js?v=10"></script>
+  <script type="module" src="/static/js/app.js?v=18"></script>
 </body>
 </html>

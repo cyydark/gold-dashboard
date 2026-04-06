@@ -10,7 +10,7 @@
 SOURCES: dict[str, tuple[str, str]] = {
     "XAUUSD": ("backend.data.sources.eastmoney_xauusd", "fetch_xauusd_history"),
     "AU9999": ("backend.data.sources.eastmoney_au9999", "fetch_au9999_realtime"),
-    "USDCNY": ("backend.data.sources.yfinance_fx",      "fetch_usdcny"),
+    "USDCNY": ("backend.data.sources.yfinance_fx",       "fetch_usdcny"),
 }
 
 # name -> (模块路径, fetch_news 函数名)

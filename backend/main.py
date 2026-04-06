@@ -51,8 +51,9 @@ async def _briefing_loop():
 
 
 async def _news_refresh_loop():
-    """Background loop: refresh all configured news sources every 5 minutes."""
+    """Background loop: refresh all configured news sources every 6 minutes."""
     import importlib
+    await asyncio.sleep(30)  # Wait 30s on startup before first fetch (let caches warm up)
     while True:
         try:
             from backend.data.sources import NEWS_SOURCES
@@ -72,7 +73,7 @@ async def _price_bars_fetch_loop():
     """Background loop: fetch data from configured sources every 5 minutes.
 
     Sources are defined in backend.data.sources.SOURCES.
-    Adding/switching a source only requires updating that config dict.
+    每次同步前检测数据断层，超过 1 根 K 线则补录。
     """
     import importlib
 
@@ -83,21 +84,33 @@ async def _price_bars_fetch_loop():
             repo = PriceRepository()
 
             for symbol, (module_path, fn_name) in SOURCES.items():
+                # 检测 gap
+                latest = await repo.get_latest(symbol)
+                last_ts = latest["ts"] if latest else None
+
                 mod = importlib.import_module(module_path)
                 fn = getattr(mod, fn_name)
                 bars = await asyncio.to_thread(fn)
+
+                if not bars:
+                    continue
+
+                # 补漏：只存 DB 之后的新 bars
+                if last_ts is not None:
+                    bars = [b for b in bars if b["time"] > last_ts]
+
+                for b in bars:
+                    await repo.save(
+                        symbol=symbol,
+                        ts=b["time"],
+                        open_=b["open"],
+                        high=b["high"],
+                        low=b["low"],
+                        price=b["close"],
+                        change=b.get("change", 0),
+                        pct=b.get("pct", 0),
+                    )
                 if bars:
-                    for b in bars:
-                        await repo.save(
-                            symbol=symbol,
-                            ts=b["time"],
-                            open_=b["open"],
-                            high=b["high"],
-                            low=b["low"],
-                            price=b["close"],
-                            change=b.get("change", 0),
-                            pct=b.get("pct", 0),
-                        )
                     logger.info(f"Synced {len(bars)} {symbol} bars from {module_path}")
         except Exception as e:
             logger.warning(f"Price sync error: {e}")
