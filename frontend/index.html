@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>黄金行情分析</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=3" />
+  <link rel="stylesheet" href="/static/css/style.css?v=4" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -76,11 +76,17 @@
         <div class="price-card__header">
           <span class="price-card__symbol">🌍 国际黄金 XAU/USD</span>
           <span class="price-card__unit">USD/oz</span>
+          <select id="src-xau" class="price-card__source" title="切换数据源">
+            <option value="comex">COMEX</option>
+            <option value="sina">Sina伦敦金</option>
+            <option value="metals">LBMA</option>
+            <option value="omkar">CME</option>
+          </select>
         </div>
         <div class="price-card__price" id="price-XAUUSD">--</div>
         <div class="price-card__change" id="change-XAUUSD">--</div>
         <div class="price-card__ohlc">
-          <span>昨收 <em id="open-XAUUSD">--</em></span>
+          <span>开盘 <em id="open-XAUUSD">--</em></span>
           <span>高 <em id="high-XAUUSD">--</em></span>
           <span>低 <em id="low-XAUUSD">--</em></span>
         </div>
@@ -90,6 +96,12 @@
         <div class="price-card__header">
           <span class="price-card__symbol">🇨🇳 国内黄金 AU9999</span>
           <span class="price-card__unit">CNY/g</span>
+          <select id="src-au" class="price-card__source" title="切换数据源">
+            <option value="au9999">AU9999</option>
+            <option value="sina">新浪</option>
+            <option value="akshare">沪金期货</option>
+            <option value="autd">T+D</option>
+          </select>
         </div>
         <div class="price-card__price" id="price-AU9999">--</div>
         <div class="price-card__change" id="change-AU9999">--</div>
@@ -130,7 +142,7 @@
         <!-- Real Content -->
         <div id="briefing-content" style="display:none">
           <div class="briefing__header">
-            <span class="briefing__title">📊 近7日整体</span>
+            <span class="briefing__title">📊 近3日整体</span>
             <span id="weekly-time" class="briefing__period"></span>
           </div>
           <div id="weekly-content" class="briefing__content"></div>
@@ -173,12 +185,18 @@
             <select id="sel-xau">
               <option value="comex">COMEX GC00Y</option>
               <option value="binance">XAUTUSDT (Binance)</option>
+              <option value="sina">Sina 伦敦金</option>
+              <option value="metals">LBMA (Metals-API)</option>
+              <option value="omkar">CME (Omkar)</option>
             </select>
           </label>
           <label>
             国内金：
             <select id="sel-au">
-              <option value="au9999">AU9999</option>
+              <option value="au9999">AU9999 (东方财富)</option>
+              <option value="sina">AU9999 (新浪)</option>
+              <option value="akshare">沪金期货 AU0</option>
+              <option value="autd">黄金T+D</option>
             </select>
           </label>
         </div>
@@ -194,14 +212,12 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <p>数据来源：东方财富（国际金价 / 国内金价 / 汇率）</p>
+      <p>数据来源：东方财富（国际金价 / 国内金价 / 汇率）、新浪财经、Binance、Metals-API(LBMA)、OmkarCloud(CME)、AkShare（沪金期货）</p>
     </footer>
 
   </div>
 
   <div id="toast-container" class="toast-container"></div>
-  <script src="/static/js/sse.js?v=2"></script>
-  <script type="module" src="/static/js/chart/GoldChart.js?v=11"></script>
-  <script type="module" src="/static/js/app.js?v=19"></script>
+  <script type="module" src="/static/js/app.js?v=22"></script>
 </body>
 </html>
