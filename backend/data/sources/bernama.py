@@ -102,7 +102,7 @@ def fetch_bernama_gold_news() -> list[dict]:
             "title": title,
             "url": f"https://www.bernamabiz.com/news.php?id={news_id}",
             "published": pub_dt.strftime("%Y-%m-%d %H:%M"),
-            "time_ago": time_str,
+            "published_ts": int(pub_dt.timestamp()),
         })
 
     _cache = items

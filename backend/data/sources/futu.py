@@ -171,11 +171,13 @@ def _fetch_ssr_articles(url: str, lang: str) -> list[dict]:
         footer_time = time_m.group(1).strip() if time_m else ""
 
         published, time_ago = _parse_ssr_time(img_src, footer_time)
+        pub_dt = datetime.strptime(published, "%Y-%m-%d %H:%M").replace(tzinfo=BEIJING_TZ)
         articles.append({
             "url": article_url,
             "title": title,
             "source": source,
             "published": published,
+            "published_ts": int(pub_dt.timestamp()),
             "time_ago": time_ago,
         })
 
@@ -252,13 +254,14 @@ def fetch_futu_news() -> list[dict]:
             if detail_url in seen_urls:
                 continue
             seen_urls.add(detail_url)
+            pub_dt = datetime.fromtimestamp(pub_ts, BEIJING_TZ)
             all_items.append({
                 "source": "富途牛牛",
                 "title_en": title,
                 "title": title,
                 "url": detail_url,
-                "published": pub_date,
-                "time_ago": pub_date,
+                "published": pub_dt.strftime("%Y-%m-%d %H:%M"),
+                "published_ts": pub_ts,
             })
     except Exception as e:
         logger.warning("Futu flash API error: %s", e)

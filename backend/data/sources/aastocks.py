@@ -133,7 +133,7 @@ def _fetch_more_news(news_id: str, newstime: str) -> tuple[list[dict], str, str]
             "source": f"AASTOCKS-{source}" if source != "AAFN" else "AASTOCKS",
             "url": f"https://www.aastocks.com/en/usq/news/comment.aspx?source={source}&id={nid}&catg=1",
             "published": pub_dt.strftime("%Y-%m-%d %H:%M"),
-            "time_ago": pub_dt.strftime("%Y-%m-%d"),
+            "published_ts": int(pub_dt.timestamp()),
         })
         # Advance cursor to the oldest (last) item
         next_id = nid

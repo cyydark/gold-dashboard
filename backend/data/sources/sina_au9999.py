@@ -1,15 +1,14 @@
-"""国内金价 AU9999 via Sina Finance Kline API.
+"""国内金价 AU9999 via Sina Finance realtime snapshot.
 
-数据源: quotes.sina.cn (分钟K线 / 实时快照)
-品种: AU9999 (SGE 黄金9999, symbol=njs_gold)
+数据源: hq.sinajs.cn (symbol=gds_AU9999)
+品种: 沪金99 (gds_AU9999)
 单位: CNY/g
-Kline 原生字段: day, open, close, high, low, vol
-涨跌额/涨跌幅 = (close - prev_close) / prev_close * 100
+
+注意: 新浪K线接口已停用，图表K线数据改用 eastmoney_xauusd。
 """
 import logging
 import re
 import requests
-from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +19,13 @@ _HEADERS = {
     "Referer": "https://finance.sina.com.cn/",
 }
 
-_KLINE_URL = "https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData"
-_REALTIME_URL = "https://hq.sinajs.cn/list=njs_gold"
-_SYMBOL = "njs_gold"
+_REALTIME_URL = "https://hq.sinajs.cn/list=gds_AU9999"
 
 
 def fetch_au9999_realtime() -> dict | None:
-    """Fetch AU9999 realtime snapshot from Sina.
+    """Fetch AU9999 realtime snapshot from Sina (gds_AU9999).
 
-    Returns fields: [1]最新价 [2]开盘价 [3]最高价 [4]最低价 [7]涨跌额 [8]涨跌幅(%)
+    Returns fields: [0]最新价 [2]开盘价 [4]最高价 [5]最低价 [10]涨跌额 [11]涨跌幅(%)
     """
     try:
         resp = requests.get(
@@ -39,71 +36,25 @@ def fetch_au9999_realtime() -> dict | None:
         resp.raise_for_status()
         text = resp.text.strip()
 
-        # Parse: var hq_str_njs_gold="名称,最新价,开盘价,...,涨跌额,涨跌幅,..."
-        m = re.search(r'"([^"]+)"', text)
+        # Parse: var hq_str_gds_AU9999="1034.00,0,1034.00,1034.50,1042.00,1020.00,15:29:49,1027.50,1022.00,425104,43.00,1.00,2026-04-03,沪金99";
+        m = re.search(r'hq_str_gds_AU9999="([^"]+)"', text)
         if not m:
-            logger.warning(f"Sina realtime: pattern mismatch, text={text[:100]}")
+            logger.warning(f"Sina AU9999 realtime: pattern mismatch, text={text[:100]}")
             return None
 
         fields = m.group(1).split(",")
-        if len(fields) < 9:
-            logger.warning(f"Sina realtime: unexpected field count {len(fields)}")
+        if len(fields) < 12:
+            logger.warning(f"Sina AU9999 realtime: unexpected field count {len(fields)}")
             return None
 
         return {
-            "price":  float(fields[1]),
+            "price":  float(fields[0]),
             "open":   float(fields[2]),
-            "high":   float(fields[3]),
-            "low":    float(fields[4]),
-            "change": float(fields[7]),
-            "pct":    float(fields[8]),
+            "high":   float(fields[4]),
+            "low":    float(fields[5]),
+            "change": float(fields[10]),
+            "pct":    float(fields[11]),
         }
     except Exception as e:
-        logger.warning(f"Sina realtime error: {e}")
+        logger.warning(f"Sina AU9999 realtime error: {e}")
         return None
-
-
-def fetch_au9999_history(scale: int = 5, datalen: int = 1023) -> list[dict] | None:
-    """Fetch AU9999 Kline bars from Sina.
-
-    Args:
-        scale:   K线周期（分钟数），默认 5 分钟
-        datalen: 返回条数上限，默认 1023
-
-    Returns list of bars ordered oldest -> newest.
-    change/pct 使用前一日收盘价（首条数据的昨收字段）计算。
-    """
-    try:
-        resp = requests.get(
-            _KLINE_URL,
-            params={"symbol": _SYMBOL, "scale": scale, "datalen": datalen},
-            headers=_HEADERS,
-            timeout=10,
-        )
-        resp.raise_for_status()
-        bars: list[dict] = resp.json()
-    except Exception as e:
-        logger.warning(f"Sina Kline error: {e}")
-        return None
-
-    if not bars:
-        logger.warning("Sina Kline: no bars returned")
-        return None
-
-    # prev_close = close price of the bar before the first returned bar (昨收)
-    prev_close = float(bars[0].get("close", 0)) if bars else 0.0
-    records = []
-    for bar in bars:
-        close_px = float(bar["close"])
-        records.append({
-            "time":   int(datetime.strptime(bar["day"], "%Y-%m-%d %H:%M").timestamp()),
-            "open":   float(bar["open"]),
-            "high":   float(bar["high"]),
-            "low":    float(bar["low"]),
-            "close":  close_px,
-            "volume": float(bar["vol"]),
-            "change": round(close_px - prev_close, 2),
-            "pct":    round((close_px - prev_close) / prev_close * 100, 2) if prev_close else 0.0,
-        })
-
-    return records if records else None
