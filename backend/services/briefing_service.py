@@ -1,5 +1,9 @@
 """Briefing service — no DB, pure in-memory cache."""
+import asyncio
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 # TTL: 1 hour
 _CACHE_TTL = 3600
@@ -71,9 +75,20 @@ def _fetch_aastocks() -> list:
 
 
 def _generate_briefing(news: list, days: int) -> str:
-    """Generate briefing text. Currently returns a placeholder."""
+    """Generate briefing text using AI via Claude CLI."""
     if not news:
         return "暂无足够新闻数据生成周报。"
+    try:
+        import importlib
+        mod = importlib.import_module("backend.data.sources.briefing")
+        gen = getattr(mod, "generate_daily_briefing_from_news")
+        content = asyncio.run(gen(news, ""))
+        if content:
+            logger.info(f"Briefing generated, {len(news)} news items, {len(content)} chars")
+            return content
+        logger.warning("Briefing empty, falling back")
+    except Exception as e:
+        logger.error(f"Briefing generation failed: {e}")
     return f"近{days}日共{len(news)}条新闻，详情见列表。"
 
 

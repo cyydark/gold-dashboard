@@ -142,6 +142,11 @@
             <span id="weekly-time" class="briefing__period"></span>
           </div>
           <div id="weekly-content" class="briefing__content"></div>
+          <!-- DEBUG: temp cache-clear buttons -->
+          <div id="debug-actions" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button id="btn-refresh-briefing" style="font-size:11px;padding:3px 8px;cursor:pointer;background:#f0f0f0;border:1px solid #ccc;border-radius:4px;">🧠 刷新AI分析</button>
+            <span id="debug-status" style="font-size:11px;color:#888;"></span>
+          </div>
         </div>
       </section>
 
@@ -211,6 +216,6 @@
   </div>
 
   <div id="toast-container" class="toast-container"></div>
-  <script type="module" src="/static/js/app.js?v=22"></script>
+  <script type="module" src="/static/js/app.js?v=25"></script>
 </body>
 </html>

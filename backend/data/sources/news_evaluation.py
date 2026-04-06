@@ -1,4 +1,4 @@
-"""News AI evaluation: translation + gold price impact assessment.
+"""News AI evaluation: gold price impact assessment.
 
 DB layer removed; _sync_save_processed_news and _update_direction_in_db are no-ops.
 """
@@ -13,11 +13,6 @@ logger = logging.getLogger(__name__)
 
 # Compiled once
 DIRECTION_RE = re.compile(r"^[\u300c\u201c]?(上升|下降|中性)[\u300d\u201d].*[\u300c\u201c]?(重点关注|普通)[\u300d\u201d]")
-
-
-def _is_english(text: str) -> bool:
-    """Return True if text contains no CJK characters."""
-    return not any('\u4e00' <= ch <= '\u9fff' for ch in text)
 
 
 EVALUATE_PROMPT_TEMPLATE = """以下是黄金市场相关新闻标题，请逐一评估每条新闻对金价的影响。

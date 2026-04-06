@@ -241,6 +241,34 @@ window.addEventListener("DOMContentLoaded", async () => {
   loadBriefings();
   polling.start("news");
 
+  // DEBUG: refresh buttons
+  const btnBriefing = document.getElementById("btn-refresh-briefing");
+  const debugStatus = document.getElementById("debug-status");
+  if (btnBriefing) {
+    btnBriefing.addEventListener("click", async () => {
+      btnBriefing.disabled = true;
+      btnBriefing.textContent = "⏳ 生成中...";
+      if (debugStatus) debugStatus.textContent = "正在生成 AI 分析...";
+      try {
+        const res = await fetch("/api/briefings/trigger", { method: "POST" });
+        const data = await res.json();
+        const weekly = data.weekly;
+        const weeklyEl = document.getElementById("weekly-content");
+        const weeklyTimeEl = document.getElementById("weekly-time");
+        if (weeklyEl) weeklyEl.innerHTML = `<span class="briefing__daily-text">${escapeHtml(weekly?.content || "")}</span>`;
+        if (weeklyTimeEl) weeklyTimeEl.textContent = weekly?.time_range || "";
+        if (debugStatus) debugStatus.textContent = "AI 分析已更新";
+        showToast("AI 分析已更新", "info");
+      } catch (e) {
+        if (debugStatus) debugStatus.textContent = "生成失败";
+        showToast("AI 分析生成失败: " + e.message, "error");
+      } finally {
+        btnBriefing.disabled = false;
+        btnBriefing.textContent = "🧠 刷新AI分析";
+      }
+    });
+  }
+
   await chart.load();
   chart.warmup();
 });
