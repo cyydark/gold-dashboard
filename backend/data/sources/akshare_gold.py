@@ -49,61 +49,25 @@ def fetch_au_history() -> list[dict[str, Any]] | None:
 
 
 def fetch_au_realtime() -> dict[str, Any] | None:
-    """Fetch 沪金期货 AU0 实时行情.
+    """Fetch 沪金期货 AU0 实时行情 via futures_zh_spot.
 
     Returns:
         Dict with {price, change, pct, open, high, low} or None on error.
     """
     try:
-        df = ak.futures_zh_a_spot()
+        # market="CF" for commodity futures, symbol="AU0" for 沪金主力连续
+        df = ak.futures_zh_spot(symbol="AU0", market="CF", adjust="0")
         if df is None or df.empty:
-            logger.warning("akshare futures_zh_a_spot: no data returned")
+            logger.warning("akshare futures_zh_spot AU0: no data returned")
             return None
 
-        cols = df.columns.tolist()
-        col_lower = [str(c).lower() for c in cols]
-
-        # 定位品种列（包含"品种"或"代码"的列），用于筛选
-        symbol_col_idx: int | None = None
-        for i, c in enumerate(col_lower):
-            if "品种" in c or "代码" in c or "合约" in c:
-                symbol_col_idx = i
-                break
-
-        def row_contains_au(row: pd.Series) -> bool:
-            if symbol_col_idx is not None:
-                val = str(row.iloc[symbol_col_idx]).lower()
-                return "au0" in val or "沪金" in val
-            return "au0" in " ".join(str(v).lower() for v in row.values)
-
-        mask = df.apply(row_contains_au, axis=1)
-        if not mask.any():
-            logger.warning("akshare futures_zh_a_spot: no 沪金 contract found")
-            return None
-
-        row = df[mask].iloc[0]
-
-        def get_float(val: Any) -> float:
-            try:
-                return float(val)
-            except (TypeError, ValueError):
-                return 0.0
-
-        # 尝试通过列名定位所需字段
-        price = change = pct = open_ = high = low = 0.0
-        for i, c in enumerate(col_lower):
-            if "最新价" in c or "现价" in c or "收盘" in c:
-                price = get_float(row.iloc[i])
-            elif "涨跌额" in c or "涨跌" in c:
-                change = get_float(row.iloc[i])
-            elif "涨跌幅" in c and "涨跌额" not in c:
-                pct = get_float(row.iloc[i])
-            elif "开盘" in c and "最高" not in c and "最低" not in c:
-                open_ = get_float(row.iloc[i])
-            elif "最高" in c:
-                high = get_float(row.iloc[i])
-            elif "最低" in c:
-                low = get_float(row.iloc[i])
+        price = float(df.iloc[0]["current_price"])
+        open_ = float(df.iloc[0]["open"])
+        high = float(df.iloc[0]["high"])
+        low = float(df.iloc[0]["low"])
+        last_close = float(df.iloc[0]["last_close"])
+        change = round(price - last_close, 2)
+        pct = round((price - last_close) / last_close * 100, 2) if last_close else 0.0
 
         return {
             "price":  price,
@@ -114,5 +78,5 @@ def fetch_au_realtime() -> dict[str, Any] | None:
             "low":    low,
         }
     except Exception as e:
-        logger.warning(f"akshare futures_zh_a_spot error: {e}")
+        logger.warning(f"akshare futures_zh_spot AU0 error: {e}")
         return None
