@@ -260,11 +260,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   const selAu = document.getElementById("sel-au");
   if (selXau) {
     selXau.value = polling.getSource("xauChart");
-    selXau.addEventListener("change", reloadChart);
+    selXau.addEventListener("change", () => {
+      chart.xauSource = selXau.value;
+      polling.setSource("xauChart", selXau.value);
+    });
   }
   if (selAu) {
     selAu.value = polling.getSource("auChart");
-    selAu.addEventListener("change", reloadChart);
+    selAu.addEventListener("change", () => {
+      chart.auSource = selAu.value;
+      polling.setSource("auChart", selAu.value);
+    });
   }
 
   // Plug PollingManager into app

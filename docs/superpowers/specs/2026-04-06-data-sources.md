@@ -9,7 +9,7 @@
 
 | 类型 | 用途 | 数据源 |
 |------|------|--------|
-| 新闻 | 最新资讯列表 | BERNAMA、富途牛牛、AASTOCKS、CNBC |
+| 新闻 | 最新资讯列表 | BERNAMA、富途牛牛、AASTOCKS、CNBC、LocalRSS |
 | 国内金价 | AU9999 实时 + K线 | Sina (AU9999 实时) / Eastmoney (K线) |
 | 国际金价 | XAU/USD 实时 + K线 | Sina (实时+伦敦金) / Eastmoney (COMEX) / Binance |
 | 汇率 | USDCNY 实时 + K线 | Sina / Yahoo Finance |
@@ -18,7 +18,34 @@
 
 ## 新闻源
 
-### 1. BERNAMA
+### 1. LocalRSS
+
+**文件**：`backend/data/sources/local_news.py`
+
+**来源**：`http://localhost:18080/news`（RSSHUB 金价新闻聚合）
+- Bloomberg Markets
+- FX Street Gold
+- Investing.com Commodities
+
+**数据格式**：
+```python
+{
+    "title": str,        # 标题
+    "title_en": str,     # 同上
+    "url": str,          # 原始链接
+    "source": str,       # 原始来源（Bloomberg Markets / FX Street Gold / Investing.com Commodities）
+    "published_ts": int, # Unix UTC 时间戳
+    "published": str,    # "YYYY-MM-DD"
+}
+```
+
+**特点**：
+- RSS XML 格式，来源信息从 `<category>` 字段提取
+- TTL：5 分钟
+
+---
+
+### 2. BERNAMA
 
 **文件**：`backend/data/sources/bernama.py`
 
@@ -44,7 +71,7 @@
 
 ---
 
-### 2. 富途牛牛
+### 3. 富途牛牛
 
 **文件**：`backend/data/sources/futu.py`
 
@@ -72,7 +99,7 @@
 
 ---
 
-### 3. AASTOCKS
+### 4. AASTOCKS
 
 **文件**：`backend/data/sources/aastocks.py`
 
@@ -99,7 +126,7 @@
 
 ---
 
-### 4. CNBC
+### 5. CNBC
 
 **文件**：`backend/data/sources/cnbc.py`
 
@@ -128,7 +155,7 @@
 
 ## 价格数据源
 
-### 4. 国内金价 — AU9999
+### 6. 国内金价 — AU9999
 
 **实时（Sina）**：`backend/data/sources/sina_au9999.py`
 - 源：`hq.sinajs.cn`（symbol `gds_AU9999`）
@@ -148,7 +175,7 @@
 
 ---
 
-### 5. 国际金价 — XAU/USD
+### 7. 国际金价 — XAU/USD
 
 **实时 + 伦敦金**：`backend/data/sources/sina_xau.py`
 - 源：`hq.sinajs.cn`（symbol `hf_XAU`）
@@ -163,7 +190,7 @@
 
 ---
 
-### 6. 汇率 — USDCNY
+### 8. 汇率 — USDCNY
 
 **实时（Sina）**：`backend/data/sources/sina_fx.py`
 - 源：`hq.sinajs.cn`（symbol `fx_susdcny`）

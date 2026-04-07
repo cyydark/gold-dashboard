@@ -7,6 +7,7 @@ export class PollingManager {
   constructor() {
     this._timers = {};
     this._lastPrices = {};
+    this._lastChart  = {};
     this._onPriceUpdate = null;
     this._onChartUpdate = null;
     this._onNewsUpdate = null;
@@ -34,10 +35,14 @@ export class PollingManager {
     this._sources[key] = value;
     localStorage.setItem("source_" + key, value);
     if (key === "xau" || key === "au" || key === "fx") {
-      this._pollPrices();
+      // 只刷新被切换的那个源，保留其他两个最近缓存
+      this._pollPricesOne(key === "xau" ? "XAUUSD" : key === "au" ? "AU9999" : "USDCNY");
     }
-    if (key === "xauChart" || key === "auChart") {
-      return this._pollChart();
+    if (key === "xauChart") {
+      return this._pollChartOne("xau");
+    }
+    if (key === "auChart") {
+      return this._pollChartOne("au");
     }
   }
 
@@ -66,6 +71,51 @@ export class PollingManager {
 
   stopAll() {
     Object.keys(this._timers).forEach(k => this.stop(k));
+  }
+
+  // 只抓单个源，合并到最近缓存后回调（用于 source 切换时零刷新）
+  async _pollPricesOne(sym) {
+    const urlMap = {
+      XAUUSD: `/api/realtime/xau/${this._sources.xau}`,
+      AU9999: `/api/realtime/au/${this._sources.au}`,
+      USDCNY: `/api/realtime/fx/${this._sources.fx}`,
+    };
+    const lastMap = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" };
+    const cacheKey = lastMap[sym];
+    const url = urlMap[sym];
+    if (!url) return;
+
+    try {
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d.price != null) {
+        this._lastPrices[cacheKey] = d;
+        const result = { [sym]: d };
+        // 合并其他两个最近缓存（不重新请求）
+        if (sym !== "XAUUSD" && this._lastPrices.xau)   result.XAUUSD = this._lastPrices.xau;
+        if (sym !== "AU9999" && this._lastPrices.au)    result.AU9999 = this._lastPrices.au;
+        if (sym !== "USDCNY" && this._lastPrices.fx)   result.USDCNY = this._lastPrices.fx;
+        if (this._onPriceUpdate) this._onPriceUpdate(result);
+      }
+    } catch (_) {}
+  }
+
+  // 只抓单个图表，合并到最近缓存后回调（用于 chart source 切换时零刷新）
+  async _pollChartOne(which) {
+    const urlMap  = { xau: `/api/chart/xau?source=${this._sources.xauChart}`, au: `/api/chart/au?source=${this._sources.auChart}` };
+    const url = urlMap[which];
+    if (!url) return;
+    try {
+      const r = await fetch(url);
+      const d = await r.json();
+      this._lastChart[which] = d;
+      if (this._onChartUpdate) {
+        this._onChartUpdate({
+          xau: which === "xau" ? d : (this._lastChart.xau || null),
+          au:  which === "au"  ? d : (this._lastChart.au  || null),
+        });
+      }
+    } catch (_) {}
   }
 
   // ── Private pollers ────────────────────────────────────────────────
@@ -107,6 +157,9 @@ export class PollingManager {
       fetch(`/api/chart/xau?source=${this._sources.xauChart}`).then(r => r.json()),
       fetch(`/api/chart/au?source=${this._sources.auChart}`).then(r => r.json()),
     ]);
+
+    if (xau.status === "fulfilled") this._lastChart.xau = xau.value;
+    if (au.status  === "fulfilled") this._lastChart.au  = au.value;
 
     if (this._onChartUpdate) {
       this._onChartUpdate({
