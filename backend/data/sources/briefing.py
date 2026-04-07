@@ -14,20 +14,25 @@ class BriefingGenerationError(Exception):
 
     pass
 
-DAILY_PROMPT_TEMPLATE = """你是一位专业黄金市场分析师。基于最新资讯提供的{news_count}条相关新闻，请评估当前金价走势。
-
-评估原则：
-1. 时效性：越近期的新闻权重越高
-2. 重要性分级：地缘政治/突发风险 ★★★ > 央行政策/宏观经济 ★★ > 市场情绪/技术面 ★
-3. 综合判断，给出金价走势预期
+DAILY_PROMPT_TEMPLATE = """你是一位专业黄金市场分析师。基于近3日{news_count}条新闻（当前金价 ${current_price} USD/oz），请评估当前金价走势。
 
 {news_list}
 
-请严格按以下4行格式输出，无任何解释、前言或分节符号：
-【金价走势】震荡偏强/震荡偏弱/上涨/下跌/区间震荡——20字以内一句话概括核心逻辑
-【重点关注】近期最值得关注的2-3条新闻（30字以内）
-★★★ 因素一（地缘政治/突发风险）：一句话影响分析
-★★ 因素二（央行政策/宏观经济）：一句话影响分析"""
+请严格按以下分区结构输出，无任何前言、解释或分节符号：
+
+【走势判断】
+上涨/震荡/下跌——逻辑一句话
+
+【核心驱动】
+★★★ 地缘/风险：（一行）
+★★ 央行/宏观：（一行）
+★ 市场/技术：（一行）
+
+【时效性】
+近24h重点新闻对走势的影响权重说明
+
+【置信度】
+高/中/低，理由一句话"""
 
 
 def call_claude_cli(prompt: str) -> str:
@@ -60,12 +65,16 @@ def _build_news_list(news: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def generate_daily_briefing_from_news(news: list[dict]) -> str:
+async def generate_daily_briefing_from_news(news: list[dict], current_price: str = "N/A") -> str:
     """Generate daily briefing text from news using Claude CLI."""
     if not news:
         return "暂无足够新闻数据生成日报。"
     news_list = _build_news_list(news)
-    prompt = DAILY_PROMPT_TEMPLATE.format(news_count=len(news), news_list=news_list)
+    prompt = DAILY_PROMPT_TEMPLATE.format(
+        news_count=len(news),
+        news_list=news_list,
+        current_price=current_price,
+    )
     return call_claude_cli(prompt)
 
 
@@ -74,20 +83,67 @@ async def generate_daily_briefing_from_news(news: list[dict]) -> str:
 # -------------------------------------------------------------------
 
 
-CROSS_VALIDATION_TEMPLATE = """你是一位专业黄金市场分析师。请将以下 Step 1 新闻分析结论与 Step 2 实际行情数据进行交叉对比，判断新闻判断是否与实际走势吻合。
+CROSS_VALIDATION_TEMPLATE = """你是一位专业黄金市场分析师。请将以下 Layer 1 新闻分析结论与 Layer 2 实际行情数据进行交叉对比，判断新闻判断是否与实际走势吻合。
 
-【Step 1 - 新闻分析结论】
-{news_analysis}
+【Layer 1 - 新闻分析结论】
+{layer1_output}
 
-【Step 2 - Binance XAUUSD 日线聚合数据（5M K线聚合）】
+【Layer 2 - Binance XAUUSD 日线聚合数据（5M K线）】
 {kline_summary}
 
-请严格按以下格式输出1-2行结论，无任何额外解释、前言或分节符号：
-判断结果 | 理由（20字以内）
-判断结果为以下三种之一：
-- 一致：✓ 新闻判断与走势吻合，继续维持「{verdict_anchor}」
-- 矛盾：⚠ 新闻判断与走势相悖，实际走势为[描述]，建议修正为「[修正结论]」
-- 信号不足：当前走势无明确方向，新闻判断暂作参考"""
+请严格按以下分区结构输出，无任何前言、解释或分节符号：
+
+【验证结果】
+一致 / 矛盾 / 信号不足
+
+【实际走势】
+从 Kline 数据提取的趋势描述（一句话）
+
+【分歧说明】
+如验证结果为"矛盾"，说明新闻预判与实际走势的差异；否则留空或写"无明显分歧"
+
+【验证置信度】
+高/中/低，理由一句话"""
+
+
+PRICE_FORECAST_TEMPLATE = """你是一位专业黄金市场分析师。基于以下 Layer 1 新闻分析与 Layer 2 行情验证的结论，给出短期金价走势预期。
+
+【Layer 1 - 新闻分析结论】
+{layer1_output}
+
+【Layer 2 - 行情验证结论】
+{layer2_output}
+
+请严格按以下分区结构输出，无任何前言、解释或分节符号：
+
+【方向预期】
+短期（1-3日）方向：上涨/震荡/下跌，理由一句话
+
+【价格目标】
+支撑位：XXX USD/oz
+压力位：XXX USD/oz
+
+【时间框架】
+预期生效窗口：X-X日
+
+【风险提示】
+可能推翻预期的关键事件（1-2条）
+
+【综合置信度】
+高/中/低
+理由：基于 Layer 2 验证一致性说明"""
+
+
+async def generate_price_forecast(layer1_output: str, layer2_output: str) -> str:
+    """Step 3: Generate price forecast based on Layer 1 + Layer 2 conclusions."""
+    prompt = PRICE_FORECAST_TEMPLATE.format(
+        layer1_output=layer1_output,
+        layer2_output=layer2_output,
+    )
+    try:
+        return call_claude_cli(prompt)
+    except BriefingGenerationError:
+        return ""
 
 
 def _shanghai_ts(ts: int) -> datetime:
@@ -186,27 +242,12 @@ def aggregate_kline_for_prompt(klines: list[dict]) -> str:
     return "\n".join(sections)
 
 
-async def generate_cross_validation(news_analysis: str, kline_data: list[dict]) -> str:
-    """Step 2: 交叉验证新闻分析与实际 K线走势是否一致。
-
-    Args:
-        news_analysis: Step 1 生成的新闻分析 4 行格式文本。
-        kline_data: binance_kline.fetch_xauusd_kline() 返回的原始 5M K线列表。
-
-    Returns:
-        交叉验证结论字符串；异常时返回空字符串（由调用方负责降级处理）。
-    """
+async def generate_cross_validation(layer1_output: str, kline_data: list[dict]) -> str:
+    """Step 2: cross-validate news analysis against Kline data."""
     kline_summary = aggregate_kline_for_prompt(kline_data)
-    # 从 Step 1 结论中提取走势关键词作为默认锚定
-    verdict_anchor = "震荡"
-    for kw in ["上涨", "下跌", "偏强", "偏弱", "震荡"]:
-        if kw in news_analysis:
-            verdict_anchor = kw
-            break
     prompt = CROSS_VALIDATION_TEMPLATE.format(
-        news_analysis=news_analysis,
+        layer1_output=layer1_output,
         kline_summary=kline_summary,
-        verdict_anchor=verdict_anchor,
     )
     try:
         return call_claude_cli(prompt)
