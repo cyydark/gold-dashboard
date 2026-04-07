@@ -196,7 +196,7 @@ function _showBriefing(data) {
       <div class="analysis-block__body analysis-block__body--collapsed" id="layer1-body">
         ${layer1
           ? renderBriefing(layer1)
-          : `<div class="state-message">暂无分析</div>`}
+          : `<div class="state-message">正在生成...</div>`}
       </div>
     </div>
   `;
