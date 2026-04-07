@@ -162,14 +162,14 @@ body {
   z-index: 2;
 }
 
-/* Source-specific price number color variants — set via JS */
-.price-card__price[data-source="comex"]   { color: #d4af37; }
-.price-card__price[data-source="binance"] { color: #fb923c; }
-.price-card__price[data-source="sina"]    { color: #c084fc; }
-.price-card__price[data-source="au9999"]  { color: #d4af37; }
-.price-card__price[data-source="eastmoney"]{ color: #d4af37; }
-.price-card__price[data-source="yfinance"]{ color: #d4af37; }
-.price-card__price[data-source="sina_au0"]{ color: #fb923c; }
+/* Source-specific price number color variants */
+.price-card__price[data-source="comex"]    { color: #d4af37; }
+.price-card__price[data-source="binance"]    { color: #fb923c; }
+.price-card__price[data-source="sina"]      { color: #c084fc; }
+.price-card__price[data-source="au9999"]    { color: #34d399; }
+.price-card__price[data-source="eastmoney"] { color: #38bdf8; }
+.price-card__price[data-source="yfinance"] { color: #fbbf24; }
+.price-card__price[data-source="sina_au0"]  { color: #fb923c; }
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }

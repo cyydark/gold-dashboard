@@ -216,13 +216,16 @@ async function reloadChart() {
 
 /** Source → price number color map */
 const PRICE_SOURCE_COLORS = {
-  comex:     "#d4af37",
-  binance:   "#fb923c",
-  sina:      "#c084fc",
-  au9999:    "#d4af37",
-  eastmoney: "#d4af37",
-  yfinance:  "#d4af37",
-  sina_au0:  "#fb923c",
+  // XAU sources
+  comex:     "#d4af37",   // gold
+  binance:   "#fb923c",   // orange
+  sina:      "#c084fc",   // violet
+  // AU sources
+  au9999:    "#34d399",   // emerald green
+  eastmoney: "#38bdf8",   // sky blue
+  // FX sources
+  yfinance:  "#fbbf24",   // amber
+  sina_au0:  "#fb923c",   // orange
 };
 
 /** Apply a price update to DOM */
@@ -241,8 +244,8 @@ function _applyPrice(symbol, data) {
   }
 
   const srcKeyMap = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" };
-  const srcSel = document.getElementById(`src-${srcKeyMap[symbol]}`);
-  const srcVal = srcSel ? srcSel.value : "";
+  const sel = document.getElementById(`src-${srcKeyMap[symbol]}`);
+  const srcVal = sel ? sel.value : "";
   const srcColor = PRICE_SOURCE_COLORS[srcVal] || "#d4af37";
   priceEl.setAttribute("data-source", srcVal);
   priceEl.style.color = srcColor;
@@ -323,14 +326,13 @@ function flashCardSource(symbol) {
   tag.textContent = srcName;
   card.appendChild(tag);
 
-  // After 1.2s animation: update source, fetch new data, apply it
+  // Immediately update source + fetch new data; keep tag visible for 1.2s as animation
+  const srcKey = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" }[symbol];
+  if (srcKey) polling.setSource(srcKey, srcVal);
+
   setTimeout(() => {
     card.classList.remove("price-card--switched");
     if (tag.parentNode) tag.remove();
-
-    // Update source (triggers fetch via polling's setSource)
-    const srcKey = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" }[symbol];
-    if (srcKey) polling.setSource(srcKey, srcVal);
   }, 1200);
 }
 
@@ -365,19 +367,24 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (selXau) {
     selXau.value = polling.getSource("xauChart");
     selXau.addEventListener("change", async () => {
+      // Block polling from interfering while switch is in progress
+      chart._switchingChart = "xau";
       polling._switchingChart = "xau";
-      await chart.switchXauSource(selXau.value);
       polling.setSource("xauChart", selXau.value);
-      polling._switchingChart = null;
+      await chart.switchXauSource(selXau.value);
+      polling._switchingChart = undefined;
+      chart._switchingChart = undefined;
     });
   }
   if (selAu) {
     selAu.value = polling.getSource("auChart");
     selAu.addEventListener("change", async () => {
-      polling._switchingChart = "au"; // signal _pollChartOne to skip its own fetch
-      await chart.switchAuSource(selAu.value);
+      chart._switchingChart = "au";
+      polling._switchingChart = "au";
       polling.setSource("auChart", selAu.value);
-      polling._switchingChart = null;
+      await chart.switchAuSource(selAu.value);
+      polling._switchingChart = undefined;
+      chart._switchingChart = undefined;
     });
   }
 

@@ -97,6 +97,11 @@ class GoldChart {
     this.news = [];
     this.xauSource = "comex";
     this.auSource = "au9999";
+    // Per-chart fetching flags — controls the shared loader visibility
+    this._xauFetching = false;
+    this._auFetching = false;
+    // Block polling while a switch is in progress
+    this._switchingChart = undefined;
   }
 
   setNews(news) {
@@ -108,12 +113,25 @@ class GoldChart {
   }
 
   /**
-   * Switch XAU source: clear chart → show loader → fetch → render with color flash.
+   * Show or hide chart loader — only hide when BOTH sources have finished loading.
+   */
+  _updateLoader() {
+    const loader = document.getElementById("chart-loader");
+    if (!loader) return;
+    if (this._xauFetching || this._auFetching) {
+      loader.style.display = "flex";
+      loader.querySelector('span').textContent = "加载中...";
+    } else {
+      loader.style.display = "none";
+    }
+  }
+
+  /**
+   * Switch XAU source: clear → flash → fetch → render → restore color.
+   * Loader only hidden when _xauFetching and _auFetching are both false.
    */
   async switchXauSource(source) {
-    const wasLoading = this._loadingChart;
-    this._loadingChart = true;
-    this._xauSwitchPending = true;
+    this._xauFetching = true;
     this.xauSource = source;
 
     // 1. Clear chart immediately
@@ -122,11 +140,12 @@ class GoldChart {
       this.chart.update("none");
     }
 
-    // 2. Update legend immediately
+    // 2. Update legend + show loader
     const legendXau = document.getElementById("legend-xau");
     if (legendXau) legendXau.textContent = XAU_LEGEND_MAP[source] || source;
+    this._updateLoader();
 
-    // 3. Flash bright random color on the line
+    // 3. Flash bright random color
     const flashColor = _randomFlashColor();
     if (this.chart && this.chart.data.datasets[0]) {
       const ds = this.chart.data.datasets[0];
@@ -138,23 +157,21 @@ class GoldChart {
       this.chart.update("none");
     }
 
-    // 4. Show loader
-    const loader = document.getElementById("chart-loader");
-    if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
-
-    // 5. Fetch new data (no polling interference since _xauSwitchPending = true)
+    // 4. Fetch new data
     try {
       const res = await fetch(`/api/chart/xau?source=${source}`);
       const d = await res.json();
+      this._xauFetching = false;
+
       if (!d.bars || d.bars.length === 0) {
-        if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "暂无数据"; }
-        this._xauSwitchPending = false;
-        this._loadingChart = false;
+        if (legendXau) legendXau.textContent = XAU_LEGEND_MAP[source] + " (无数据)";
+        this._updateLoader();
         return;
       }
+
       const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })));
 
-      // 6. Only render after confirmed data
+      // 5. Render after confirmed data
       const c = XAU_COLORS[source] || XAU_COLORS.comex;
       if (this.chart && this.chart.data.datasets[0]) {
         this.chart.data.datasets[0].data = pts;
@@ -168,32 +185,31 @@ class GoldChart {
         this.chart.update("none");
         this._updateNowLine();
       }
-      if (loader) loader.style.display = "none";
-    } catch (e) {
-      if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载失败"; }
-    }
 
-    this._xauSwitchPending = false;
-    this._loadingChart = false;
+      this._updateLoader();
+    } catch (e) {
+      this._xauFetching = false;
+      this._updateLoader();
+    }
   }
 
   /**
-   * Switch AU source: clear chart → show loader → fetch → render with color flash.
+   * Switch AU source: clear → flash → fetch → render → restore color.
    */
   async switchAuSource(source) {
-    this._loadingChart = true;
-    this._auSwitchPending = true;
+    this._auFetching = true;
     this.auSource = source;
 
-    // 1. Clear chart
+    // 1. Clear chart immediately
     if (this.chart && this.chart.data.datasets[1]) {
       this.chart.data.datasets[1].data = [];
       this.chart.update("none");
     }
 
-    // 2. Update legend
+    // 2. Update legend + show loader
     const legendAu = document.getElementById("legend-au");
     if (legendAu) legendAu.textContent = source === "sina_au0" ? "沪金 AU0 (Sina)" : "AU9999";
+    this._updateLoader();
 
     // 3. Flash bright random color
     const flashColor = _randomFlashColor();
@@ -207,23 +223,21 @@ class GoldChart {
       this.chart.update("none");
     }
 
-    // 4. Show loader
-    const loader = document.getElementById("chart-loader");
-    if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
-
-    // 5. Fetch new data
+    // 4. Fetch new data
     try {
       const res = await fetch(`/api/chart/au?source=${source}`);
       const d = await res.json();
+      this._auFetching = false;
+
       if (!d.bars || d.bars.length === 0) {
-        if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "暂无数据"; }
-        this._auSwitchPending = false;
-        this._loadingChart = false;
+        if (legendAu) legendAu.textContent = (source === "sina_au0" ? "沪金 AU0" : "AU9999") + " (无数据)";
+        this._updateLoader();
         return;
       }
+
       const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })));
 
-      // 6. Only render after confirmed data
+      // 5. Render after confirmed data
       const c = AU_COLORS[source] || AU_COLORS.au9999;
       if (this.chart && this.chart.data.datasets[1]) {
         this.chart.data.datasets[1].data = pts;
@@ -235,13 +249,12 @@ class GoldChart {
         this._updateScales(1);
         this.chart.update("none");
       }
-      if (loader) loader.style.display = "none";
-    } catch (e) {
-      if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载失败"; }
-    }
 
-    this._auSwitchPending = false;
-    this._loadingChart = false;
+      this._updateLoader();
+    } catch (e) {
+      this._auFetching = false;
+      this._updateLoader();
+    }
   }
 
   warmup() {

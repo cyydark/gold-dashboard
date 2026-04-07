@@ -20,10 +20,11 @@ export class PollingManager {
     this._sources = {
       xau:      localStorage.getItem("source_xau")        || "comex",
       au:       localStorage.getItem("source_au")         || "au9999",
-      fx:       localStorage.getItem("source_fx")         || "yfinance",
+      fx:       localStorage.getItem("source_fx")           || "yfinance",
       xauChart: localStorage.getItem("source_xauChart")   || "binance",
-      auChart:  localStorage.getItem("source_auChart")   || "sina_au0",
+      auChart:  localStorage.getItem("source_auChart")    || "sina_au0",
     };
+    this._switchingChart = undefined; // chart._switchingChart: null = idle, "xau"/"au" = switching
   }
 
   // ── Event callbacks ────────────────────────────────────────────────
@@ -110,8 +111,9 @@ export class PollingManager {
     const urlMap  = { xau: `/api/chart/xau?source=${this._sources.xauChart}`, au: `/api/chart/au?source=${this._sources.auChart}` };
     const url = urlMap[which];
     if (!url) return;
-    // Skip fetch if switchAuSource is already handling it
-    if (this._switchingChart === which) return;
+    // If a switch is in progress, switchXauSource/switchAuSource already fetched + rendered;
+    // skip the entire fetch to avoid a duplicate request.
+    if (this._switchingChart) return;
     try {
       const r = await fetch(url);
       const d = await r.json();
