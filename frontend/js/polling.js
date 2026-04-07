@@ -15,6 +15,7 @@ export class PollingManager {
     this._onPriceUpdate = null;
     this._onChartUpdate = null;
     this._onNewsUpdate = null;
+    this._switchingChart = null; // when set, _pollChartOne skips its own fetch
     // Source defaults (权威性排序第一个)
     this._sources = {
       xau:      localStorage.getItem("source_xau")        || "comex",
@@ -109,6 +110,8 @@ export class PollingManager {
     const urlMap  = { xau: `/api/chart/xau?source=${this._sources.xauChart}`, au: `/api/chart/au?source=${this._sources.auChart}` };
     const url = urlMap[which];
     if (!url) return;
+    // Skip fetch if switchAuSource is already handling it
+    if (this._switchingChart === which) return;
     try {
       const r = await fetch(url);
       const d = await r.json();
@@ -157,6 +160,8 @@ export class PollingManager {
   }
 
   async _pollChart() {
+    // Skip if a switch is in progress — switchXauSource/switchAuSource handles the fetch
+    if (this._switchingChart) return;
     const [xau, au] = await Promise.allSettled([
       fetch(`/api/chart/xau?source=${this._sources.xauChart}`).then(r => r.json()),
       fetch(`/api/chart/au?source=${this._sources.auChart}`).then(r => r.json()),

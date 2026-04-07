@@ -225,10 +225,7 @@ const PRICE_SOURCE_COLORS = {
   sina_au0:  "#fb923c",
 };
 
-/** Per-symbol blocking state: while non-null, price updates are deferred */
-const _blocked = {};
-
-/** Apply a deferred price update now */
+/** Apply a price update to DOM */
 function _applyPrice(symbol, data) {
   const priceEl = document.getElementById(`price-${symbol}`);
   const changeEl = document.getElementById(`change-${symbol}`);
@@ -278,7 +275,7 @@ function _applyPrice(symbol, data) {
   }
 }
 
-/** Update a price card — deferred while source-switch animation is playing */
+/** Update a price card */
 function updatePriceCard(symbol, data) {
   if (!data) return;
 
@@ -289,21 +286,15 @@ function updatePriceCard(symbol, data) {
     cardEl.style.display = 'block';
   }
 
-  // If blocked (source switch in progress), buffer the data
-  if (_blocked[symbol]) {
-    _blocked[symbol] = data;
-    return;
-  }
-
   _applyPrice(symbol, data);
 }
 
-/** Flash a card on source switch: gold ring + source tag + block price updates 1.2s */
+/** Flash card and defer source change: color + tag immediately, source + fetch after 1.2s */
 function flashCardSource(symbol) {
   const card = document.getElementById(`card-${symbol}`);
   if (!card) return;
 
-  const selMap    = { XAUUSD: "src-xau", AU9999: "src-au", USDCNY: "src-fx" };
+  const selMap  = { XAUUSD: "src-xau", AU9999: "src-au", USDCNY: "src-fx" };
   const sel = document.getElementById(selMap[symbol]);
   const srcVal = sel ? sel.value : "";
   const srcColor = PRICE_SOURCE_COLORS[srcVal] || "#d4af37";
@@ -313,64 +304,53 @@ function flashCardSource(symbol) {
   const oldTag = card.querySelector(".price-card__source-tag");
   if (oldTag) oldTag.remove();
 
-  // Restart card ring flash animation
+  // Card ring flash
   card.classList.remove("price-card--switched");
   void card.offsetWidth;
   card.classList.add("price-card--switched");
 
-  // Immediately apply source color to price number (no data change yet)
+  // Immediately apply source-specific color to price number
   if (priceEl) {
     priceEl.style.color = srcColor;
     priceEl.style.textShadow = "";
+    priceEl.setAttribute("data-source", srcVal);
   }
 
-  // Show source tag badge
+  // Source tag badge
   const srcName = sel ? sel.options[sel.selectedIndex].text : "";
   const tag = document.createElement("span");
   tag.className = "price-card__source-tag";
   tag.textContent = srcName;
   card.appendChild(tag);
 
-  // Block price updates for 1.2s (match CSS animation duration)
-  _blocked[symbol] = null;
+  // After 1.2s animation: update source, fetch new data, apply it
   setTimeout(() => {
     card.classList.remove("price-card--switched");
     if (tag.parentNode) tag.remove();
-    // Unblock and apply any pending data that arrived during animation
-    const pending = _blocked[symbol];
-    _blocked[symbol] = null;
-    if (pending && priceEl) {
-      _applyPrice(symbol, pending);
-    }
+
+    // Update source (triggers fetch via polling's setSource)
+    const srcKey = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" }[symbol];
+    if (srcKey) polling.setSource(srcKey, srcVal);
   }, 1200);
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-  // Wire up card source selectors — only trigger visual flash,
-  // polling will naturally use the new source on next tick
+  // Wire up card source selectors — flashCardSource handles
+  // the color immediately and triggers fetch after 1.2s animation
   const srcXau = document.getElementById("src-xau");
   const srcAu = document.getElementById("src-au");
   const srcFx = document.getElementById("src-fx");
   if (srcXau) {
     srcXau.value = polling.getSource("xau");
-    srcXau.addEventListener("change", () => {
-      polling.setSource("xau", srcXau.value); // update source + save to localStorage
-      flashCardSource("XAUUSD");              // block price update 1.2s
-    });
+    srcXau.addEventListener("change", () => flashCardSource("XAUUSD"));
   }
   if (srcAu) {
     srcAu.value = polling.getSource("au");
-    srcAu.addEventListener("change", () => {
-      polling.setSource("au", srcAu.value);
-      flashCardSource("AU9999");
-    });
+    srcAu.addEventListener("change", () => flashCardSource("AU9999"));
   }
   if (srcFx) {
     srcFx.value = polling.getSource("fx");
-    srcFx.addEventListener("change", () => {
-      polling.setSource("fx", srcFx.value);
-      flashCardSource("USDCNY");
-    });
+    srcFx.addEventListener("change", () => flashCardSource("USDCNY"));
   }
 
   chart = new GoldChart();
@@ -385,15 +365,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (selXau) {
     selXau.value = polling.getSource("xauChart");
     selXau.addEventListener("change", async () => {
+      polling._switchingChart = "xau";
       await chart.switchXauSource(selXau.value);
       polling.setSource("xauChart", selXau.value);
+      polling._switchingChart = null;
     });
   }
   if (selAu) {
     selAu.value = polling.getSource("auChart");
     selAu.addEventListener("change", async () => {
+      polling._switchingChart = "au"; // signal _pollChartOne to skip its own fetch
       await chart.switchAuSource(selAu.value);
       polling.setSource("auChart", selAu.value);
+      polling._switchingChart = null;
     });
   }
 
