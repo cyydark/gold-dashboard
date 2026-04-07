@@ -9,14 +9,10 @@ import html
 import logging
 import re
 import time
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from typing import Set
 
 import httpx
-
-from backend.data.sources.news_evaluation import _sync_save_processed_news
 
 logger = logging.getLogger(__name__)
 
@@ -38,29 +34,6 @@ GOLD_KEYWORDS = [
     # 贵金属关联词
     "白银", "贵金属",
 ]
-
-
-def _sync_save_news(items: list[dict], hour_range: str = ""):
-    """Save news items to DB synchronously with AI evaluation."""
-    _sync_save_processed_news(items, hour_range)
-
-
-def fetch_and_save_news(hour_range: str = "") -> concurrent.futures.Future:
-    """Fetch gold news and save to DB synchronously.
-
-    Returns a Future whose result is the saved news list.
-    Caller can call future.result() to wait for completion.
-    """
-    global _save_done_event
-
-    def _do():
-        items = fetch_futu_news()
-        if items:
-            _sync_save_news(items, hour_range)
-        return items
-
-    _save_done_event = ThreadPoolExecutor(max_workers=1).submit(_do)
-    return _save_done_event
 
 
 def _is_gold_news(title: str, content: str = "") -> bool:

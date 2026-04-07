@@ -8,12 +8,11 @@ from datetime import datetime, timezone, timedelta
 import httpx
 from bs4 import BeautifulSoup
 
-from backend.data.sources.news_evaluation import _sync_save_processed_news
-
 logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 _TTL = 300  # 5 minutes
+_MAX_PAGES = 200  # pagination cap
 _cache: list[dict] = []
 _cache_ts: float = 0.0
 
@@ -42,11 +41,6 @@ def _parse_dt(dt_str: str) -> datetime:
         return datetime.strptime(dt_str.strip(), "%Y/%m/%d %H:%M").replace(tzinfo=BEIJING_TZ)
     except ValueError:
         return datetime.now(BEIJING_TZ)
-
-
-def _sync_save_news(items: list[dict], hour_range: str = ""):
-    """Save news items to DB synchronously with AI evaluation."""
-    _sync_save_processed_news(items, hour_range)
 
 
 def _fetch_initial_page() -> tuple[list[dict], str, str]:
@@ -163,7 +157,7 @@ def fetch_aastocks_news() -> list[dict]:
             all_items.append(item)
 
     # Step 2: Cursor-based pagination via getmorenews.ashx
-    for _ in range(200):
+    for _ in range(_MAX_PAGES):
         if not last_id:
             break
         more_items, last_id, last_time = _fetch_more_news(last_id, last_time)

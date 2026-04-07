@@ -20,11 +20,11 @@ _LIST_URL = (
     "?fltt=2&invt=2"
     "&fields=f2,f3,f4,f17,f18&secids=118.AU9999"
 )
+# Eastmoney public API token (公开标识，非个人密钥)
+_EASTMONEY_UT = "fa5fd1943c7b386f172d6893dbfba10b"
 _STOCK_URL = (
     "https://push2.eastmoney.com/api/qt/stock/get"
-    "?secid=118.AU9999"
-    "&fields=f43,f44,f45,f46"
-    "&ut=fa5fd1943c7b386f172d6893dbfba10b"
+    f"?secid=118.AU9999&fields=f43,f44,f45,f46&ut={_EASTMONEY_UT}"
 )
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "

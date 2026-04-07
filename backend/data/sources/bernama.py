@@ -7,8 +7,6 @@ from datetime import datetime, timezone, timedelta
 
 import httpx
 
-from backend.data.sources.news_evaluation import _sync_save_processed_news
-
 logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
@@ -44,11 +42,6 @@ def _parse_absolute_date(text: str, default: datetime) -> datetime:
         return dt.replace(tzinfo=BEIJING_TZ)
     except ValueError:
         return default
-
-
-def _sync_save_news(items: list[dict], hour_range: str = ""):
-    """Save news items to DB synchronously with AI evaluation."""
-    _sync_save_processed_news(items, hour_range)
 
 
 def fetch_bernama_gold_news() -> list[dict]:

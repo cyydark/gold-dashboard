@@ -13,16 +13,6 @@ class BriefingGenerationError(Exception):
 
     pass
 
-PROMPT_TEMPLATE = """你是一位专业、客观的黄金市场分析师。以下是近1小时内与金市相关的新闻。
-
-要求：
-- 将该小时所有新闻汇总为一条判断，格式：「📈利多/📉利空/➖中性」+ 一句话原因
-- 篇幅不超过40字，直接输出，无需标题和分节
-
-新闻列表：
-{news_list}
-"""
-
 DAILY_PROMPT_TEMPLATE = """你是一位专业黄金市场分析师。基于最新资讯提供的{news_count}条相关新闻，请评估当前金价走势。
 
 评估原则：
@@ -67,15 +57,6 @@ def _build_news_list(news: list[dict]) -> str:
             continue
         lines.append(title)
     return "\n".join(lines)
-
-
-async def generate_briefing_from_news(news: list[dict], hour_range: str) -> str:
-    """Generate hourly briefing text from news using Claude CLI."""
-    if not news:
-        return "暂无足够新闻数据生成简报。"
-    news_list = _build_news_list(news)
-    prompt = PROMPT_TEMPLATE.format(news_list=news_list)
-    return call_claude_cli(prompt)
 
 
 async def generate_daily_briefing_from_news(news: list[dict], date_str: str) -> str:
