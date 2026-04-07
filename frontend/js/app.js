@@ -227,7 +227,6 @@ async function reloadChart() {
 
   chart.xauSource = xau;
   chart.auSource = au;
-  // Polling callbacks (loadXauFromCache/loadAuFromCache) will update chart when new data arrives
   await polling.setSource("xauChart", xau);
   await polling.setSource("auChart", au);
 }
@@ -261,17 +260,11 @@ window.addEventListener("DOMContentLoaded", async () => {
   const selAu = document.getElementById("sel-au");
   if (selXau) {
     selXau.value = polling.getSource("xauChart");
-    selXau.addEventListener("change", () => {
-      localStorage.setItem("source_xauChart", selXau.value);
-      reloadChart();
-    });
+    selXau.addEventListener("change", reloadChart);
   }
   if (selAu) {
     selAu.value = polling.getSource("auChart");
-    selAu.addEventListener("change", () => {
-      localStorage.setItem("source_auChart", selAu.value);
-      reloadChart();
-    });
+    selAu.addEventListener("change", reloadChart);
   }
 
   // Plug PollingManager into app
