@@ -9,9 +9,9 @@
 
 | 类型 | 用途 | 数据源 |
 |------|------|--------|
-| 新闻 | 最新资讯列表 | BERNAMA、富途牛牛、AASTOCKS |
-| 国内金价 | AU9999 实时 + K线 | Sina (实时) / Eastmoney (K线) |
-| 国际金价 | XAU/USD 实时 + K线 | Sina (实时+伦敦金) / Eastmoney (COMEX) |
+| 新闻 | 最新资讯列表 | BERNAMA、富途牛牛、AASTOCKS、CNBC |
+| 国内金价 | AU9999 实时 + K线 | Sina (AU9999 实时) / Eastmoney (K线) |
+| 国际金价 | XAU/USD 实时 + K线 | Sina (实时+伦敦金) / Eastmoney (COMEX) / Binance |
 | 汇率 | USDCNY 实时 + K线 | Sina / Yahoo Finance |
 
 ---
@@ -99,14 +99,47 @@
 
 ---
 
+### 4. CNBC
+
+**文件**：`backend/data/sources/cnbc.py`
+
+**来源**：CNBC Commodities RSS JSON API
+`https://search.cnbc.com/rs/search/combinedcms/view.json?partnerId=wrss01&id=10000664`
+
+**数据格式**：
+```python
+{
+    "title": str,        # 英文标题
+    "title_en": str,     # 同上
+    "url": str,          # 原始链接
+    "source": str,       # "CNBC"
+    "published_ts": int, # Unix UTC 时间戳
+    "published": str,    # "YYYY-MM-DD"
+}
+```
+
+**特点**：
+- 英文新闻为主
+- 关键词过滤：gold, XAU, silver, bullion 等
+- 排除噪音关键词（bitcoin, cryptocurrency 等）
+- TTL：5 分钟
+
+---
+
 ## 价格数据源
 
 ### 4. 国内金价 — AU9999
 
-**实时**：`backend/data/sources/sina_au9999.py`
+**实时（Sina）**：`backend/data/sources/sina_au9999.py`
 - 源：`hq.sinajs.cn`（symbol `gds_AU9999`）
 - 品种：沪金 AU9999（SGE）
 - 单位：CNY/g
+
+**实时（Eastmoney）**：`backend/data/sources/eastmoney_au9999_price.py`
+- 源：`push2.eastmoney.com`（secid `118.AU9999`）
+- 品种：沪金 AU9999（SGE）
+- 单位：CNY/g
+- 涨跌额基于本地缓存计算
 
 **K线**：`backend/data/sources/eastmoney_au9999.py`
 - 源：`push2his.eastmoney.com`（secid `118.AU9999`）

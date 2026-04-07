@@ -45,6 +45,7 @@ def _fetch_news_from_sources() -> list:
         _fetch_bernama,
         _fetch_futu,
         _fetch_aastocks,
+        _fetch_cnbc,
     ]
     for fn in fetchers:
         try:
@@ -76,5 +77,13 @@ def _fetch_aastocks() -> list:
     try:
         from backend.data.sources.aastocks import fetch_aastocks_news
         return fetch_aastocks_news()
+    except Exception:
+        return []
+
+
+def _fetch_cnbc() -> list:
+    try:
+        from backend.data.sources.cnbc import fetch_cnbc_news
+        return fetch_cnbc_news()
     except Exception:
         return []

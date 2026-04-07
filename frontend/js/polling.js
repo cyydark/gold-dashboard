@@ -10,14 +10,13 @@ export class PollingManager {
     this._onPriceUpdate = null;
     this._onChartUpdate = null;
     this._onNewsUpdate = null;
-
     // Source defaults (权威性排序第一个)
     this._sources = {
-      xau:      localStorage.getItem("source_xau")       || "comex",
-      au:       localStorage.getItem("source_au")        || "au9999",
-      fx:       localStorage.getItem("source_fx")        || "yfinance",
-      xauChart: localStorage.getItem("source_xau_chart") || "comex",
-      auChart:  localStorage.getItem("source_au_chart")  || "au9999",
+      xau:      localStorage.getItem("source_xau")        || "comex",
+      au:       localStorage.getItem("source_au")         || "au9999",
+      fx:       localStorage.getItem("source_fx")         || "yfinance",
+      xauChart: localStorage.getItem("source_xauChart")   || "comex",
+      auChart:  localStorage.getItem("source_auChart")   || "au9999",
     };
   }
 
@@ -38,7 +37,7 @@ export class PollingManager {
       this._pollPrices();
     }
     if (key === "xauChart" || key === "auChart") {
-      this._pollChart();
+      return this._pollChart();
     }
   }
 

@@ -1,7 +1,11 @@
 """Price API routes — realtime price, chart bars, FX rates."""
+import logging
+import sys
 import time
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Query
+
+logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
@@ -16,7 +20,8 @@ _XAU_FETCHERS = {
 
 # ── AU realtime fetchers ───────────────────────────────────────────
 _AU_FETCHERS = {
-    "au9999": ("backend.data.sources.sina_au9999", "fetch_au9999_realtime"),
+    "au9999":    ("backend.data.sources.sina_au9999",        "fetch_au9999_realtime"),
+    "eastmoney": ("backend.data.sources.eastmoney_au9999_price", "fetch_au9999_realtime"),
 }
 
 # ── FX fetchers ────────────────────────────────────────────────────
@@ -51,9 +56,15 @@ def _fetch(source: str, fetchers: dict):
         return None
     mod_name, fn_name = fetchers[source]
     try:
+        # Remove from sys.modules first to ensure fresh import (bypass stale cache)
+        for key in list(sys.modules.keys()):
+            if key == mod_name or key.startswith(mod_name + "."):
+                del sys.modules[key]
         mod = __import__(mod_name, fromlist=[fn_name])
-        return getattr(mod, fn_name)()
-    except Exception:
+        fn = getattr(mod, fn_name)
+        return fn()
+    except Exception as e:
+        logger.warning(f"_fetch({source}) failed: {e}")
         return None
 
 
@@ -112,15 +123,8 @@ def get_xau_realtime(source: str):
 
 @router.get("/realtime/au/{source}")
 def get_au_realtime(source: str):
-    now_ts = int(time.time())
-    # eastmoney_au9999.fetch_au9999_realtime returns a list of Kline bars;
-    # extract the last one as the current price.
-    if source == "au9999":
-        bars = _fetch(source, _AU_BAR_FETCHERS)
-        bar = bars[-1] if isinstance(bars, list) and bars else None
-        return _build_au_resp(bar, now_ts)
     bar = _fetch(source, _AU_FETCHERS)
-    return _build_au_resp(bar, now_ts)
+    return _build_au_resp(bar, int(time.time()))
 
 
 @router.get("/realtime/fx/{source}")

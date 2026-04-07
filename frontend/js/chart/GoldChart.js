@@ -86,8 +86,16 @@ class GoldChart {
   }
 
   warmup() {
-    fetch(`/api/chart/xau?source=${this.xauSource}`).catch(() => {});
-    fetch(`/api/chart/au?source=${this.auSource}`).catch(() => {});
+    fetch(`/api/chart/xau?source=${this.xauSource}`).then(r => r.json()).then(d => {
+      if (d && d.bars && d.bars.length > 0) {
+        this._warmupXau = d;
+      }
+    }).catch(() => {});
+    fetch(`/api/chart/au?source=${this.auSource}`).then(r => r.json()).then(d => {
+      if (d && d.bars && d.bars.length > 0) {
+        this._warmupAu = d;
+      }
+    }).catch(() => {});
   }
 
   _updateNowLine() {
@@ -133,9 +141,13 @@ class GoldChart {
     const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })));
     if (this.chart && this.chart.data.datasets[0]) {
       this.chart.data.datasets[0].data = pts;
+      this.chart.data.datasets[0].label = XAU_LEGEND_MAP[this.xauSource] || "XAU";
+      this.chart.options.scales.y.title.text = XAU_LEGEND_MAP[this.xauSource] + " (USD/oz)";
       this._updateScales(0);
       this.chart.update("none");
       this._updateNowLine();
+    } else {
+      this._pendingXau = pts;
     }
   }
 
@@ -146,6 +158,8 @@ class GoldChart {
       this.chart.data.datasets[1].data = pts;
       this._updateScales(1);
       this.chart.update("none");
+    } else {
+      this._pendingAu = pts;
     }
   }
 
@@ -183,18 +197,26 @@ class GoldChart {
     if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
 
     try {
-      const [xauRes, auRes] = await Promise.all([
-        fetch(`/api/chart/xau?source=${this.xauSource}`),
-        fetch(`/api/chart/au?source=${this.auSource}`),
-      ]);
+      // Prefer warmup cache to avoid duplicate fetch
+      const warmupXau = this._warmupXau;
+      const warmupAu  = this._warmupAu;
+      this._warmupXau = null;
+      this._warmupAu  = null;
 
-      const [xauData, auData] = await Promise.all([
-        xauRes.json(),
-        auRes.json(),
-      ]);
+      let xauResp = warmupXau;
+      let auResp  = warmupAu;
 
-      const xauResp = (xauData && xauData.bars && xauData.bars.length > 0) ? xauData : null;
-      const auResp  = (auData  && auData.bars  && auData.bars.length  > 0) ? auData  : null;
+      // Fetch only if no warmup cache
+      if (!xauResp || !xauResp.bars || xauResp.bars.length === 0) {
+        const xauRes = await fetch(`/api/chart/xau?source=${this.xauSource}`);
+        const d = await xauRes.json();
+        if (d.bars && d.bars.length > 0) xauResp = d;
+      }
+      if (!auResp || !auResp.bars || auResp.bars.length === 0) {
+        const auRes = await fetch(`/api/chart/au?source=${this.auSource}`);
+        const d = await auRes.json();
+        if (d.bars && d.bars.length > 0) auResp = d;
+      }
 
       const xauPts = xauResp
         ? insertGaps(xauResp.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })))
@@ -246,6 +268,18 @@ class GoldChart {
       const yau2 = _yRange(auPts, 1);
 
       // 更新已有实例，避免 destroy→重建导致的 Y 轴不更新问题
+      // Update pending data if polling arrived before chart was ready
+      if (this._pendingXau && this.chart.data.datasets[0]) {
+        this.chart.data.datasets[0].data = this._pendingXau;
+        this._updateScales(0);
+        this._pendingXau = null;
+      }
+      if (this._pendingAu && this.chart.data.datasets[1]) {
+        this.chart.data.datasets[1].data = this._pendingAu;
+        this._updateScales(1);
+        this._pendingAu = null;
+      }
+
       if (this.chart) {
         this.chart.data.datasets = datasets;
         this.chart.options.scales.x.min = xMin;

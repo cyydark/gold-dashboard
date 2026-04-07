@@ -79,6 +79,7 @@
           <select id="src-xau" class="price-card__source" title="切换数据源">
             <option value="comex">COMEX</option>
             <option value="sina">Sina伦敦金</option>
+            <option value="binance">Binance</option>
           </select>
         </div>
         <div class="price-card__price" id="price-XAUUSD">--</div>
@@ -95,7 +96,8 @@
           <span class="price-card__symbol">🇨🇳 国内黄金 AU9999</span>
           <span class="price-card__unit">CNY/g</span>
           <select id="src-au" class="price-card__source" title="切换数据源">
-            <option value="au9999">AU9999</option>
+            <option value="au9999">AU9999 (Sina)</option>
+            <option value="eastmoney">AU9999 (Eastmoney)</option>
           </select>
         </div>
         <div class="price-card__price" id="price-AU9999">--</div>
@@ -192,7 +194,7 @@
           <label>
             国内金：
             <select id="sel-au">
-              <option value="au9999">AU9999 (东方财富)</option>
+              <option value="au9999">AU9999</option>
             </select>
           </label>
         </div>
@@ -208,7 +210,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <p>数据来源：东方财富（国际金价 / 国内金价 / 汇率）、新浪财经、Binance、Metals-API(LBMA)、OmkarCloud(CME)、AkShare（沪金期货）</p>
+      <p>数据来源：东方财富（国际金价 / 国内金价 / 汇率）、新浪财经、Binance</p>
     </footer>
 
   </div>

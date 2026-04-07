@@ -225,11 +225,11 @@ async function reloadChart() {
     legendXau.textContent = XAU_LEGEND[xau] || "COMEX GC00Y";
   }
 
-  polling.setSource("xauChart", xau);
-  polling.setSource("auChart", au);
   chart.xauSource = xau;
   chart.auSource = au;
-  await chart.load();
+  // Polling callbacks (loadXauFromCache/loadAuFromCache) will update chart when new data arrives
+  await polling.setSource("xauChart", xau);
+  await polling.setSource("auChart", au);
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -251,12 +251,28 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   chart = new GoldChart();
+  chart.xauSource = polling.getSource("xauChart");
+  chart.auSource  = polling.getSource("auChart");
+  chart.warmup();
+  await chart.load();
 
   // Chart source selectors
   const selXau = document.getElementById("sel-xau");
   const selAu = document.getElementById("sel-au");
-  if (selXau) selXau.addEventListener("change", reloadChart);
-  if (selAu) selAu.addEventListener("change", reloadChart);
+  if (selXau) {
+    selXau.value = polling.getSource("xauChart");
+    selXau.addEventListener("change", () => {
+      localStorage.setItem("source_xauChart", selXau.value);
+      reloadChart();
+    });
+  }
+  if (selAu) {
+    selAu.value = polling.getSource("auChart");
+    selAu.addEventListener("change", () => {
+      localStorage.setItem("source_auChart", selAu.value);
+      reloadChart();
+    });
+  }
 
   // Plug PollingManager into app
   polling.onPriceUpdate(onPriceUpdate);
@@ -346,6 +362,4 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  await chart.load();
-  chart.warmup();
 });
