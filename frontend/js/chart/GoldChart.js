@@ -59,6 +59,37 @@ const XAU_LEGEND_MAP = {
   sina:    "Sina 伦敦金 (hf_XAU)",
 };
 
+/** Distinct line colors per XAU source — warm gold/amber/violet palette */
+const XAU_COLORS = {
+  comex:   { normal: "#d4af37", flash: "#f0d060", bg: "rgba(212,175,55,0.10)"  },
+  binance: { normal: "#fb923c", flash: "#fdba74", bg: "rgba(251,146,60,0.10)"  },
+  sina:    { normal: "#c084fc", flash: "#d8b4fe", bg: "rgba(192,132,252,0.10)" },
+};
+
+/** Distinct line colors per AU source — cool cyan/blue/teal palette */
+const AU_COLORS = {
+  au9999:  { normal: "#22d3ee", flash: "#67e8f9", bg: "rgba(34,211,238,0.10)" },
+  sina_au0:{ normal: "#38bdf8", flash: "#7dd3fc", bg: "rgba(56,189,248,0.10)" },
+};
+
+/** Random vivid color for source-switch flash */
+const _randomFlashColor = () => {
+  const palette = [
+    "#34d399", "#22d3ee", "#a78bfa", "#f59e0b",
+    "#fb7185", "#f97316", "#e879f9", "#4ade80",
+    "#facc15", "#38bdf8",
+  ];
+  return palette[Math.floor(Math.random() * palette.length)];
+};
+
+/** Convert hex color to rgba with given alpha */
+const _hexToRgba = (hex, alpha) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
 class GoldChart {
   constructor() {
     this.chart = null;
@@ -74,6 +105,143 @@ class GoldChart {
       this.chart._goldNews = this.news;
       this.chart.update("none");
     }
+  }
+
+  /**
+   * Switch XAU source: clear chart → show loader → fetch → render with color flash.
+   */
+  async switchXauSource(source) {
+    const wasLoading = this._loadingChart;
+    this._loadingChart = true;
+    this._xauSwitchPending = true;
+    this.xauSource = source;
+
+    // 1. Clear chart immediately
+    if (this.chart && this.chart.data.datasets[0]) {
+      this.chart.data.datasets[0].data = [];
+      this.chart.update("none");
+    }
+
+    // 2. Update legend immediately
+    const legendXau = document.getElementById("legend-xau");
+    if (legendXau) legendXau.textContent = XAU_LEGEND_MAP[source] || source;
+
+    // 3. Flash bright random color on the line
+    const flashColor = _randomFlashColor();
+    if (this.chart && this.chart.data.datasets[0]) {
+      const ds = this.chart.data.datasets[0];
+      ds.borderColor = flashColor;
+      ds.backgroundColor = _hexToRgba(flashColor, 0.10);
+      ds.borderWidth = 2.5;
+      this.chart.options.scales.y.title.color = flashColor;
+      this.chart.options.scales.y.ticks.color = flashColor;
+      this.chart.update("none");
+    }
+
+    // 4. Show loader
+    const loader = document.getElementById("chart-loader");
+    if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
+
+    // 5. Fetch new data (no polling interference since _xauSwitchPending = true)
+    try {
+      const res = await fetch(`/api/chart/xau?source=${source}`);
+      const d = await res.json();
+      if (!d.bars || d.bars.length === 0) {
+        if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "暂无数据"; }
+        this._xauSwitchPending = false;
+        this._loadingChart = false;
+        return;
+      }
+      const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })));
+
+      // 6. Only render after confirmed data
+      const c = XAU_COLORS[source] || XAU_COLORS.comex;
+      if (this.chart && this.chart.data.datasets[0]) {
+        this.chart.data.datasets[0].data = pts;
+        this.chart.data.datasets[0].borderColor = c.normal;
+        this.chart.data.datasets[0].backgroundColor = c.bg;
+        this.chart.data.datasets[0].borderWidth = 1.5;
+        this.chart.options.scales.y.title.text = XAU_LEGEND_MAP[source] + " (USD/oz)";
+        this.chart.options.scales.y.title.color = c.normal;
+        this.chart.options.scales.y.ticks.color = c.normal;
+        this._updateScales(0);
+        this.chart.update("none");
+        this._updateNowLine();
+      }
+      if (loader) loader.style.display = "none";
+    } catch (e) {
+      if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载失败"; }
+    }
+
+    this._xauSwitchPending = false;
+    this._loadingChart = false;
+  }
+
+  /**
+   * Switch AU source: clear chart → show loader → fetch → render with color flash.
+   */
+  async switchAuSource(source) {
+    this._loadingChart = true;
+    this._auSwitchPending = true;
+    this.auSource = source;
+
+    // 1. Clear chart
+    if (this.chart && this.chart.data.datasets[1]) {
+      this.chart.data.datasets[1].data = [];
+      this.chart.update("none");
+    }
+
+    // 2. Update legend
+    const legendAu = document.getElementById("legend-au");
+    if (legendAu) legendAu.textContent = source === "sina_au0" ? "沪金 AU0 (Sina)" : "AU9999";
+
+    // 3. Flash bright random color
+    const flashColor = _randomFlashColor();
+    if (this.chart && this.chart.data.datasets[1]) {
+      const ds = this.chart.data.datasets[1];
+      ds.borderColor = flashColor;
+      ds.backgroundColor = _hexToRgba(flashColor, 0.10);
+      ds.borderWidth = 2.5;
+      this.chart.options.scales.y2.title.color = flashColor;
+      this.chart.options.scales.y2.ticks.color = flashColor;
+      this.chart.update("none");
+    }
+
+    // 4. Show loader
+    const loader = document.getElementById("chart-loader");
+    if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
+
+    // 5. Fetch new data
+    try {
+      const res = await fetch(`/api/chart/au?source=${source}`);
+      const d = await res.json();
+      if (!d.bars || d.bars.length === 0) {
+        if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "暂无数据"; }
+        this._auSwitchPending = false;
+        this._loadingChart = false;
+        return;
+      }
+      const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })));
+
+      // 6. Only render after confirmed data
+      const c = AU_COLORS[source] || AU_COLORS.au9999;
+      if (this.chart && this.chart.data.datasets[1]) {
+        this.chart.data.datasets[1].data = pts;
+        this.chart.data.datasets[1].borderColor = c.normal;
+        this.chart.data.datasets[1].backgroundColor = c.bg;
+        this.chart.data.datasets[1].borderWidth = 1.5;
+        this.chart.options.scales.y2.title.color = c.normal;
+        this.chart.options.scales.y2.ticks.color = c.normal;
+        this._updateScales(1);
+        this.chart.update("none");
+      }
+      if (loader) loader.style.display = "none";
+    } catch (e) {
+      if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载失败"; }
+    }
+
+    this._auSwitchPending = false;
+    this._loadingChart = false;
   }
 
   warmup() {
@@ -133,9 +301,14 @@ class GoldChart {
     if (!data || !data.bars || data.bars.length === 0) return;
     const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })));
     if (this.chart && this.chart.data.datasets[0]) {
+      const c = XAU_COLORS[this.xauSource] || XAU_COLORS.comex;
       this.chart.data.datasets[0].data = pts;
+      this.chart.data.datasets[0].borderColor = c.normal;
+      this.chart.data.datasets[0].backgroundColor = c.bg;
       this.chart.data.datasets[0].label = XAU_LEGEND_MAP[this.xauSource] || "XAU";
       this.chart.options.scales.y.title.text = XAU_LEGEND_MAP[this.xauSource] + " (USD/oz)";
+      this.chart.options.scales.y.title.color = c.normal;
+      this.chart.options.scales.y.ticks.color = c.normal;
       this._updateScales(0);
       this.chart.update("none");
       this._updateNowLine();
@@ -148,7 +321,10 @@ class GoldChart {
     if (!data || !data.bars || data.bars.length === 0) return;
     const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })));
     if (this.chart && this.chart.data.datasets[1]) {
+      const c = AU_COLORS[this.auSource] || AU_COLORS.au9999;
       this.chart.data.datasets[1].data = pts;
+      this.chart.data.datasets[1].borderColor = c.normal;
+      this.chart.data.datasets[1].backgroundColor = c.bg;
       this._updateScales(1);
       this.chart.update("none");
     } else {
@@ -238,11 +414,12 @@ class GoldChart {
 
       const datasets = [];
       if (xauPts.length > 0) {
+        const c = XAU_COLORS[this.xauSource] || XAU_COLORS.comex;
         datasets.push({
           label: XAU_LEGEND_MAP[this.xauSource] || "COMEX GC00Y",
           data: xauPts,
-          borderColor: "#22c55e",
-          backgroundColor: "rgba(34,197,94,0.08)",
+          borderColor: c.normal,
+          backgroundColor: c.bg,
           borderWidth: 1.5,
           pointRadius: 0,
           pointHoverRadius: 0,
@@ -252,11 +429,12 @@ class GoldChart {
         });
       }
       if (auPts.length > 0) {
+        const c = AU_COLORS[this.auSource] || AU_COLORS.au9999;
         datasets.push({
           label: "AU9999",
           data: auPts,
-          borderColor: "#f59e0b",
-          backgroundColor: "rgba(245,158,11,0.08)",
+          borderColor: c.normal,
+          backgroundColor: c.bg,
           borderWidth: 1.5,
           pointRadius: 0,
           pointHoverRadius: 0,
@@ -354,10 +532,10 @@ class GoldChart {
               title: {
                 display: true,
                 text: XAU_LEGEND_MAP[this.xauSource] + " (USD/oz)",
-                color: "#22c55e",
+                color: "#d4af37",
                 font: { size: 11 },
               },
-              ticks: { color: "#22c55e", callback: v => v.toFixed(2) },
+              ticks: { color: "#d4af37", callback: v => v.toFixed(2) },
               grid: { color: "#2a2d3a" },
               border: { color: "#2a2d3a" },
               min: yau ? yau[0] : undefined,
@@ -365,8 +543,8 @@ class GoldChart {
             },
             y2: {
               position: "left",
-              title: { display: true, text: "AU9999 (CNY/g)", color: "#f59e0b", font: { size: 11 } },
-              ticks: { color: "#f59e0b", callback: v => v.toFixed(2) },
+              title: { display: true, text: "AU9999 (CNY/g)", color: "#22d3ee", font: { size: 11 } },
+              ticks: { color: "#22d3ee", callback: v => v.toFixed(2) },
               grid: { drawOnChartArea: false },
               border: { color: "#2a2d3a" },
               min: yau2 ? yau2[0] : undefined,
