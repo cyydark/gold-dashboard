@@ -29,4 +29,5 @@ NEWS_SOURCES: dict[str, tuple[str, str]] = {
     "bernama":    ("backend.data.sources.bernama",       "fetch_news"),
     "bitcoinworld": ("backend.data.sources.bitcoinworld", "fetch_news"),
     "aastocks":   ("backend.data.sources.aastocks",      "fetch_news"),
+    "local_news": ("backend.data.sources.local_news",    "fetch_local_news"),
 }
