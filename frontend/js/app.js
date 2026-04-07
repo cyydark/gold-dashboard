@@ -39,57 +39,6 @@ function showToast(msg, type = "info") {
 }
 window.showToast = showToast;
 
-/** Update a price card with new data */
-function updatePriceCard(symbol, data) {
-  if (!data) return;
-
-  const skeletonEl = document.getElementById(`skeleton-${symbol}`);
-  const cardEl = document.getElementById(`card-${symbol}`);
-  if (skeletonEl && cardEl) {
-    skeletonEl.style.display = 'none';
-    cardEl.style.display = 'block';
-  }
-
-  const priceEl = document.getElementById(`price-${symbol}`);
-  const changeEl = document.getElementById(`change-${symbol}`);
-  const card = document.getElementById(`card-${symbol}`);
-  const openEl = document.getElementById(`open-${symbol}`);
-  const highEl = document.getElementById(`high-${symbol}`);
-  const lowEl = document.getElementById(`low-${symbol}`);
-  if (!priceEl) return;
-
-  if (data.error) {
-    showToast(`${symbol}：${data.error}`, "error");
-    return;
-  }
-
-  animatePriceChange(priceEl, `${data.price} ${data.unit || ""}`);
-
-  const hasChange = data.change != null && data.pct != null;
-  if (hasChange) {
-    const sign = data.change >= 0 ? "+" : "";
-    const changeText = `${sign}${data.change} (${sign}${data.pct}%)`;
-    animatePriceChange(changeEl, changeText);
-    changeEl.className = `price-card__change price-card__change--${data.change >= 0 ? "up" : "down"}`;
-    if (card) {
-      card.classList.remove("price-card--up", "price-card--down");
-      const animClass = data.change >= 0 ? "price-card--up" : "price-card--down";
-      card.classList.add(animClass);
-      setTimeout(() => card.classList.remove(animClass), 600);
-    }
-  } else {
-    changeEl.textContent = "";
-    changeEl.className = "price-card__change";
-    if (card) card.classList.remove("price-card--up", "price-card--down");
-  }
-
-  if (data.open != null && data.high != null && data.low != null) {
-    if (openEl) openEl.textContent = data.open;
-    if (highEl) highEl.textContent = data.high;
-    if (lowEl) lowEl.textContent = data.low;
-  }
-}
-
 function onPriceUpdate(data) {
   if (!data) return;
   const el = document.getElementById("last-update");
@@ -202,9 +151,43 @@ function _showBriefing(data) {
   const weeklyContent = document.getElementById("briefing-content");
   if (weeklySkeleton) weeklySkeleton.style.display = 'none';
   if (weeklyContent) weeklyContent.style.display = 'block';
-  if (weeklyEl) {
-    weeklyEl.innerHTML = `<span class="briefing__daily-text">${renderBriefing(data.weekly?.content || "")}</span>`;
+  if (!weeklyEl) return;
+
+  const weekly = data.weekly || {};
+  const crossValidation = weekly.cross_validation || "";
+  const newsAnalysis = weekly.news_analysis || "";
+
+  const parts = [];
+
+  // cross_validation is primary; news_analysis is fallback
+  if (crossValidation) {
+    parts.push(
+      `<div class="briefing__analysis-block">` +
+        `<div class="briefing__label">📊 行情验证</div>` +
+        `<div class="briefing__text">${renderBriefing(crossValidation)}</div>` +
+      `</div>`
+    );
   }
+
+  if (newsAnalysis) {
+    parts.push(
+      `<div class="briefing__analysis-block">` +
+        `<div class="briefing__label">📰 新闻分析</div>` +
+        `<div class="briefing__text">${renderBriefing(newsAnalysis)}</div>` +
+      `</div>`
+    );
+  }
+
+  if (parts.length === 0) {
+    parts.push(
+      `<div class="briefing__analysis-block">` +
+        `<div class="briefing__label">📰 新闻分析</div>` +
+        `<div class="briefing__text">暂无分析</div>` +
+      `</div>`
+    );
+  }
+
+  weeklyEl.innerHTML = parts.join("");
 }
 
 const XAU_LEGEND = {
@@ -231,22 +214,163 @@ async function reloadChart() {
   await polling.setSource("auChart", au);
 }
 
+/** Source → price number color map */
+const PRICE_SOURCE_COLORS = {
+  comex:     "#d4af37",
+  binance:   "#fb923c",
+  sina:      "#c084fc",
+  au9999:    "#d4af37",
+  eastmoney: "#d4af37",
+  yfinance:  "#d4af37",
+  sina_au0:  "#fb923c",
+};
+
+/** Per-symbol blocking state: while non-null, price updates are deferred */
+const _blocked = {};
+
+/** Apply a deferred price update now */
+function _applyPrice(symbol, data) {
+  const priceEl = document.getElementById(`price-${symbol}`);
+  const changeEl = document.getElementById(`change-${symbol}`);
+  const card = document.getElementById(`card-${symbol}`);
+  const openEl = document.getElementById(`open-${symbol}`);
+  const highEl = document.getElementById(`high-${symbol}`);
+  const lowEl = document.getElementById(`low-${symbol}`);
+  if (!priceEl) return;
+
+  if (data.error) {
+    showToast(`${symbol}：${data.error}`, "error");
+    return;
+  }
+
+  const srcKeyMap = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" };
+  const srcSel = document.getElementById(`src-${srcKeyMap[symbol]}`);
+  const srcVal = srcSel ? srcSel.value : "";
+  const srcColor = PRICE_SOURCE_COLORS[srcVal] || "#d4af37";
+  priceEl.setAttribute("data-source", srcVal);
+  priceEl.style.color = srcColor;
+  priceEl.style.textShadow = "";
+
+  animatePriceChange(priceEl, `${data.price} ${data.unit || ""}`);
+
+  const hasChange = data.change != null && data.pct != null;
+  if (hasChange) {
+    const sign = data.change >= 0 ? "+" : "";
+    const changeText = `${sign}${data.change} (${sign}${data.pct}%)`;
+    animatePriceChange(changeEl, changeText);
+    changeEl.className = `price-card__change price-card__change--${data.change >= 0 ? "up" : "down"}`;
+    if (card) {
+      card.classList.remove("price-card--up", "price-card--down");
+      const animClass = data.change >= 0 ? "price-card--up" : "price-card--down";
+      card.classList.add(animClass);
+      setTimeout(() => card.classList.remove(animClass), 600);
+    }
+  } else {
+    changeEl.textContent = "";
+    changeEl.className = "price-card__change";
+    if (card) card.classList.remove("price-card--up", "price-card--down");
+  }
+
+  if (data.open != null && data.high != null && data.low != null) {
+    if (openEl) openEl.textContent = data.open;
+    if (highEl) highEl.textContent = data.high;
+    if (lowEl) lowEl.textContent = data.low;
+  }
+}
+
+/** Update a price card — deferred while source-switch animation is playing */
+function updatePriceCard(symbol, data) {
+  if (!data) return;
+
+  const skeletonEl = document.getElementById(`skeleton-${symbol}`);
+  const cardEl = document.getElementById(`card-${symbol}`);
+  if (skeletonEl && cardEl) {
+    skeletonEl.style.display = 'none';
+    cardEl.style.display = 'block';
+  }
+
+  // If blocked (source switch in progress), buffer the data
+  if (_blocked[symbol]) {
+    _blocked[symbol] = data;
+    return;
+  }
+
+  _applyPrice(symbol, data);
+}
+
+/** Flash a card on source switch: gold ring + source tag + block price updates 1.2s */
+function flashCardSource(symbol) {
+  const card = document.getElementById(`card-${symbol}`);
+  if (!card) return;
+
+  const selMap    = { XAUUSD: "src-xau", AU9999: "src-au", USDCNY: "src-fx" };
+  const sel = document.getElementById(selMap[symbol]);
+  const srcVal = sel ? sel.value : "";
+  const srcColor = PRICE_SOURCE_COLORS[srcVal] || "#d4af37";
+  const priceEl = document.getElementById(`price-${symbol}`);
+
+  // Remove stale tag
+  const oldTag = card.querySelector(".price-card__source-tag");
+  if (oldTag) oldTag.remove();
+
+  // Restart card ring flash animation
+  card.classList.remove("price-card--switched");
+  void card.offsetWidth;
+  card.classList.add("price-card--switched");
+
+  // Immediately apply source color to price number (no data change yet)
+  if (priceEl) {
+    priceEl.style.color = srcColor;
+    priceEl.style.textShadow = "";
+  }
+
+  // Show source tag badge
+  const srcName = sel ? sel.options[sel.selectedIndex].text : "";
+  const tag = document.createElement("span");
+  tag.className = "price-card__source-tag";
+  tag.textContent = srcName;
+  card.appendChild(tag);
+
+  // Block price updates for 1.2s (match CSS animation duration)
+  _blocked[symbol] = null;
+  setTimeout(() => {
+    card.classList.remove("price-card--switched");
+    if (tag.parentNode) tag.remove();
+    // Unblock and apply any pending data that arrived during animation
+    const pending = _blocked[symbol];
+    _blocked[symbol] = null;
+    if (pending && priceEl) {
+      _applyPrice(symbol, pending);
+    }
+  }, 1200);
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
-  // Wire up card source selectors
+  // Wire up card source selectors — only trigger visual flash,
+  // polling will naturally use the new source on next tick
   const srcXau = document.getElementById("src-xau");
   const srcAu = document.getElementById("src-au");
   const srcFx = document.getElementById("src-fx");
   if (srcXau) {
     srcXau.value = polling.getSource("xau");
-    srcXau.addEventListener("change", () => polling.setSource("xau", srcXau.value));
+    srcXau.addEventListener("change", () => {
+      polling.setSource("xau", srcXau.value); // update source + save to localStorage
+      flashCardSource("XAUUSD");              // block price update 1.2s
+    });
   }
   if (srcAu) {
     srcAu.value = polling.getSource("au");
-    srcAu.addEventListener("change", () => polling.setSource("au", srcAu.value));
+    srcAu.addEventListener("change", () => {
+      polling.setSource("au", srcAu.value);
+      flashCardSource("AU9999");
+    });
   }
   if (srcFx) {
     srcFx.value = polling.getSource("fx");
-    srcFx.addEventListener("change", () => polling.setSource("fx", srcFx.value));
+    srcFx.addEventListener("change", () => {
+      polling.setSource("fx", srcFx.value);
+      flashCardSource("USDCNY");
+    });
   }
 
   chart = new GoldChart();
@@ -260,15 +384,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   const selAu = document.getElementById("sel-au");
   if (selXau) {
     selXau.value = polling.getSource("xauChart");
-    selXau.addEventListener("change", () => {
-      chart.xauSource = selXau.value;
+    selXau.addEventListener("change", async () => {
+      await chart.switchXauSource(selXau.value);
       polling.setSource("xauChart", selXau.value);
     });
   }
   if (selAu) {
     selAu.value = polling.getSource("auChart");
-    selAu.addEventListener("change", () => {
-      chart.auSource = selAu.value;
+    selAu.addEventListener("change", async () => {
+      await chart.switchAuSource(selAu.value);
       polling.setSource("auChart", selAu.value);
     });
   }
