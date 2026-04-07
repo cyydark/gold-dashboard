@@ -25,7 +25,8 @@ _REALTIME_URL = "https://hq.sinajs.cn/list=gds_AU9999"
 def fetch_au9999_realtime() -> dict | None:
     """Fetch AU9999 realtime snapshot from Sina (gds_AU9999).
 
-    Returns fields: [0]最新价 [2]开盘价 [4]最高价 [5]最低价 [10]涨跌额 [11]涨跌幅(%)
+    Fields: [0]最新价 [1]涨跌额 [2]开盘价 [3]时间... [7]昨收 [8]今结算 [9]成交量
+    注意: [10][11]不是涨跌额/涨跌幅(是成交额字段)，改用 price - [7]昨收 计算。
     """
     try:
         resp = requests.get(
@@ -36,7 +37,6 @@ def fetch_au9999_realtime() -> dict | None:
         resp.raise_for_status()
         text = resp.text.strip()
 
-        # Parse: var hq_str_gds_AU9999="1034.00,0,1034.00,1034.50,1042.00,1020.00,15:29:49,1027.50,1022.00,425104,43.00,1.00,2026-04-03,沪金99";
         m = re.search(r'hq_str_gds_AU9999="([^"]+)"', text)
         if not m:
             logger.warning(f"Sina AU9999 realtime: pattern mismatch, text={text[:100]}")
@@ -47,13 +47,18 @@ def fetch_au9999_realtime() -> dict | None:
             logger.warning(f"Sina AU9999 realtime: unexpected field count {len(fields)}")
             return None
 
+        price = float(fields[0])
+        prev = float(fields[7])  # 昨收
+        change = round(price - prev, 2) if prev > 0 else 0.0
+        pct = round((price - prev) / prev * 100, 4) if prev > 0 else 0.0
+
         return {
-            "price":  float(fields[0]),
+            "price":  price,
             "open":   float(fields[2]),
             "high":   float(fields[4]),
             "low":    float(fields[5]),
-            "change": float(fields[10]),
-            "pct":    float(fields[11]),
+            "change": change,
+            "pct":    pct,
         }
     except Exception as e:
         logger.warning(f"Sina AU9999 realtime error: {e}")

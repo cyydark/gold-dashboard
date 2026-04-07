@@ -113,7 +113,7 @@ def fetch_xauusd_realtime() -> dict | None:
     """Fetch XAU realtime snapshot from Sina Finance.
 
     Returns current price, change, pct, open, high, low.
-    change/pct = (price - settlement) / settlement
+    change/pct = (price - prev_close) / prev_close, using field[7] (昨收).
     """
     try:
         resp = requests.get(_REALTIME_URL, headers=_HEADERS, timeout=10)
@@ -133,14 +133,14 @@ def fetch_xauusd_realtime() -> dict | None:
 
         price = float(fields[0])      # f0: 当前价
         # f1: 昨收, f2: 开盘, f3: 买价, f4: 最高, f5: 最低
-        # f6: 时间, f7: 昨结算, f8: 今结算
+        # f6: 时间, f7: 昨收, f8: 今结算
         open_px = float(fields[2])
         high_px = float(fields[4])
         low_px = float(fields[5])
-        settlement = float(fields[8])  # f8: 今结算
+        prev_close = float(fields[7])  # f7: 昨收
 
-        change = round(price - settlement, 2)
-        pct = round((price - settlement) / settlement * 100, 4) if settlement else 0.0
+        change = round(price - prev_close, 2)
+        pct = round((price - prev_close) / prev_close * 100, 4) if prev_close else 0.0
 
         return {
             "price": price,
