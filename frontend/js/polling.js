@@ -3,6 +3,10 @@
  * Three independent polling channels: card-prices, chart-bars, news.
  * Each channel polls at its own interval and persists source choices.
  */
+const POLL_INTERVAL_PRICES = 10000;   // 10s
+const POLL_INTERVAL_CHART  = 30000;   // 30s
+const POLL_INTERVAL_NEWS  = 30 * 60 * 1000;  // 30min
+
 export class PollingManager {
   constructor() {
     this._timers = {};
@@ -16,8 +20,8 @@ export class PollingManager {
       xau:      localStorage.getItem("source_xau")        || "comex",
       au:       localStorage.getItem("source_au")         || "au9999",
       fx:       localStorage.getItem("source_fx")         || "yfinance",
-      xauChart: localStorage.getItem("source_xauChart")   || "comex",
-      auChart:  localStorage.getItem("source_auChart")   || "au9999",
+      xauChart: localStorage.getItem("source_xauChart")   || "binance",
+      auChart:  localStorage.getItem("source_auChart")   || "sina_au0",
     };
   }
 
@@ -52,13 +56,13 @@ export class PollingManager {
     if (this._timers[channel]) return;
     if (channel === "prices") {
       this._pollPrices();
-      this._timers.prices = setInterval(() => this._pollPrices(), 10000);
+      this._timers.prices = setInterval(() => this._pollPrices(), POLL_INTERVAL_PRICES);
     } else if (channel === "chart") {
       this._pollChart();
-      this._timers.chart = setInterval(() => this._pollChart(), 30000);
+      this._timers.chart = setInterval(() => this._pollChart(), POLL_INTERVAL_CHART);
     } else if (channel === "news") {
       this._pollNews();
-      this._timers.news = setInterval(() => this._pollNews(), 30 * 60 * 1000);
+      this._timers.news = setInterval(() => this._pollNews(), POLL_INTERVAL_NEWS);
     }
   }
 

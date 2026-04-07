@@ -31,7 +31,6 @@ def fetch_au9999_realtime() -> list[dict] | None:
     """
     today_str = date.today().strftime("%Y%m%d")
 
-    # Get prev_close for daily change
     prev_close = 0.0
     try:
         rt_resp = requests.get(
@@ -47,7 +46,6 @@ def fetch_au9999_realtime() -> list[dict] | None:
     except Exception as e:
         logger.warning(f"Eastmoney realtime error: {e}")
 
-    # Get Kline bars
     try:
         kline_resp = requests.get(
             _KLINE_URL,
@@ -62,6 +60,7 @@ def fetch_au9999_realtime() -> list[dict] | None:
             },
             headers=_HEADERS,
             timeout=10,
+            proxies={"http": None, "https": None},
         )
         kline_resp.raise_for_status()
         klines = kline_resp.json().get("data", {}).get("klines", [])

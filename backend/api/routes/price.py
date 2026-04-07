@@ -40,7 +40,8 @@ _XAU_BAR_FETCHERS = {
 }
 # eastmoney_au9999.fetch_au9999_realtime returns Kline bars — use as chart source
 _AU_BAR_FETCHERS = {
-    "au9999": ("backend.data.sources.eastmoney_au9999", "fetch_au9999_realtime"),
+    "au9999":   ("backend.data.sources.eastmoney_au9999", "fetch_au9999_realtime"),
+    "sina_au0": ("backend.data.sources.sina_au0_1m",      "fetch_au9999_realtime"),
 }
 
 router = APIRouter(prefix="/api", tags=["price"])

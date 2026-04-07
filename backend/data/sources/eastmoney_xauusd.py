@@ -8,7 +8,7 @@
 """
 import logging
 import requests
-from datetime import date, datetime
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +30,6 @@ def fetch_xauusd_history() -> list[dict] | None:
     Returns up to 1500 bars (1-minute frequency, ~2 trading days).
     change/pct computed from yesterday's close (realtime API f44).
     """
-    today_str = date.today().strftime("%Y%m%d")
-
-    # Get prev_close for daily change
-    prev_close = 0.0
     try:
         rt_resp = requests.get(
             _REALTIME_URL,
@@ -55,13 +51,14 @@ def fetch_xauusd_history() -> list[dict] | None:
                 "secid": _SECID,
                 "fields1": "f1,f2,f3,f4",
                 "fields2": "f51,f52,f53,f54,f55,f56,f57",
-                "klt": 1,
+                "klt": 5,
                 "fqt": 1,
-                "end": today_str,
+                "end": "20300101",
                 "lmt": 1500,
             },
             headers=_HEADERS,
             timeout=10,
+            proxies={"http": None, "https": None},
         )
         kline_resp.raise_for_status()
         klines = kline_resp.json().get("data", {}).get("klines", [])

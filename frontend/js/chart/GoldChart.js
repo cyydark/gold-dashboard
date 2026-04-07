@@ -68,15 +68,6 @@ class GoldChart {
     this.auSource = "au9999";
   }
 
-  setSources(xau, au) {
-    const changed = this.xauSource !== xau || this.auSource !== au;
-    this.xauSource = xau;
-    this.auSource = au;
-    if (changed) {
-      this.load();
-    }
-  }
-
   setNews(news) {
     this.news = news || [];
     if (this.chart) {
@@ -89,11 +80,13 @@ class GoldChart {
     fetch(`/api/chart/xau?source=${this.xauSource}`).then(r => r.json()).then(d => {
       if (d && d.bars && d.bars.length > 0) {
         this._warmupXau = d;
+        this.loadXauFromCache(d);
       }
     }).catch(() => {});
     fetch(`/api/chart/au?source=${this.auSource}`).then(r => r.json()).then(d => {
       if (d && d.bars && d.bars.length > 0) {
         this._warmupAu = d;
+        this.loadAuFromCache(d);
       }
     }).catch(() => {});
   }
@@ -197,6 +190,9 @@ class GoldChart {
     if (loader) { loader.style.display = "flex"; loader.querySelector('span').textContent = "加载中..."; }
 
     try {
+      // Clear any warmup-pending data — load() has fresh fetch data, warmup is stale
+      this._pendingXau = null;
+      this._pendingAu  = null;
       // Prefer warmup cache to avoid duplicate fetch
       const warmupXau = this._warmupXau;
       const warmupAu  = this._warmupAu;
@@ -206,16 +202,24 @@ class GoldChart {
       let xauResp = warmupXau;
       let auResp  = warmupAu;
 
-      // Fetch only if no warmup cache
+      // Fetch each independently — one failure should not block the other
       if (!xauResp || !xauResp.bars || xauResp.bars.length === 0) {
-        const xauRes = await fetch(`/api/chart/xau?source=${this.xauSource}`);
-        const d = await xauRes.json();
-        if (d.bars && d.bars.length > 0) xauResp = d;
+        try {
+          const xauRes = await fetch(`/api/chart/xau?source=${this.xauSource}`);
+          const d = await xauRes.json();
+          if (d.bars && d.bars.length > 0) xauResp = d;
+        } catch (e) {
+          console.warn("XAU chart fetch failed:", e.message);
+        }
       }
       if (!auResp || !auResp.bars || auResp.bars.length === 0) {
-        const auRes = await fetch(`/api/chart/au?source=${this.auSource}`);
-        const d = await auRes.json();
-        if (d.bars && d.bars.length > 0) auResp = d;
+        try {
+          const auRes = await fetch(`/api/chart/au?source=${this.auSource}`);
+          const d = await auRes.json();
+          if (d.bars && d.bars.length > 0) auResp = d;
+        } catch (e) {
+          console.warn("AU chart fetch failed:", e.message);
+        }
       }
 
       const xauPts = xauResp
@@ -228,6 +232,7 @@ class GoldChart {
       if (xauPts.length === 0 && auPts.length === 0) {
         if (loader) { loader.querySelector('span').textContent = "暂无数据"; }
         this.loading = false;
+        if (loader) loader.style.display = "none";
         return;
       }
 
@@ -267,17 +272,18 @@ class GoldChart {
       const yau  = _yRange(xauPts, 10);
       const yau2 = _yRange(auPts, 1);
 
-      // 更新已有实例，避免 destroy→重建导致的 Y 轴不更新问题
-      // Update pending data if polling arrived before chart was ready
-      if (this._pendingXau && this.chart.data.datasets[0]) {
-        this.chart.data.datasets[0].data = this._pendingXau;
-        this._updateScales(0);
-        this._pendingXau = null;
-      }
-      if (this._pendingAu && this.chart.data.datasets[1]) {
-        this.chart.data.datasets[1].data = this._pendingAu;
-        this._updateScales(1);
-        this._pendingAu = null;
+      // Update pending data only after chart is confirmed to exist
+      if (this.chart) {
+        if (this._pendingXau && this.chart.data.datasets[0]) {
+          this.chart.data.datasets[0].data = this._pendingXau;
+          this._updateScales(0);
+          this._pendingXau = null;
+        }
+        if (this._pendingAu && this.chart.data.datasets[1]) {
+          this.chart.data.datasets[1].data = this._pendingAu;
+          this._updateScales(1);
+          this._pendingAu = null;
+        }
       }
 
       if (this.chart) {
