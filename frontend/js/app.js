@@ -85,10 +85,14 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;');
 }
 
-/** Render briefing text with basic HTML escaping. */
+/** Render briefing text, converting 【】 sections to styled HTML. */
 function renderBriefing(text) {
-  return escapeHtml(text || "");
+  const escaped = escapeHtml(text || "");
+  return escaped.replace(/^【(.+?)】/gm, '<span class="section-label">【$1】</span>');
 }
+
+const CONFIDENCE_COLORS = { "高": "#d4af37", "中": "#fb923c", "低": "#9ca3af" };
+const CONFIDENCE_ICONS = { "高": "✅", "中": "⚠️", "低": "❌" };
 
 /**
  * Load news immediately (fast) + AI briefing in background (slow).
@@ -144,7 +148,7 @@ async function loadBriefings() {
   }
 }
 
-/** Show AI briefing content, hide skeleton. */
+/** Show AI briefing in three independent blocks: L3 → L2 → L1 (L1 collapsible). */
 function _showBriefing(data) {
   const weeklyEl = document.getElementById("weekly-content");
   const weeklySkeleton = document.getElementById("briefing-skeleton");
@@ -154,40 +158,60 @@ function _showBriefing(data) {
   if (!weeklyEl) return;
 
   const weekly = data.weekly || {};
-  const crossValidation = weekly.cross_validation || "";
-  const newsAnalysis = weekly.news_analysis || "";
+  const layer3 = weekly.layer3 || "";
+  const layer2 = weekly.layer2 || "";
+  const layer1 = weekly.layer1 || "";
+  const confidence = weekly.confidence || "低";
+  const confColor = CONFIDENCE_COLORS[confidence] || "#9ca3af";
+  const confIcon = CONFIDENCE_ICONS[confidence] || "❌";
 
-  const parts = [];
+  weeklyEl.innerHTML = `
+    <div class="analysis-block analysis-block--layer3" id="block-layer3">
+      <div class="analysis-block__header">
+        <span class="analysis-block__icon">🎯</span>
+        <span class="analysis-block__title">金价预期</span>
+        <span class="analysis-block__confidence" style="color:${confColor}">${confIcon} ${confidence}</span>
+      </div>
+      ${layer3
+        ? `<div class="analysis-block__body">${renderBriefing(layer3)}</div>`
+        : `<div class="analysis-block__body"><div class="state-message">正在生成...</div></div>`}
+    </div>
 
-  // cross_validation is primary; news_analysis is fallback
-  if (crossValidation) {
-    parts.push(
-      `<div class="briefing__analysis-block">` +
-        `<div class="briefing__label">📊 行情验证</div>` +
-        `<div class="briefing__text">${renderBriefing(crossValidation)}</div>` +
-      `</div>`
-    );
+    <div class="analysis-block analysis-block--layer2" id="block-layer2">
+      <div class="analysis-block__header">
+        <span class="analysis-block__icon">📊</span>
+        <span class="analysis-block__title">行情验证</span>
+      </div>
+      ${layer2
+        ? `<div class="analysis-block__body">${renderBriefing(layer2)}</div>`
+        : `<div class="analysis-block__body"><div class="state-message">正在生成...</div></div>`}
+    </div>
+
+    <div class="analysis-block analysis-block--layer1" id="block-layer1">
+      <div class="analysis-block__header analysis-block__header--toggle" id="layer1-toggle">
+        <span class="analysis-block__icon">📰</span>
+        <span class="analysis-block__title">新闻分析</span>
+        <span class="analysis-block__chevron" id="layer1-chevron">▸</span>
+      </div>
+      <div class="analysis-block__body analysis-block__body--collapsed" id="layer1-body">
+        ${layer1
+          ? renderBriefing(layer1)
+          : `<div class="state-message">暂无分析</div>`}
+      </div>
+    </div>
+  `;
+
+  // Wire up Layer 1 collapsible toggle
+  const toggle = document.getElementById("layer1-toggle");
+  const body = document.getElementById("layer1-body");
+  const chevron = document.getElementById("layer1-chevron");
+  if (toggle && body && chevron) {
+    toggle.addEventListener("click", () => {
+      const isCollapsed = body.classList.contains("analysis-block__body--collapsed");
+      body.classList.toggle("analysis-block__body--collapsed");
+      chevron.textContent = isCollapsed ? "▾" : "▸";
+    });
   }
-
-  if (newsAnalysis) {
-    parts.push(
-      `<div class="briefing__analysis-block">` +
-        `<div class="briefing__label">📰 新闻分析</div>` +
-        `<div class="briefing__text">${renderBriefing(newsAnalysis)}</div>` +
-      `</div>`
-    );
-  }
-
-  if (parts.length === 0) {
-    parts.push(
-      `<div class="briefing__analysis-block">` +
-        `<div class="briefing__label">📰 新闻分析</div>` +
-        `<div class="briefing__text">暂无分析</div>` +
-      `</div>`
-    );
-  }
-
-  weeklyEl.innerHTML = parts.join("");
 }
 
 const XAU_LEGEND = {
