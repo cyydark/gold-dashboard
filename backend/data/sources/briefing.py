@@ -300,25 +300,19 @@ async def generate_cross_validation(layer1_output: str, kline_data: list[dict]) 
 # -------------------------------------------------------------------
 
 
-def build_l1_prompt(news: list[dict], current_price: str) -> str:
+def build_l12_prompt(news: list[dict], current_price: str, kline_summary: str) -> str:
+    """L12: news analysis + kline cross-validation in one block."""
     news_list = _build_news_list(news)
     return DAILY_PROMPT_TEMPLATE.format(
         news_count=len(news),
         news_list=news_list,
         current_price=current_price,
-    )
+    ) + "\n\n【实际行情数据】\n" + kline_summary
 
 
-def build_l2_prompt(layer1_output: str, kline_summary: str) -> str:
-    return CROSS_VALIDATION_TEMPLATE.format(
-        layer1_output=layer1_output,
-        kline_summary=kline_summary,
-    )
-
-
-def build_l3_prompt(layer1_output: str, layer2_output: str) -> str:
+def build_l3_prompt(l12_output: str) -> str:
     return PRICE_FORECAST_TEMPLATE.format(
-        layer1_output=layer1_output,
-        layer2_output=layer2_output,
+        layer1_output=l12_output,
+        layer2_output="",
     )
 
