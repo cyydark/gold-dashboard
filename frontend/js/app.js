@@ -130,22 +130,19 @@ async function loadBriefings() {
       newsEl.innerHTML = '<div class="state-message">资讯加载失败</div>';
     });
 
-  // AI layers: show skeleton then progressively fill each block
+  // AI layers: sequential — each waits for the previous to finish
   _initBriefingSkeleton();
 
-  // Layer 1: fastest (no Kline), call immediately
-  _loadLayer1();
-
-  // Layer 2: call after L1 responds
-  // Layer 3: call after L2 responds
-  // Each calls the next in sequence via .then()
-  fetch("/api/briefings/layer2?days=3")
+  fetch("/api/briefings/layer1?days=3")
     .then(r => r.json())
-    .then(d => _showLayer2(d))
+    .then(d => { _loadLayer1Done(d); return d; })
+    .then(() => fetch("/api/briefings/layer2?days=3"))
+    .then(r => r.json())
+    .then(d => { _showLayer2(d); return d; })
     .then(() => fetch("/api/briefings/layer3?days=3"))
     .then(r => r.json())
     .then(d => _showLayer3(d))
-    .catch(() => {});
+    .catch(e => console.error("briefing chain error:", e));
 }
 
 /** Render initial three blocks with all showing "正在生成..." */
@@ -183,22 +180,22 @@ function _initBriefingSkeleton() {
   }
 }
 
-/** Fetch and render Layer 1 */
+/** Fetch Layer 1 (parallel-safe, returns Promise) */
 async function _loadLayer1() {
-  try {
-    const res = await fetch("/api/briefings/layer1?days=3");
-    const d = await res.json();
-    const body = document.getElementById("layer1-body");
-    if (body && d.content) {
-      body.innerHTML = renderBriefing(d.content);
-      // Auto-expand L1 once content arrives
-      body.classList.remove("analysis-block__body--collapsed");
-      const chevron = document.getElementById("layer1-chevron");
-      if (chevron) chevron.textContent = "▾";
-    }
-  } catch (e) {
-    const body = document.getElementById("layer1-body");
-    if (body) body.innerHTML = '<div class="state-message">加载失败</div>';
+  const res = await fetch("/api/briefings/layer1?days=3");
+  return res.json();
+}
+
+/** Process Layer 1 response + auto-expand the block */
+function _loadLayer1Done(d) {
+  const body = document.getElementById("layer1-body");
+  if (body && d.content) {
+    body.innerHTML = renderBriefing(d.content);
+    body.classList.remove("analysis-block__body--collapsed");
+    const chevron = document.getElementById("layer1-chevron");
+    if (chevron) chevron.textContent = "▾";
+  } else if (body) {
+    body.innerHTML = '<div class="state-message">加载失败</div>';
   }
 }
 
