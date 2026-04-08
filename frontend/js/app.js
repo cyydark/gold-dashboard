@@ -92,44 +92,9 @@ function renderBriefing(text) {
 }
 
 /**
- * Load news immediately + three AI analysis layers progressively.
- * Each layer shows as soon as its API responds (no waiting for all three).
+ * Load three AI analysis layers progressively.
  */
 async function loadBriefings() {
-  const newsEl = document.getElementById("briefing-news-list");
-  const newsCountEl = document.getElementById("news-count");
-  const newsSkeleton = document.getElementById("news-skeleton");
-  if (!newsEl) return;
-
-  // News: load immediately
-  fetch("/api/news?days=3")
-    .then(r => r.json())
-    .then(data => {
-      const news = data.news || [];
-      if (newsSkeleton) newsSkeleton.style.display = 'none';
-      if (newsEl) newsEl.style.display = 'block';
-      if (newsCountEl) newsCountEl.textContent = `${news.length}条`;
-      if (news.length === 0) {
-        newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
-      } else {
-        newsEl.innerHTML = news.map((n, index) => `
-          <a class="news-item" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
-            <div class="news-item__meta">
-              <span class="news-item__source">${escapeHtml(n.source || "")}</span>
-              <span>·</span>
-              <span title="${escapeHtml(_bjTime(n.published_ts))}">${escapeHtml(_timeAgo(n.published_ts))}</span>
-            </div>
-            <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
-          </a>`).join("");
-      }
-      if (chart) chart.setNews(news);
-    })
-    .catch(() => {
-      if (newsSkeleton) newsSkeleton.style.display = 'none';
-      if (newsEl) newsEl.style.display = 'block';
-      newsEl.innerHTML = '<div class="state-message">资讯加载失败</div>';
-    });
-
   // AI layers: sequential — each waits for the previous to finish
   _initBriefingSkeleton();
 
@@ -189,14 +154,29 @@ async function _loadLayer1() {
 /** Process Layer 1 response + auto-expand the block */
 function _loadLayer1Done(d) {
   const body = document.getElementById("layer1-body");
-  if (body && d.content) {
-    body.innerHTML = renderBriefing(d.content);
-    body.classList.remove("analysis-block__body--collapsed");
-    const chevron = document.getElementById("layer1-chevron");
-    if (chevron) chevron.textContent = "▾";
-  } else if (body) {
-    body.innerHTML = '<div class="state-message">加载失败</div>';
+  if (!body || !d.content) return;
+
+  // Render AI analysis
+  let html = `<div class="briefing__ai-content">${renderBriefing(d.content)}</div>`;
+
+  // Render source news inside L1 block so user sees what AI analyzed
+  const news = d.news || [];
+  if (news.length > 0) {
+    html += `<div class="briefing__news-ref">
+      <div class="briefing__news-ref-header">📰 原始资讯（共${news.length}条）</div>
+      ${news.slice(0, 20).map((n, i) => `
+        <div class="briefing__news-ref-item">
+          <span class="briefing__news-ref-src">${escapeHtml(n.source || "")}</span>
+          <span class="briefing__news-ref-title">${escapeHtml(n.title || n.title_en || "")}</span>
+        </div>`).join("")}
+      ${news.length > 20 ? `<div class="briefing__news-ref-more">还有${news.length - 20}条...</div>` : ""}
+    </div>`;
   }
+
+  body.innerHTML = html;
+  body.classList.remove("analysis-block__body--collapsed");
+  const chevron = document.getElementById("layer1-chevron");
+  if (chevron) chevron.textContent = "▾";
 }
 
 /** Update Layer 2 block with response data */
@@ -472,81 +452,5 @@ window.addEventListener("DOMContentLoaded", async () => {
   polling.start("prices");
   polling.start("chart");
   loadBriefings();
-  polling.start("news");
-
-  // DEBUG: refresh buttons
-  const btnNews = document.getElementById("btn-refresh-news");
-  const btnBriefing = document.getElementById("btn-refresh-briefing");
-  const debugStatus = document.getElementById("debug-status");
-
-  if (btnNews) {
-    btnNews.addEventListener("click", async () => {
-      btnNews.disabled = true;
-      btnNews.textContent = "⏳...";
-      if (debugStatus) debugStatus.textContent = "刷新资讯...";
-      try {
-        const res = await fetch("/api/news?days=3");
-        const data = await res.json();
-        const news = data.news || [];
-        const newsEl = document.getElementById("briefing-news-list");
-        const newsCountEl = document.getElementById("news-count");
-        if (newsCountEl) newsCountEl.textContent = `${news.length}条`;
-        if (newsEl) {
-          if (news.length === 0) {
-            newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
-          } else {
-            newsEl.innerHTML = news.map((n, index) => `
-              <a class="news-item" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
-                <div class="news-item__meta">
-                  <span class="news-item__source">${escapeHtml(n.source || "")}</span>
-                  <span>·</span>
-                  <span title="${escapeHtml(_bjTime(n.published_ts))}">${escapeHtml(_timeAgo(n.published_ts))}</span>
-                </div>
-                <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
-              </a>`).join("");
-          }
-        }
-        if (chart) chart.setNews(news);
-        if (debugStatus) debugStatus.textContent = "";
-        showToast(`资讯已更新，共 ${news.length} 条`, "info");
-      } catch (e) {
-        if (debugStatus) debugStatus.textContent = "";
-        showToast("刷新失败: " + e.message, "error");
-      } finally {
-        btnNews.disabled = false;
-        btnNews.textContent = "🔄 刷新资讯";
-      }
-    });
-  }
-
-  if (btnBriefing) {
-    btnBriefing.addEventListener("click", async () => {
-      const weeklySkeleton = document.getElementById("briefing-skeleton");
-      const weeklyContent = document.getElementById("briefing-content");
-      const weeklyEl = document.getElementById("weekly-content");
-      btnBriefing.disabled = true;
-      btnBriefing.textContent = "⏳...";
-      if (debugStatus) debugStatus.textContent = "生成中...";
-      if (weeklyContent) weeklyContent.style.display = 'none';
-      if (weeklySkeleton) weeklySkeleton.style.display = 'block';
-      if (weeklyEl) weeklyEl.innerHTML = '';
-      try {
-        const res = await fetch("/api/briefings/briefing/refresh?days=3", { method: "POST" });
-        const data = await res.json();
-        _showBriefing(data);
-        if (debugStatus) debugStatus.textContent = "";
-        showToast("AI 分析已更新", "info");
-      } catch (e) {
-        if (weeklySkeleton) weeklySkeleton.style.display = 'none';
-        if (weeklyContent) weeklyContent.style.display = 'block';
-        if (weeklyEl) weeklyEl.innerHTML = '<div class="state-message">生成失败</div>';
-        if (debugStatus) debugStatus.textContent = "";
-        showToast("AI 分析生成失败: " + e.message, "error");
-      } finally {
-        btnBriefing.disabled = false;
-        btnBriefing.textContent = "🧠 刷新AI分析";
-      }
-    });
-  }
 
 });

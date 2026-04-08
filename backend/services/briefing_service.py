@@ -28,7 +28,7 @@ def get_layer1(days: int = 3) -> dict:
     news = _get_news(days)
     current_price = _fetch_current_price()
     layer1 = _get_layer1(news, days, current_price)
-    return {"layer": "layer1", "content": layer1, "news_count": len(news)}
+    return {"layer": "layer1", "content": layer1, "news": news, "news_count": len(news)}
 
 
 def get_layer2(days: int = 3) -> dict:
