@@ -127,8 +127,11 @@ function loadBriefings() {
 
   es.onerror = () => {
     es.close();
-    const partial = texts.l12 || texts.l3;
-    if (partial && bodies.l12) bodies.l12.innerHTML = renderBriefing(partial);
+    console.error("SSE connection error, showing partial data");
+    if (texts.l12 && bodies.l12) bodies.l12.innerHTML = renderBriefing(texts.l12);
+    if (texts.l3  && bodies.l3)  bodies.l3.innerHTML  = renderBriefing(texts.l3);
+    const hadContent = texts.l12 || texts.l3;
+    if (!hadContent) showToast("AI 分析加载失败，请刷新重试", "error");
   };
 }
 
@@ -166,11 +169,11 @@ function _initBriefingSkeleton() {
 
   weeklyEl.innerHTML = `
     <div class="analysis-block analysis-block--l12" id="block-l12">
-      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">📊 分析结论</span></div>
+      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">分析结论</span></div>
       <div class="analysis-block__body" id="body-l12"><div class="state-message">正在生成...</div></div>
     </div>
     <div class="analysis-block analysis-block--l3" id="block-l3">
-      <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">🎯 金价预期</span></div>
+      <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">金价预期</span></div>
       <div class="analysis-block__body" id="body-l3"><div class="state-message">正在生成...</div></div>
     </div>
   `;
