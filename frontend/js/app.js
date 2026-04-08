@@ -92,26 +92,44 @@ function renderBriefing(text) {
 }
 
 /**
- * Load three AI analysis layers progressively.
+ * Load briefings via SSE stream.
  */
-async function loadBriefings() {
-  // AI layers: sequential — each waits for the previous to finish
-  _initBriefingSkeleton();
+function loadBriefings() {
+  const es = new EventSource("/api/briefings/stream?days=3");
 
-  fetch("/api/briefings/layer1?days=3")
-    .then(r => r.json())
-    .then(d => {
-      _loadLayer1Done(d);
-      _renderNews(d.news || []);
-      return d;
-    })
-    .then(() => fetch("/api/briefings/layer2?days=3"))
-    .then(r => r.json())
-    .then(d => { _showLayer2(d); return d; })
-    .then(() => fetch("/api/briefings/layer3?days=3"))
-    .then(r => r.json())
-    .then(d => _showLayer3(d))
-    .catch(e => console.error("briefing chain error:", e));
+  _initBriefingSkeleton(); // renders two blocks with "正在生成..."
+
+  const texts = { l12: "", l3: "" };
+  const bodies = {
+    l12: document.getElementById("body-l12"),
+    l3: document.getElementById("body-l3"),
+  };
+
+  es.addEventListener("cached", (e) => {
+    const data = JSON.parse(e.data);
+    if (bodies.l12) bodies.l12.innerHTML = renderBriefing(data.blocks.l12 || "");
+    if (bodies.l3) bodies.l3.innerHTML = renderBriefing(data.blocks.l3 || "");
+    es.close();
+  });
+
+  es.addEventListener("token", (e) => {
+    const { block, chunk } = JSON.parse(e.data);
+    if (!bodies[block]) return;
+    texts[block] += chunk;
+    bodies[block].innerHTML = renderBriefing(texts[block]);
+  });
+
+  es.addEventListener("done", (e) => {
+    const { news } = JSON.parse(e.data);
+    if (news && news.length) _renderNews(news);
+    es.close();
+  });
+
+  es.onerror = () => {
+    es.close();
+    const partial = texts.l12 || texts.l3;
+    if (partial && bodies.l12) bodies.l12.innerHTML = renderBriefing(partial);
+  };
 }
 
 /** Render news list in right panel */
@@ -147,29 +165,15 @@ function _initBriefingSkeleton() {
   if (!weeklyEl) return;
 
   weeklyEl.innerHTML = `
-    <div class="analysis-block analysis-block--layer3" id="block-layer3">
-      <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">金价预期</span></div>
-      <div class="analysis-block__body"><div class="state-message">正在生成...</div></div>
-    </div><div class="analysis-block analysis-block--layer2" id="block-layer2">
-      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">行情验证</span></div>
-      <div class="analysis-block__body"><div class="state-message">正在生成...</div></div>
-    </div><div class="analysis-block analysis-block--layer1" id="block-layer1">
-      <div class="analysis-block__header analysis-block__header--toggle" id="layer1-toggle"><span class="analysis-block__icon">📰</span><span class="analysis-block__title">新闻分析</span><span class="analysis-block__chevron" id="layer1-chevron">▸</span></div>
-      <div class="analysis-block__body analysis-block__body--collapsed" id="layer1-body"><div class="state-message">正在生成...</div></div>
+    <div class="analysis-block analysis-block--l12" id="block-l12">
+      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">📊 分析结论</span></div>
+      <div class="analysis-block__body" id="body-l12"><div class="state-message">正在生成...</div></div>
+    </div>
+    <div class="analysis-block analysis-block--l3" id="block-l3">
+      <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">🎯 金价预期</span></div>
+      <div class="analysis-block__body" id="body-l3"><div class="state-message">正在生成...</div></div>
     </div>
   `;
-
-  // Wire L1 toggle
-  const toggle = document.getElementById("layer1-toggle");
-  const body = document.getElementById("layer1-body");
-  const chevron = document.getElementById("layer1-chevron");
-  if (toggle && body && chevron) {
-    toggle.addEventListener("click", () => {
-      const isCollapsed = body.classList.contains("analysis-block__body--collapsed");
-      body.classList.toggle("analysis-block__body--collapsed");
-      chevron.textContent = isCollapsed ? "▾" : "▸";
-    });
-  }
 }
 
 /** Fetch Layer 1 (parallel-safe, returns Promise) */
