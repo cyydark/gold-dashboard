@@ -600,9 +600,6 @@ body {
   color: var(--color-text);
   line-height: 1.8;
   white-space: pre-wrap;
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: var(--space-4);
-  margin-bottom: var(--space-3);
 }
 
 .briefing__analysis-block {
@@ -1011,7 +1008,7 @@ body {
 /* ===== Three-Layer Analysis Blocks ===== */
 
 .analysis-block {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -1042,8 +1039,8 @@ body {
 .analysis-block__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -1080,9 +1077,9 @@ body {
 
 /* Block body */
 .analysis-block__body {
-  padding: 10px 12px;
-  font-size: 13px;
-  line-height: 1.7;
+  padding: 5px 8px;
+  font-size: 12px;
+  line-height: 1.45;
   white-space: pre-wrap;
   color: var(--color-text);
 }
@@ -1094,11 +1091,11 @@ body {
 /* 【】 section labels */
 .section-label {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--color-gold);
   font-family: var(--font-mono);
-  margin-top: 8px;
+  margin-top: 3px;
   letter-spacing: 0.5px;
 }
 .section-label:first-child {
