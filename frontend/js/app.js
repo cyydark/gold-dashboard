@@ -148,7 +148,7 @@ async function loadBriefings() {
   }
 }
 
-/** Show AI briefing in three independent blocks: L3 → L2 → L1 (L1 collapsible). */
+/** Show AI briefing in three compact blocks: L3 → L2 → L1 (L1 collapsible). */
 function _showBriefing(data) {
   const weeklyEl = document.getElementById("weekly-content");
   const weeklySkeleton = document.getElementById("briefing-skeleton");
