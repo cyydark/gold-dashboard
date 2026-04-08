@@ -130,6 +130,7 @@ function loadBriefings() {
   es.addEventListener("news-ready", (e) => {
     const { news } = JSON.parse(e.data);
     if (news && news.length) _renderNews(news);
+    _hideBriefingSkeleton();
   });
 
   es.addEventListener("block-done", (e) => {
