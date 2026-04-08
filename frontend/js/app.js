@@ -100,7 +100,11 @@ async function loadBriefings() {
 
   fetch("/api/briefings/layer1?days=3")
     .then(r => r.json())
-    .then(d => { _loadLayer1Done(d); return d; })
+    .then(d => {
+      _loadLayer1Done(d);
+      _renderNews(d.news || []);
+      return d;
+    })
     .then(() => fetch("/api/briefings/layer2?days=3"))
     .then(r => r.json())
     .then(d => { _showLayer2(d); return d; })
@@ -108,6 +112,29 @@ async function loadBriefings() {
     .then(r => r.json())
     .then(d => _showLayer3(d))
     .catch(e => console.error("briefing chain error:", e));
+}
+
+/** Render news list in right panel */
+function _renderNews(news) {
+  const newsEl = document.getElementById("briefing-news-list");
+  const newsSkeleton = document.getElementById("news-skeleton");
+  if (!newsEl) return;
+  if (newsSkeleton) newsSkeleton.style.display = 'none';
+  newsEl.style.display = 'block';
+  if (news.length === 0) {
+    newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
+  } else {
+    newsEl.innerHTML = news.map((n, index) => `
+      <a class="news-item" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
+        <div class="news-item__meta">
+          <span class="news-item__source">${escapeHtml(n.source || "")}</span>
+          <span>·</span>
+          <span title="${escapeHtml(_bjTime(n.published_ts))}">${escapeHtml(_timeAgo(n.published_ts))}</span>
+        </div>
+        <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
+      </a>`).join("");
+  }
+  if (chart) chart.setNews(news);
 }
 
 /** Render initial three blocks with all showing "正在生成..." */
@@ -155,25 +182,7 @@ async function _loadLayer1() {
 function _loadLayer1Done(d) {
   const body = document.getElementById("layer1-body");
   if (!body || !d.content) return;
-
-  // Render AI analysis
-  let html = `<div class="briefing__ai-content">${renderBriefing(d.content)}</div>`;
-
-  // Render source news inside L1 block so user sees what AI analyzed
-  const news = d.news || [];
-  if (news.length > 0) {
-    html += `<div class="briefing__news-ref">
-      <div class="briefing__news-ref-header">📰 原始资讯（共${news.length}条）</div>
-      ${news.slice(0, 20).map((n, i) => `
-        <div class="briefing__news-ref-item">
-          <span class="briefing__news-ref-src">${escapeHtml(n.source || "")}</span>
-          <span class="briefing__news-ref-title">${escapeHtml(n.title || n.title_en || "")}</span>
-        </div>`).join("")}
-      ${news.length > 20 ? `<div class="briefing__news-ref-more">还有${news.length - 20}条...</div>` : ""}
-    </div>`;
-  }
-
-  body.innerHTML = html;
+  body.innerHTML = renderBriefing(d.content);
   body.classList.remove("analysis-block__body--collapsed");
   const chevron = document.getElementById("layer1-chevron");
   if (chevron) chevron.textContent = "▾";

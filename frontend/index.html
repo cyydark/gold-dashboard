@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>黄金行情分析</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=23" />
+  <link rel="stylesheet" href="/static/css/style.css?v=25" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -147,6 +147,21 @@
           <div id="weekly-content" class="briefing__content"></div>
         </div>
       </section>
+
+      <!-- 右侧：新闻列表 -->
+      <section class="source-news-section" id="source-news-section">
+        <div class="briefing__header">
+          <span class="briefing__title">📰 最新资讯</span>
+        </div>
+        <!-- Skeleton (outside news-list so it takes space before news loads) -->
+        <div id="news-skeleton">
+          <div class="skeleton skeleton--shimmer" style="width:100%;height:50px;margin-bottom:8px"></div>
+          <div class="skeleton skeleton--shimmer" style="width:100%;height:50px;margin-bottom:8px"></div>
+          <div class="skeleton skeleton--shimmer" style="width:100%;height:50px"></div>
+        </div>
+        <!-- Real Content -->
+        <div id="briefing-news-list" class="news-list" style="display:none"></div>
+      </section>
     </div>
 
     <!-- Chart Section -->
@@ -197,6 +212,6 @@
   </div>
 
   <div id="toast-container" class="toast-container"></div>
-  <script type="module" src="/static/js/app.js?v=43"></script>
+  <script type="module" src="/static/js/app.js?v=47"></script>
 </body>
 </html>
