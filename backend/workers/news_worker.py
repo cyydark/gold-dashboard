@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
-INTERVAL_MINUTES = 15
+INTERVAL_MINUTES = 90  # 1.5 hours
 
 
 def _save_once():
