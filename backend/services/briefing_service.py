@@ -8,7 +8,9 @@ Three independent layer caches with separate TTLs:
 """
 import asyncio
 import logging
+import os
 import time
+from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +275,35 @@ def _extract_confidence(three_layers: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Streaming briefing (SSE)
+# ---------------------------------------------------------------------------
+
+import asyncio
+import json
+import time
+
+_STREAM_CACHE: dict[str, dict] = {}
+_STREAM_TTL = 1800  # 30 min
+
+def _get_stream_cache(days: int) -> dict | None:
+    key = str(days)
+    entry = _STREAM_CACHE.get(key)
+    if entry and (time.time() - entry["ts"]) < _STREAM_TTL:
+        return {"l12": entry["l12"], "l3": entry["l3"]}
+    return None
+
+def _set_stream_cache(days: int, data: dict) -> None:
+    _STREAM_CACHE[str(days)] = {"l12": data["l12"], "l3": data["l3"], "ts": time.time()}
+
+def _safe_fetch_kline() -> list[dict] | None:
+    try:
+        from backend.data.sources import binance_kline
+        return binance_kline.fetch_xauusd_kline()
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
 
@@ -282,3 +313,121 @@ def _time_range(days: int) -> str:
     now = datetime.now(BEIJING_TZ)
     past = now - timedelta(days=days)
     return f"{past.strftime('%m月%d日')} - {now.strftime('%m月%d日')}"
+
+
+async def _read_stream_tokens(stdout: asyncio.StreamReader) -> AsyncGenerator[str, None]:
+    """从流式 stdout 逐行解析，yield text chunk。"""
+    async for line in stdout:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line.decode("utf-8"))
+        except Exception:
+            continue
+        # 兼容两种格式
+        result = data.get("result")
+        if result and isinstance(result, dict):
+            text = result.get("text")
+            if text:
+                yield text
+                continue
+        msg = data.get("message", {})
+        if isinstance(msg, dict):
+            for item in msg.get("content", []):
+                if isinstance(item, dict) and item.get("type") == "text":
+                    t = item.get("text", "")
+                    if t:
+                        yield t
+
+
+async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
+    """流式生成 briefing 事件。
+
+    Yields:
+        {"type": "token", "block": "l12"|"l3", "chunk": str}
+        {"type": "block-done", "block": "l12"|"l3"}
+        {"type": "done", "blocks": {"l12": str, "l3": str}, "news": list}
+        {"type": "cached", "blocks": {"l12": str, "l3": str}}
+    """
+    # 缓存命中
+    cached = _get_stream_cache(days)
+    if cached:
+        yield {"type": "cached", "blocks": cached}
+        return
+
+    # 并发拉取新闻 + Kline + 价格
+    from backend.services.news_service import get_news as ns_get_news
+    news, kline_data, current_price = await asyncio.gather(
+        asyncio.to_thread(lambda: ns_get_news(days=days)),
+        asyncio.to_thread(lambda: _safe_fetch_kline()),
+        asyncio.to_thread(_fetch_current_price),
+    )
+
+    kline_summary = (
+        "（K线数据暂不可用）"
+        if not kline_data
+        else _aggregate_kline(kline_data)
+    )
+
+    from backend.data.sources.briefing import build_l12_prompt, build_l3_prompt
+    l12_prompt = build_l12_prompt(news, current_price, kline_summary)
+    l3_prompt = build_l3_prompt("")  # AI uses its own context
+
+    # 并行启动 L12 和 L3 流式进程
+    l12_proc = await asyncio.create_subprocess_exec(
+        "claude", "-p", l12_prompt,
+        "--output-format", "stream-json", "--verbose",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+        env={**os.environ},
+    )
+    l3_proc = await asyncio.create_subprocess_exec(
+        "claude", "-p", l3_prompt,
+        "--output-format", "stream-json", "--verbose",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+        env={**os.environ},
+    )
+
+    l12_full = ""
+    l3_full = ""
+
+    # 消费 L12 流：先推完 L12，再推 L3（AI sees prior L12 context）
+    async for chunk in _read_stream_tokens(l12_proc.stdout):
+        l12_full += chunk
+        yield {"type": "token", "block": "l12", "chunk": chunk}
+    yield {"type": "block-done", "block": "l12"}
+
+    async for chunk in _read_stream_tokens(l3_proc.stdout):
+        l3_full += chunk
+        yield {"type": "token", "block": "l3", "chunk": chunk}
+    yield {"type": "block-done", "block": "l3"}
+
+    await l12_proc.wait()
+    await l3_proc.wait()
+
+    # 存缓存
+    result = {"l12": l12_full, "l3": l3_full}
+    _set_stream_cache(days, {**result, "news": news})
+    yield {"type": "done", "blocks": result, "news": news}
+
+
+def _aggregate_kline(klines: list[dict]) -> str:
+    """简单聚合 K线 数据为一段文字（用于 prompt）。"""
+    if not klines:
+        return "（K线数据暂不可用）"
+    closes = [float(b["close"]) for b in klines if b.get("close")]
+    if not closes:
+        return "（K线数据暂不可用）"
+    latest = closes[-1]
+    earliest = closes[0]
+    change = latest - earliest
+    pct = (change / earliest * 100) if earliest else 0
+    direction = "上涨" if change >= 0 else "下跌"
+    return (
+        f"价格区间 {min(closes):.2f}–{max(closes):.2f}，"
+        f"最新 {latest:.2f}，{direction} {abs(change):.2f} ({abs(pct):.2f}%)，"
+        f"共 {len(klines)} 个数据点"
+    )
+

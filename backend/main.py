@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from backend.config import settings
-from backend.api.routes import price, news, briefing
+from backend.api.routes import price, news, briefing, briefing_sse
 from backend.api.limiter import limiter
 from backend.api.models import ApiResponse
 from dotenv import load_dotenv
@@ -60,6 +60,7 @@ app.mount("/static", StaticFiles(directory=FRONTEND_PATH), name="static")
 app.include_router(price.router)
 app.include_router(news.router)
 app.include_router(briefing.router)
+app.include_router(briefing_sse.router)
 
 
 @app.get("/", response_class=HTMLResponse)
