@@ -147,25 +147,29 @@ function loadBriefings() {
 
 /** Render news list in right panel */
 function _renderNews(news) {
-  const newsEl = document.getElementById("briefing-news-list");
-  const newsSkeleton = document.getElementById("news-skeleton");
-  if (!newsEl) return;
-  if (newsSkeleton) newsSkeleton.style.display = 'none';
-  newsEl.style.display = 'block';
-  if (news.length === 0) {
-    newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
-  } else {
-    newsEl.innerHTML = news.map((n, index) => `
-      <a class="news-item" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
-        <div class="news-item__meta">
-          <span class="news-item__source">${escapeHtml(n.source || "")}</span>
-          <span>·</span>
-          <span title="${escapeHtml(_bjTime(n.published_ts))}">${escapeHtml(_timeAgo(n.published_ts))}</span>
-        </div>
-        <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
-      </a>`).join("");
+  try {
+    const newsEl = document.getElementById("briefing-news-list");
+    const newsSkeleton = document.getElementById("news-skeleton");
+    if (!newsEl) return;
+    if (newsSkeleton) newsSkeleton.style.display = 'none';
+    newsEl.style.display = 'block';
+    if (!news || news.length === 0) {
+      newsEl.innerHTML = '<div class="state-message">暂无资讯</div>';
+    } else {
+      newsEl.innerHTML = news.map((n, index) => `
+        <a class="news-item" href="${escapeHtml(n.url || "#")}" target="_blank" rel="noopener" style="animation-delay: ${index * 50}ms">
+          <div class="news-item__meta">
+            <span class="news-item__source">${escapeHtml(n.source || "")}</span>
+            <span>·</span>
+            <span title="${escapeHtml(_bjTime(n.published_ts))}">${escapeHtml(_timeAgo(n.published_ts))}</span>
+          </div>
+          <div class="news-item__title">${escapeHtml(n.title || n.title_en || "")}</div>
+        </a>`).join("");
+      if (chart) chart.setNews(news);
+    }
+  } catch (err) {
+    console.error("_renderNews error:", err);
   }
-  if (chart) chart.setNews(news);
 }
 
 /** Hide briefing skeleton once real content arrives */
@@ -255,6 +259,7 @@ function _applyPrice(symbol, data) {
   priceEl.setAttribute("data-source", srcVal);
   priceEl.style.color = srcColor;
   priceEl.style.textShadow = "";
+  changeEl.setAttribute("data-source", srcVal);
 
   animatePriceChange(priceEl, `${data.price} ${data.unit || ""}`);
 

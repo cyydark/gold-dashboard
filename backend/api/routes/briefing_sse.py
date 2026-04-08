@@ -20,7 +20,8 @@ async def get_briefing_stream(days: int = Query(default=3, ge=1, le=30)):
         try:
             async for ev in briefing_stream(days):
                 if ev["type"] == "cached":
-                    yield f"event: cached\ndata: {json.dumps({'blocks': ev['blocks'], 'news': ev.get('news', [])}, ensure_ascii=False)}\n\n"
+                    blocks = ev.get("blocks", ev)
+                    yield f"event: cached\ndata: {json.dumps({'blocks': blocks, 'news': blocks.get('news', [])}, ensure_ascii=False)}\n\n"
                 elif ev["type"] == "news-ready":
                     yield f"event: news-ready\ndata: {json.dumps({'news': ev.get('news', [])}, ensure_ascii=False)}\n\n"
                 elif ev["type"] == "token":
