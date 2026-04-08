@@ -24,6 +24,8 @@ FRONTEND_PATH = os.environ.get("FRONTEND_PATH", str(settings.frontend_path))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from backend.workers.news_worker import start_news_worker
+    start_news_worker()
     yield
 
 

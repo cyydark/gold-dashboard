@@ -14,31 +14,35 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Create or migrate ai_briefings table schema."""
+    """Create or migrate table schemas."""
     conn = get_db()
     try:
-        # Check existing columns
+        # ── ai_briefings ──────────────────────────────────────────────────
         cur = conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='ai_briefings'"
         )
         row = cur.fetchone()
-        if row and "l12_content" in (row[0] or ""):
-            # Already migrated
-            return
+        if not row or "l12_content" not in (row[0] or ""):
+            conn.execute("DROP TABLE IF EXISTS ai_briefings")
+            conn.execute("""
+                CREATE TABLE ai_briefings (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    days            INTEGER NOT NULL UNIQUE,
+                    l12_content     TEXT,
+                    l3_content      TEXT,
+                    news_json       TEXT,
+                    generated_at    TEXT NOT NULL,
+                    created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-        # Migrate: drop old schema, recreate with new schema
-        conn.execute("DROP TABLE IF EXISTS ai_briefings")
-        conn.execute("""
-            CREATE TABLE ai_briefings (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                days            INTEGER NOT NULL UNIQUE,
-                l12_content     TEXT,
-                l3_content      TEXT,
-                news_json       TEXT,
-                generated_at     TEXT NOT NULL,
-                created_at       TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        # ── news_items ───────────────────────────────────────────────────
+        # Add published_ts column if missing (needed for time-range filtering)
+        try:
+            conn.execute("ALTER TABLE news_items ADD COLUMN published_ts INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+
         conn.commit()
     finally:
         conn.close()

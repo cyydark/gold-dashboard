@@ -44,18 +44,17 @@ def save_news(items: list[dict]) -> None:
 
 def get_recent_news(days: int = 3) -> list[dict]:
     """Return news items from the last `days` days, newest first."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    cutoff_str = cutoff.isoformat()
+    cutoff_ts = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp())
     conn = get_db()
     try:
         rows = conn.execute(
             """
             SELECT title, title_en, source, url, published_at, published_ts
             FROM news_items
-            WHERE published_at >= ?
+            WHERE published_ts >= ?
             ORDER BY published_ts DESC
             """,
-            (cutoff_str,),
+            (cutoff_ts,),
         ).fetchall()
         return [dict(r) for r in rows]
     finally:
