@@ -172,13 +172,17 @@ def aggregate_kline_for_prompt(klines: list[dict]) -> str:
     """将 Binance 5M K线列表聚合为日线摘要字符串，供 Step 2 prompt 使用。
 
     Args:
-        klines: binance_kline.fetch_xauusd_kline() 返回的列表，最新在前。
+        klines: binance_kline.fetch_xauusd_kline() 返回的列表 oldest-first。
 
     Returns:
         多行字符串，供 CROSS_VALIDATION_TEMPLATE 渲染使用。
     """
     if not klines:
         return "（暂无 K线数据）"
+
+    # 数据 oldest-first（第一条 = 最早一根），确认一下
+    newest_close = klines[-1]["close"]
+    oldest_open = klines[0]["open"]
 
     # 按日期分组（上海时区）
     daily_groups: dict[str, list[dict]] = {}
@@ -187,22 +191,21 @@ def aggregate_kline_for_prompt(klines: list[dict]) -> str:
         date_key = dt.strftime("%Y-%m-%d")
         daily_groups.setdefault(date_key, []).append(bar)
 
-    # 按日期升序排列（旧的在前，供尾盘分析使用）
+    # 按日期升序排列
     sorted_dates = sorted(daily_groups.keys())
 
-    # 构建每日摘要，取最多 3 个交易日
+    # 构建每日摘要，取最近 3 个交易日
     day_lines: list[str] = []
-    key_lines: list[str] = []
-
     max_high_price, max_high_date = -1.0, ""
     min_low_price, min_low_date = float("inf"), ""
 
     for date_key in sorted_dates[-3:]:
-        bars = daily_groups[date_key]          # 该日所有 5M bar，最新在前
-        open_price = bars[-1]["open"]           # 当地时间 00:00 的开盘
-        close_price = bars[0]["close"]          # 当日最后一根 5M bar 的收盘
-        high_price = max(b["high"] for b in bars)
-        low_price = min(b["low"] for b in bars)
+        bars = daily_groups[date_key]          # 该日所有 5M bar，oldest-first
+        bars_rev = list(reversed(bars))       # 反转为 newest-first 供计算用
+        open_price = bars_rev[-1]["open"]      # 当日第一根（最早）的开盘 = 日开盘
+        close_price = bars_rev[0]["close"]     # 当日最后一根（最新）的收盘 = 日收盘
+        high_price = max(b["high"] for b in bars_rev)
+        low_price = min(b["low"] for b in bars_rev)
         change = round(close_price - open_price, 2)
         pct = round(change / open_price * 100, 2) if open_price else 0.0
 
@@ -218,7 +221,7 @@ def aggregate_kline_for_prompt(klines: list[dict]) -> str:
         else:
             trend = "震荡"
 
-        close_dir = _last_5_close_direction(bars)
+        close_dir = _last_5_close_direction(list(reversed(bars)))
         sign = "+" if change >= 0 else ""
         day_lines.append(
             f"{date_key}：开{open_price} 收{close_price} "
@@ -227,18 +230,18 @@ def aggregate_kline_for_prompt(klines: list[dict]) -> str:
             f"尾盘（最后25分钟）：{close_dir}"
         )
 
-    # 近2日关键信息
-    if len(sorted_dates) >= 2:
-        amplitude = round(max_high_price - min_low_price, 2)
-        key_lines.append(f"- 近2日最高：{max_high_price}（{max_high_date[5:]}）")
-        key_lines.append(f"- 近2日最低：{min_low_price}（{min_low_date[5:]}）")
-        key_lines.append(f"- 波动幅度：{amplitude} USD/oz")
+    # 整体趋势描述
+    overall_change = round(newest_close - oldest_open, 2)
+    overall_pct = round(overall_change / oldest_open * 100, 2) if oldest_open else 0.0
+    sign = "+" if overall_change >= 0 else ""
+    key_lines = [
+        f"- 整体方向：{oldest_open} → {newest_close}，{sign}{overall_change} ({sign}{overall_pct}%)",
+        f"- 近2日最高：{max_high_price}（{max_high_date[5:]}）",
+        f"- 近2日最低：{min_low_price}（{min_low_date[5:]}）",
+        f"- 波动幅度：{round(max_high_price - min_low_price, 2)} USD/oz",
+    ]
 
-    sections = ["日线数据：", *day_lines]
-    if key_lines:
-        sections.append("近期关键信息：")
-        sections.extend(key_lines)
-
+    sections = ["日线数据：", *day_lines, "近期关键信息：", *key_lines]
     return "\n".join(sections)
 
 
