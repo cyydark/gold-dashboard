@@ -84,7 +84,10 @@ def call_claude_cli(prompt: str) -> str:
 
 
 async def call_claude_cli_streaming(prompt: str) -> tuple[asyncio.StreamReader, asyncio.subprocess.Process]:
-    """启动 claude -p 流式进程，返回 stdout reader 和进程对象。"""
+    """启动 claude -p 流式进程，返回 stdout reader 和进程对象。
+
+    Caller must await proc.wait() or call proc.terminate() to clean up the subprocess.
+    """
     proc = await asyncio.create_subprocess_exec(
         "claude", "-p", prompt,
         "--output-format", "stream-json",
@@ -308,6 +311,7 @@ def build_l12_prompt(news: list[dict], current_price: str, kline_summary: str) -
     )
 
 
-def build_l3_prompt(layer1_2_output: str) -> str:
+def build_l3_prompt(_layer1_2_output: str) -> str:
+    """Build L3 prompt. _layer1_2_output is unused: AI reads prior L12 context directly."""
     return L3_STREAMING_TEMPLATE
 
