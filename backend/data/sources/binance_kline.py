@@ -7,6 +7,7 @@ Kline 原生字段: time, open, high, low, close, volume
 change/pct 通过 24hr ticker 补全最新 bar 的涨跌。
 """
 import logging
+import os
 import requests
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,9 @@ _HEADERS = {
 
 _TICKER_URL = "https://www.binance.com/api/v3/ticker/24hr"
 
+# Set BINANCE_SSL_VERIFY=0 to skip SSL verification (e.g. corporate proxy)
+_SSL_VERIFY = os.environ.get("BINANCE_SSL_VERIFY", "1") != "0"
+
 
 def _fetch_ticker() -> dict | None:
     """Fetch 24hr ticker for XAUTUSDT: returns {price, change, pct, open, high, low}."""
@@ -28,7 +32,7 @@ def _fetch_ticker() -> dict | None:
             params={"symbol": "XAUTUSDT"},
             headers=_HEADERS,
             timeout=10,
-            verify=False,
+            verify=_SSL_VERIFY,
         )
         resp.raise_for_status()
         d = resp.json()
@@ -58,7 +62,7 @@ def fetch_xauusd_kline() -> list[dict] | None:
             params={"symbol": "XAUTUSDT", "interval": "5m", "limit": 1000},
             headers=_HEADERS,
             timeout=10,
-            verify=False,
+            verify=_SSL_VERIFY,
         )
         resp.raise_for_status()
         klines = resp.json()

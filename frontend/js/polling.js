@@ -15,7 +15,7 @@ export class PollingManager {
     this._onPriceUpdate = null;
     this._onChartUpdate = null;
     this._onNewsUpdate = null;
-    this._switchingChart = null; // when set, _pollChartOne skips its own fetch
+    this._switchingChart = null; // null = idle, "xau"/"au" = switching (set by app.js)
     // Source defaults (权威性排序第一个)
     this._sources = {
       xau:      localStorage.getItem("source_xau")        || "comex",
@@ -24,7 +24,6 @@ export class PollingManager {
       xauChart: localStorage.getItem("source_xauChart")   || "binance",
       auChart:  localStorage.getItem("source_auChart")    || "sina_au0",
     };
-    this._switchingChart = undefined; // chart._switchingChart: null = idle, "xau"/"au" = switching
   }
 
   // ── Event callbacks ────────────────────────────────────────────────

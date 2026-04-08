@@ -99,6 +99,9 @@ function loadBriefings() {
 
   _initBriefingSkeleton();
 
+  let reconnectCount = 0;
+  const MAX_RECONNECT = 3;
+
   const texts = { l12: "", l3: "" };
   const bodies = {
     l12: document.getElementById("body-l12"),
@@ -134,14 +137,21 @@ function loadBriefings() {
     // News already sent via news-ready
   });
 
-  es.onerror = () => {
+  es.addEventListener("done", () => {
     es.close();
-    _hideBriefingSkeleton();
-    console.error("SSE connection error, showing partial data");
-    if (texts.l12 && bodies.l12) bodies.l12.innerHTML = renderBriefing(texts.l12);
-    if (texts.l3 && bodies.l3) bodies.l3.innerHTML = renderBriefing(texts.l3);
-    const hadContent = texts.l12 || texts.l3;
-    if (!hadContent) showToast("AI 分析加载失败，请刷新重试", "error");
+  });
+
+  es.onerror = () => {
+    reconnectCount++;
+    if (reconnectCount >= MAX_RECONNECT) {
+      es.close();
+      _hideBriefingSkeleton();
+      console.error("SSE reconnected too many times, giving up");
+      if (texts.l12 && bodies.l12) bodies.l12.innerHTML = renderBriefing(texts.l12);
+      if (texts.l3 && bodies.l3) bodies.l3.innerHTML = renderBriefing(texts.l3);
+      const hadContent = texts.l12 || texts.l3;
+      if (!hadContent) showToast("AI 分析加载失败，请刷新重试", "error");
+    }
   };
 }
 

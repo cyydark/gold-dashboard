@@ -1,6 +1,5 @@
 """Price API routes — realtime price, chart bars, FX rates."""
 import logging
-import sys
 import time
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Query
@@ -9,36 +8,50 @@ logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
+# ── Fetcher registry ────────────────────────────────────────────────
+# Import all modules once at startup and cache function references.
+# Avoids the expensive sys.modules purge on every request.
+import importlib
+
+_MODULES = {
+    "backend.data.sources.sina_xau":               importlib.import_module("backend.data.sources.sina_xau"),
+    "backend.data.sources.binance_kline":          importlib.import_module("backend.data.sources.binance_kline"),
+    "backend.data.sources.sina_au9999":            importlib.import_module("backend.data.sources.sina_au9999"),
+    "backend.data.sources.eastmoney_au9999_price": importlib.import_module("backend.data.sources.eastmoney_au9999_price"),
+    "backend.data.sources.yfinance_fx":            importlib.import_module("backend.data.sources.yfinance_fx"),
+    "backend.data.sources.sina_fx":                importlib.import_module("backend.data.sources.sina_fx"),
+    "backend.data.sources.eastmoney_xauusd":       importlib.import_module("backend.data.sources.eastmoney_xauusd"),
+    "backend.data.sources.sina_au0_1m":             importlib.import_module("backend.data.sources.sina_au0_1m"),
+}
+
+def _fn(mod_name: str, fn_name: str):
+    return getattr(_MODULES[mod_name], fn_name)
+
 # ── XAU realtime fetchers ──────────────────────────────────────────
-# eastmoney_xauusd only has fetch_xauusd_history (no single-bar realtime)
-# → use sina_xau for comex since it provides fetch_xauusd_realtime
 _XAU_FETCHERS = {
-    "sina":    ("backend.data.sources.sina_xau", "fetch_xauusd_realtime"),
-    "comex":   ("backend.data.sources.sina_xau", "fetch_xauusd_realtime"),
-    "binance": ("backend.data.sources.binance_kline", "fetch_xauusd_realtime"),
+    "sina":    ("backend.data.sources.sina_xau",               "fetch_xauusd_realtime"),
+    "comex":   ("backend.data.sources.sina_xau",               "fetch_xauusd_realtime"),
+    "binance": ("backend.data.sources.binance_kline",          "fetch_xauusd_realtime"),
 }
 
 # ── AU realtime fetchers ───────────────────────────────────────────
 _AU_FETCHERS = {
-    "au9999":    ("backend.data.sources.sina_au9999",        "fetch_au9999_realtime"),
+    "au9999":    ("backend.data.sources.sina_au9999",            "fetch_au9999_realtime"),
     "eastmoney": ("backend.data.sources.eastmoney_au9999_price", "fetch_au9999_realtime"),
 }
 
 # ── FX fetchers ────────────────────────────────────────────────────
-# yfinance_fx.fetch_usdcny returns a list of bars → we take the last one
 _FX_FETCHERS = {
     "yfinance": ("backend.data.sources.yfinance_fx", "fetch_usdcny"),
     "sina":     ("backend.data.sources.sina_fx",     "fetch_usdcny"),
 }
 
 # ── Chart bar fetchers ─────────────────────────────────────────────
-# eastmoney_xauusd has only fetch_xauusd_history (no dedicated history fn)
 _XAU_BAR_FETCHERS = {
     "comex":   ("backend.data.sources.eastmoney_xauusd", "fetch_xauusd_history"),
-    "binance": ("backend.data.sources.binance_kline", "fetch_xauusd_kline"),
+    "binance": ("backend.data.sources.binance_kline",     "fetch_xauusd_kline"),
     "sina":    ("backend.data.sources.eastmoney_xauusd", "fetch_xauusd_history"),
 }
-# eastmoney_au9999.fetch_au9999_realtime returns Kline bars — use as chart source
 _AU_BAR_FETCHERS = {
     "au9999":   ("backend.data.sources.eastmoney_au9999", "fetch_au9999_realtime"),
     "sina_au0": ("backend.data.sources.sina_au0_1m",      "fetch_au9999_realtime"),
@@ -48,22 +61,12 @@ router = APIRouter(prefix="/api", tags=["price"])
 
 
 def _fetch(source: str, fetchers: dict):
-    """Call the configured fetcher for `source`. Returns the raw result.
-
-    Handles both single-bar fetchers (dict | None) and list fetchers
-    (list[dict] | None) — callers extract the data they need.
-    """
+    """Call the configured fetcher for `source`."""
     if source not in fetchers:
         return None
     mod_name, fn_name = fetchers[source]
     try:
-        # Remove from sys.modules first to ensure fresh import (bypass stale cache)
-        for key in list(sys.modules.keys()):
-            if key == mod_name or key.startswith(mod_name + "."):
-                del sys.modules[key]
-        mod = __import__(mod_name, fromlist=[fn_name])
-        fn = getattr(mod, fn_name)
-        return fn()
+        return _fn(mod_name, fn_name)()
     except Exception as e:
         logger.warning(f"_fetch({source}) failed: {e}")
         return None

@@ -7,12 +7,42 @@ Three independent layer caches with separate TTLs:
   - Layer 3 (price forecast): 15 min
 """
 import asyncio
+import json
 import logging
 import os
 import time
 from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
+
+# Environment keys to NEVER pass to subprocess (secrets / credentials)
+_SENSITIVE_PATTERNS = (
+    "KEY", "TOKEN", "SECRET", "PASSWORD", "AUTH", "CREDENTIAL",
+    "API_KEY", "APIKEY", "OPENAI", "ANTHROPIC", "CLAUDE",
+)
+_SAFE_ENV_KEYS = frozenset({
+    "PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL",
+    "TMPDIR", "TEMP", "TMP", "PWD", "OLDPWD",
+    "CLAUDE_CFG_DIR",   # claude CLI config dir
+    "CLAUDE_API_KEY",   # explicitly allowed (claude CLI reads it)
+})
+
+
+def _safe_env() -> dict:
+    """Return filtered os.environ, excluding secrets and allowing safe vars."""
+    result = {}
+    for k, v in os.environ.items():
+        # Always include if in allow-list
+        if k in _SAFE_ENV_KEYS:
+            result[k] = v
+            continue
+        # Always exclude if matches a sensitive pattern
+        for pat in _SENSITIVE_PATTERNS:
+            if pat in k.upper():
+                break
+        else:
+            result[k] = v
+    return result
 
 _NEWS_TTL = 600          # 10 minutes
 _LAYER1_TTL = 1800      # 30 minutes
@@ -278,10 +308,6 @@ def _extract_confidence(three_layers: dict) -> str:
 # Streaming briefing (SSE)
 # ---------------------------------------------------------------------------
 
-import asyncio
-import json
-import time
-
 _STREAM_CACHE: dict[str, dict] = {}
 _STREAM_TTL = 1800  # 30 min
 
@@ -386,7 +412,7 @@ async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
         "--output-format", "stream-json", "--verbose",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
-        env={**os.environ},
+        env=_safe_env(),
     )
 
     l12_full = ""
@@ -394,30 +420,36 @@ async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
 
     try:
         # 1. L12 stream
-        async for chunk in _read_stream_tokens(l12_proc.stdout):
-            l12_full += chunk
-            yield {"type": "token", "block": "l12", "chunk": chunk}
-        yield {"type": "block-done", "block": "l12"}
-        await l12_proc.wait()
-
-        # 2. L3: price forecast (L12 as context)
-        l3_prompt = build_l3_prompt(l12_full)
-        l3_proc = await asyncio.create_subprocess_exec(
-            "claude", "-p", l3_prompt,
-            "--output-format", "stream-json", "--verbose",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-            env={**os.environ},
-        )
         try:
-            async for chunk in _read_stream_tokens(l3_proc.stdout):
-                l3_full += chunk
-                yield {"type": "token", "block": "l3", "chunk": chunk}
-            yield {"type": "block-done", "block": "l3"}
+            async for chunk in _read_stream_tokens(l12_proc.stdout):
+                l12_full += chunk
+                yield {"type": "token", "block": "l12", "chunk": chunk}
+            yield {"type": "block-done", "block": "l12"}
         finally:
-            await l3_proc.wait()
+            await l12_proc.wait()
+    except Exception:
+        l12_proc.terminate()
+        raise
+
+    # 2. L3: price forecast (L12 as context)
+    l3_prompt = build_l3_prompt(l12_full)
+    l3_proc = await asyncio.create_subprocess_exec(
+        "claude", "-p", l3_prompt,
+        "--output-format", "stream-json", "--verbose",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+        env=_safe_env(),
+    )
+    try:
+        async for chunk in _read_stream_tokens(l3_proc.stdout):
+            l3_full += chunk
+            yield {"type": "token", "block": "l3", "chunk": chunk}
+        yield {"type": "block-done", "block": "l3"}
+    except Exception:
+        l3_proc.terminate()
+        raise
     finally:
-        pass
+        await l3_proc.wait()
 
     # 存缓存
     result = {"l12": l12_full, "l3": l3_full}
