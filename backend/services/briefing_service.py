@@ -308,23 +308,6 @@ def _extract_confidence(three_layers: dict) -> str:
 # Streaming briefing (SSE)
 # ---------------------------------------------------------------------------
 
-_STREAM_CACHE: dict[str, dict] = {}
-_STREAM_TTL = 1800  # 30 min
-
-def _get_stream_cache(days: int) -> dict | None:
-    key = str(days)
-    entry = _STREAM_CACHE.get(key)
-    if entry and (time.time() - entry["ts"]) < _STREAM_TTL:
-        return {"l12": entry["l12"], "l3": entry["l3"], "news": entry.get("news", [])}
-    return None
-
-def _set_stream_cache(days: int, data: dict) -> None:
-    _STREAM_CACHE[str(days)] = {
-        "l12": data["l12"], "l3": data["l3"],
-        "news": data.get("news", []),
-        "ts": time.time(),
-    }
-
 def _safe_fetch_kline() -> list[dict] | None:
     try:
         from backend.data.sources import binance_kline
@@ -372,7 +355,7 @@ async def _read_stream_tokens(stdout: asyncio.StreamReader) -> AsyncGenerator[st
 
 
 async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
-    """流式生成 briefing 事件。
+    """流式生成 briefing 事件。固定 3 小时间隔，结果持久化到数据库。
 
     Yields:
         {"type": "token", "block": "l12"|"l3", "chunk": str}
@@ -380,11 +363,14 @@ async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
         {"type": "done", "blocks": {"l12": str, "l3": str}, "news": list}
         {"type": "cached", "blocks": {"l12": str, "l3": str}}
     """
-    # 缓存命中
-    cached = _get_stream_cache(days)
-    if cached:
-        yield {"type": "cached", "blocks": cached}
-        return
+    # 数据库缓存命中（3小时间隔）
+    from backend.repositories.briefing_repo import can_generate, get_recent, save
+    if not can_generate(days):
+        cached = get_recent(days)
+        if cached:
+            yield {"type": "cached", "blocks": {"l12": cached["l12_content"], "l3": cached["l3_content"]}}
+            yield {"type": "news-ready", "news": cached.get("news", [])}
+            return
 
     # 并发拉取新闻 + Kline + 价格
     from backend.services.news_service import get_news as ns_get_news
@@ -451,10 +437,9 @@ async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
     finally:
         await l3_proc.wait()
 
-    # 存缓存
-    result = {"l12": l12_full, "l3": l3_full}
-    _set_stream_cache(days, {**result, "news": news})
-    yield {"type": "done", "blocks": result, "news": news}
+    # 持久化到数据库
+    save(days, l12_full, l3_full, news)
+    yield {"type": "done", "blocks": {"l12": l12_full, "l3": l3_full}, "news": news}
 
 
 def _aggregate_kline(klines: list[dict]) -> str:
