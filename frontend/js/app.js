@@ -97,18 +97,24 @@ function renderBriefing(text) {
 function loadBriefings() {
   const es = new EventSource("/api/briefings/stream?days=3");
 
-  _initBriefingSkeleton(); // renders two blocks with "正在生成..."
+  _initBriefingSkeleton();
 
-  const texts = { l12: "", l3: "" };
+  const texts = { l1: "", l2: "", l3: "" };
   const bodies = {
-    l12: document.getElementById("body-l12"),
+    l1: document.getElementById("body-l1"),
+    l2: document.getElementById("body-l2"),
     l3: document.getElementById("body-l3"),
   };
 
   es.addEventListener("cached", (e) => {
     const data = JSON.parse(e.data);
-    if (bodies.l12) bodies.l12.innerHTML = renderBriefing(data.blocks.l12 || "");
-    if (bodies.l3) bodies.l3.innerHTML = renderBriefing(data.blocks.l3 || "");
+    if (data.blocks) {
+      if (bodies.l1 && data.blocks.l1) bodies.l1.innerHTML = renderBriefing(data.blocks.l1);
+      if (bodies.l2 && data.blocks.l2) bodies.l2.innerHTML = renderBriefing(data.blocks.l2);
+      if (bodies.l3 && data.blocks.l3) bodies.l3.innerHTML = renderBriefing(data.blocks.l3);
+    }
+    if (data.news && data.news.length) _renderNews(data.news);
+    _hideBriefingSkeleton();
     es.close();
   });
 
@@ -117,20 +123,27 @@ function loadBriefings() {
     if (!bodies[block]) return;
     texts[block] += chunk;
     bodies[block].innerHTML = renderBriefing(texts[block]);
+    _hideBriefingSkeleton();
   });
 
-  es.addEventListener("done", (e) => {
+  es.addEventListener("news-ready", (e) => {
     const { news } = JSON.parse(e.data);
     if (news && news.length) _renderNews(news);
-    es.close();
+  });
+
+  es.addEventListener("block-done", (e) => {
+    const { block } = JSON.parse(e.data);
+    // News already sent via news-ready, nothing more to do here
   });
 
   es.onerror = () => {
     es.close();
+    _hideBriefingSkeleton();
     console.error("SSE connection error, showing partial data");
-    if (texts.l12 && bodies.l12) bodies.l12.innerHTML = renderBriefing(texts.l12);
-    if (texts.l3  && bodies.l3)  bodies.l3.innerHTML  = renderBriefing(texts.l3);
-    const hadContent = texts.l12 || texts.l3;
+    if (texts.l1 && bodies.l1) bodies.l1.innerHTML = renderBriefing(texts.l1);
+    if (texts.l2 && bodies.l2) bodies.l2.innerHTML = renderBriefing(texts.l2);
+    if (texts.l3 && bodies.l3) bodies.l3.innerHTML = renderBriefing(texts.l3);
+    const hadContent = texts.l1 || texts.l2 || texts.l3;
     if (!hadContent) showToast("AI 分析加载失败，请刷新重试", "error");
   };
 }
@@ -158,6 +171,12 @@ function _renderNews(news) {
   if (chart) chart.setNews(news);
 }
 
+/** Hide briefing skeleton once real content arrives */
+function _hideBriefingSkeleton() {
+  const skeleton = document.getElementById("briefing-skeleton");
+  if (skeleton) skeleton.style.display = 'none';
+}
+
 /** Render initial three blocks with all showing "正在生成..." */
 function _initBriefingSkeleton() {
   const weeklyEl = document.getElementById("weekly-content");
@@ -168,9 +187,13 @@ function _initBriefingSkeleton() {
   if (!weeklyEl) return;
 
   weeklyEl.innerHTML = `
-    <div class="analysis-block analysis-block--l12" id="block-l12">
-      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">分析结论</span></div>
-      <div class="analysis-block__body" id="body-l12"><div class="state-message">正在生成...</div></div>
+    <div class="analysis-block analysis-block--l1" id="block-l1">
+      <div class="analysis-block__header"><span class="analysis-block__icon">📰</span><span class="analysis-block__title">新闻分析</span></div>
+      <div class="analysis-block__body" id="body-l1"><div class="state-message">正在生成...</div></div>
+    </div>
+    <div class="analysis-block analysis-block--l2" id="block-l2">
+      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">行情验证</span></div>
+      <div class="analysis-block__body" id="body-l2"><div class="state-message">正在生成...</div></div>
     </div>
     <div class="analysis-block analysis-block--l3" id="block-l3">
       <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">金价预期</span></div>

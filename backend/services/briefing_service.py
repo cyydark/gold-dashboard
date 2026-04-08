@@ -289,11 +289,15 @@ def _get_stream_cache(days: int) -> dict | None:
     key = str(days)
     entry = _STREAM_CACHE.get(key)
     if entry and (time.time() - entry["ts"]) < _STREAM_TTL:
-        return {"l12": entry["l12"], "l3": entry["l3"]}
+        return {"l1": entry["l1"], "l2": entry["l2"], "l3": entry["l3"], "news": entry.get("news", [])}
     return None
 
 def _set_stream_cache(days: int, data: dict) -> None:
-    _STREAM_CACHE[str(days)] = {"l12": data["l12"], "l3": data["l3"], "ts": time.time()}
+    _STREAM_CACHE[str(days)] = {
+        "l1": data["l1"], "l2": data["l2"], "l3": data["l3"],
+        "news": data.get("news", []),
+        "ts": time.time(),
+    }
 
 def _safe_fetch_kline() -> list[dict] | None:
     try:
@@ -364,52 +368,78 @@ async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
         asyncio.to_thread(_fetch_current_price),
     )
 
+    # 新闻一拿到就发，前端立刻渲染，不等 L1/L2/L3
+    yield {"type": "news-ready", "news": news}
+
     kline_summary = (
         "（K线数据暂不可用）"
         if not kline_data
         else _aggregate_kline(kline_data)
     )
 
-    from backend.data.sources.briefing import build_l12_prompt, build_l3_prompt
-    l12_prompt = build_l12_prompt(news, current_price, kline_summary)
-    l3_prompt = build_l3_prompt("")  # AI uses its own context
+    from backend.data.sources.briefing import build_l1_prompt, build_l2_prompt, build_l3_prompt
 
-    # 并行启动 L12 和 L3 流式进程
-    l12_proc = await asyncio.create_subprocess_exec(
-        "claude", "-p", l12_prompt,
-        "--output-format", "stream-json", "--verbose",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.DEVNULL,
-        env={**os.environ},
-    )
-    l3_proc = await asyncio.create_subprocess_exec(
-        "claude", "-p", l3_prompt,
+    # L1: news briefing (concurrent with Kline already done)
+    l1_prompt = build_l1_prompt(news, current_price)
+
+    l1_proc = await asyncio.create_subprocess_exec(
+        "claude", "-p", l1_prompt,
         "--output-format", "stream-json", "--verbose",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
         env={**os.environ},
     )
 
-    l12_full = ""
+    l1_full = ""
+    l2_full = ""
     l3_full = ""
 
     try:
-        # 消费 L12 流：先推完 L12，再推 L3（AI sees prior L12 context）
-        async for chunk in _read_stream_tokens(l12_proc.stdout):
-            l12_full += chunk
-            yield {"type": "token", "block": "l12", "chunk": chunk}
-        yield {"type": "block-done", "block": "l12"}
+        # 1. L1 stream
+        async for chunk in _read_stream_tokens(l1_proc.stdout):
+            l1_full += chunk
+            yield {"type": "token", "block": "l1", "chunk": chunk}
+        yield {"type": "block-done", "block": "l1", "news": news}
+        await l1_proc.wait()
 
-        async for chunk in _read_stream_tokens(l3_proc.stdout):
-            l3_full += chunk
-            yield {"type": "token", "block": "l3", "chunk": chunk}
-        yield {"type": "block-done", "block": "l3"}
+        # 2. L2: cross-validation with kline (L1 output + kline_summary)
+        l2_prompt = build_l2_prompt(l1_full, kline_summary)
+        l2_proc = await asyncio.create_subprocess_exec(
+            "claude", "-p", l2_prompt,
+            "--output-format", "stream-json", "--verbose",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            env={**os.environ},
+        )
+        try:
+            async for chunk in _read_stream_tokens(l2_proc.stdout):
+                l2_full += chunk
+                yield {"type": "token", "block": "l2", "chunk": chunk}
+            yield {"type": "block-done", "block": "l2"}
+        finally:
+            await l2_proc.wait()
+
+        # 3. L3: price forecast (L1 + L2)
+        l3_prompt = build_l3_prompt(l1_full, l2_full)
+        l3_proc = await asyncio.create_subprocess_exec(
+            "claude", "-p", l3_prompt,
+            "--output-format", "stream-json", "--verbose",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            env={**os.environ},
+        )
+        try:
+            async for chunk in _read_stream_tokens(l3_proc.stdout):
+                l3_full += chunk
+                yield {"type": "token", "block": "l3", "chunk": chunk}
+            yield {"type": "block-done", "block": "l3"}
+        finally:
+            await l3_proc.wait()
     finally:
-        await l12_proc.wait()
-        await l3_proc.wait()
+        pass
 
     # 存缓存
-    result = {"l12": l12_full, "l3": l3_full}
+    result = {"l1": l1_full, "l2": l2_full, "l3": l3_full}
     _set_stream_cache(days, {**result, "news": news})
     yield {"type": "done", "blocks": result, "news": news}
 

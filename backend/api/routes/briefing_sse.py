@@ -20,13 +20,15 @@ async def get_briefing_stream(days: int = Query(default=3, ge=1, le=30)):
         try:
             async for ev in briefing_stream(days):
                 if ev["type"] == "cached":
-                    yield f"event: cached\ndata: {json.dumps({'blocks': ev['blocks']}, ensure_ascii=False)}\n\n"
+                    yield f"event: cached\ndata: {json.dumps({'blocks': ev['blocks'], 'news': ev.get('news', [])}, ensure_ascii=False)}\n\n"
+                elif ev["type"] == "news-ready":
+                    yield f"event: news-ready\ndata: {json.dumps({'news': ev.get('news', [])}, ensure_ascii=False)}\n\n"
                 elif ev["type"] == "token":
                     yield f"event: token\ndata: {json.dumps({'block': ev['block'], 'chunk': ev['chunk']}, ensure_ascii=False)}\n\n"
                 elif ev["type"] == "block-done":
                     yield f"event: block-done\ndata: {json.dumps({'block': ev['block']}, ensure_ascii=False)}\n\n"
                 elif ev["type"] == "done":
-                    yield f"event: done\ndata: {json.dumps({'blocks': ev['blocks'], 'news': ev.get('news', [])}, ensure_ascii=False)}\n\n"
+                    yield f"event: done\ndata: {json.dumps({'blocks': ev['blocks']}, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"SSE stream error: {e}")
             yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
