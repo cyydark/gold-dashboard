@@ -1,26 +1,59 @@
-"""News service — no DB, pure in-memory cache."""
+"""News service — in-memory cache backed by SQLite persistence."""
+import logging
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
+from backend.repositories.news_repo import get_recent_news, save_news
+
+logger = logging.getLogger(__name__)
+
 BEIJING_TZ = timezone(timedelta(hours=8))
 
-# TTL: 30 minutes
-_CACHE_TTL = 1800
+# In-memory TTL: 10 minutes (matches news_repo TTL)
+_CACHE_TTL = 600
 _cache: dict[str, Any] = {"ts": 0, "data": [], "days": 1}
 
 
 def get_news(days: int = 1) -> list:
-    """Return cached news list. Refreshes if TTL expired or days changed."""
+    """Return cached news list.
+
+    Layer 1 — in-memory: fast, per-process.
+    Layer 2 — SQLite: persistent across restarts, shared (future).
+    Refreshes from sources if both layers are stale.
+    """
     now = time.monotonic()
     if _cache["data"] and (now - _cache["ts"]) < _CACHE_TTL and _cache.get("days") == days:
         return _cache["data"]
+
+    # Try SQLite first (faster than scraping)
+    db_items = _fetch_from_db(days)
+    if db_items:
+        _cache["data"] = db_items
+        _cache["ts"] = now
+        _cache["days"] = days
+        return db_items
+
+    # Fall back to scraping
     items = _fetch_news_from_sources()
     items = _filter_by_days(items, days)
     _cache["data"] = items
     _cache["ts"] = now
     _cache["days"] = days
+    save_news(items)
     return items
+
+
+def _fetch_from_db(days: int) -> list:
+    """Try to get fresh news from SQLite."""
+    try:
+        items = get_recent_news(days)
+        if items:
+            logger.debug("News from DB: %d items", len(items))
+        return items
+    except Exception as e:
+        logger.warning("News from DB failed: %s", e)
+        return []
 
 
 def _filter_by_days(items: list, days: int) -> list:
