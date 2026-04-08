@@ -393,19 +393,20 @@ async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
     l12_full = ""
     l3_full = ""
 
-    # 消费 L12 流：先推完 L12，再推 L3（AI sees prior L12 context）
-    async for chunk in _read_stream_tokens(l12_proc.stdout):
-        l12_full += chunk
-        yield {"type": "token", "block": "l12", "chunk": chunk}
-    yield {"type": "block-done", "block": "l12"}
+    try:
+        # 消费 L12 流：先推完 L12，再推 L3（AI sees prior L12 context）
+        async for chunk in _read_stream_tokens(l12_proc.stdout):
+            l12_full += chunk
+            yield {"type": "token", "block": "l12", "chunk": chunk}
+        yield {"type": "block-done", "block": "l12"}
 
-    async for chunk in _read_stream_tokens(l3_proc.stdout):
-        l3_full += chunk
-        yield {"type": "token", "block": "l3", "chunk": chunk}
-    yield {"type": "block-done", "block": "l3"}
-
-    await l12_proc.wait()
-    await l3_proc.wait()
+        async for chunk in _read_stream_tokens(l3_proc.stdout):
+            l3_full += chunk
+            yield {"type": "token", "block": "l3", "chunk": chunk}
+        yield {"type": "block-done", "block": "l3"}
+    finally:
+        await l12_proc.wait()
+        await l3_proc.wait()
 
     # 存缓存
     result = {"l12": l12_full, "l3": l3_full}
