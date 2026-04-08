@@ -88,11 +88,8 @@ function escapeHtml(s) {
 /** Render briefing text, converting 【】 sections to styled HTML. */
 function renderBriefing(text) {
   const escaped = escapeHtml(text || "");
-  return escaped.replace(/^【(.+?)】/gm, '<span class="section-label">【$1】</span>');
+  return escaped.replace(/【(.+?)】/g, '<span class="section-label">【$1】</span>');
 }
-
-const CONFIDENCE_COLORS = { "高": "#d4af37", "中": "#fb923c", "低": "#9ca3af" };
-const CONFIDENCE_ICONS = { "高": "✅", "中": "⚠️", "低": "❌" };
 
 /**
  * Load news immediately + three AI analysis layers progressively.
@@ -162,31 +159,14 @@ function _initBriefingSkeleton() {
 
   weeklyEl.innerHTML = `
     <div class="analysis-block analysis-block--layer3" id="block-layer3">
-      <div class="analysis-block__header">
-        <span class="analysis-block__icon">🎯</span>
-        <span class="analysis-block__title">金价预期</span>
-        <span class="analysis-block__confidence" id="l3-confidence"></span>
-      </div>
+      <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">金价预期</span></div>
       <div class="analysis-block__body"><div class="state-message">正在生成...</div></div>
-    </div>
-
-    <div class="analysis-block analysis-block--layer2" id="block-layer2">
-      <div class="analysis-block__header">
-        <span class="analysis-block__icon">📊</span>
-        <span class="analysis-block__title">行情验证</span>
-      </div>
+    </div><div class="analysis-block analysis-block--layer2" id="block-layer2">
+      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">行情验证</span></div>
       <div class="analysis-block__body"><div class="state-message">正在生成...</div></div>
-    </div>
-
-    <div class="analysis-block analysis-block--layer1" id="block-layer1">
-      <div class="analysis-block__header analysis-block__header--toggle" id="layer1-toggle">
-        <span class="analysis-block__icon">📰</span>
-        <span class="analysis-block__title">新闻分析</span>
-        <span class="analysis-block__chevron" id="layer1-chevron">▸</span>
-      </div>
-      <div class="analysis-block__body analysis-block__body--collapsed" id="layer1-body">
-        <div class="state-message">正在生成...</div>
-      </div>
+    </div><div class="analysis-block analysis-block--layer1" id="block-layer1">
+      <div class="analysis-block__header analysis-block__header--toggle" id="layer1-toggle"><span class="analysis-block__icon">📰</span><span class="analysis-block__title">新闻分析</span><span class="analysis-block__chevron" id="layer1-chevron">▸</span></div>
+      <div class="analysis-block__body analysis-block__body--collapsed" id="layer1-body"><div class="state-message">正在生成...</div></div>
     </div>
   `;
 
@@ -230,18 +210,11 @@ function _showLayer2(d) {
   }
 }
 
-/** Update Layer 3 block + confidence badge with response data */
+/** Update Layer 3 block */
 function _showLayer3(d) {
   const body = document.querySelector("#block-layer3 .analysis-block__body");
-  const confEl = document.getElementById("l3-confidence");
   if (body && d.content) {
     body.innerHTML = renderBriefing(d.content);
-  }
-  if (confEl && d.confidence) {
-    const color = CONFIDENCE_COLORS[d.confidence] || "#9ca3af";
-    const icon = CONFIDENCE_ICONS[d.confidence] || "❌";
-    confEl.style.color = color;
-    confEl.textContent = `${icon} ${d.confidence}`;
   }
 }
 
@@ -258,38 +231,20 @@ function _showBriefing(data) {
   const layer3 = weekly.layer3 || "";
   const layer2 = weekly.layer2 || "";
   const layer1 = weekly.layer1 || "";
-  const confidence = weekly.confidence || "低";
-  const confColor = CONFIDENCE_COLORS[confidence] || "#9ca3af";
-  const confIcon = CONFIDENCE_ICONS[confidence] || "❌";
 
   weeklyEl.innerHTML = `
     <div class="analysis-block analysis-block--layer3" id="block-layer3">
-      <div class="analysis-block__header">
-        <span class="analysis-block__icon">🎯</span>
-        <span class="analysis-block__title">金价预期</span>
-        <span class="analysis-block__confidence" style="color:${confColor}">${confIcon} ${confidence}</span>
-      </div>
+      <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">金价预期</span></div>
       ${layer3
         ? `<div class="analysis-block__body">${renderBriefing(layer3)}</div>`
         : `<div class="analysis-block__body"><div class="state-message">正在生成...</div></div>`}
-    </div>
-
-    <div class="analysis-block analysis-block--layer2" id="block-layer2">
-      <div class="analysis-block__header">
-        <span class="analysis-block__icon">📊</span>
-        <span class="analysis-block__title">行情验证</span>
-      </div>
+    </div><div class="analysis-block analysis-block--layer2" id="block-layer2">
+      <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">行情验证</span></div>
       ${layer2
         ? `<div class="analysis-block__body">${renderBriefing(layer2)}</div>`
         : `<div class="analysis-block__body"><div class="state-message">正在生成...</div></div>`}
-    </div>
-
-    <div class="analysis-block analysis-block--layer1" id="block-layer1">
-      <div class="analysis-block__header analysis-block__header--toggle" id="layer1-toggle">
-        <span class="analysis-block__icon">📰</span>
-        <span class="analysis-block__title">新闻分析</span>
-        <span class="analysis-block__chevron" id="layer1-chevron">▸</span>
-      </div>
+    </div><div class="analysis-block analysis-block--layer1" id="block-layer1">
+      <div class="analysis-block__header analysis-block__header--toggle" id="layer1-toggle"><span class="analysis-block__icon">📰</span><span class="analysis-block__title">新闻分析</span><span class="analysis-block__chevron" id="layer1-chevron">▸</span></div>
       <div class="analysis-block__body analysis-block__body--collapsed" id="layer1-body">
         ${layer1
           ? renderBriefing(layer1)
