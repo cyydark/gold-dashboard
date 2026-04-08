@@ -95,8 +95,8 @@ const CONFIDENCE_COLORS = { "高": "#d4af37", "中": "#fb923c", "低": "#9ca3af"
 const CONFIDENCE_ICONS = { "高": "✅", "中": "⚠️", "低": "❌" };
 
 /**
- * Load news immediately (fast) + AI briefing in background (slow).
- * News shows right away; AI skeleton disappears when ready.
+ * Load news immediately + three AI analysis layers progressively.
+ * Each layer shows as soon as its API responds (no waiting for all three).
  */
 async function loadBriefings() {
   const newsEl = document.getElementById("briefing-news-list");
@@ -104,7 +104,7 @@ async function loadBriefings() {
   const newsSkeleton = document.getElementById("news-skeleton");
   if (!newsEl) return;
 
-  // Step 1: Load news immediately (no AI involved, 3 days)
+  // News: load immediately
   fetch("/api/news?days=3")
     .then(r => r.json())
     .then(data => {
@@ -133,22 +133,119 @@ async function loadBriefings() {
       newsEl.innerHTML = '<div class="state-message">资讯加载失败</div>';
     });
 
-  // Step 2: Load AI briefing in background (uses TTL cache, ~1h)
-  try {
-    const res = await fetch("/api/briefings?days=3");
-    const data = await res.json();
-    _showBriefing(data);
-  } catch (e) {
-    const weeklyEl = document.getElementById("weekly-content");
-    const weeklySkeleton = document.getElementById("briefing-skeleton");
-    const weeklyContent = document.getElementById("briefing-content");
-    if (weeklySkeleton) weeklySkeleton.style.display = 'none';
-    if (weeklyContent) weeklyContent.style.display = 'block';
-    if (weeklyEl) weeklyEl.innerHTML = '<div class="state-message">AI 分析加载失败</div>';
+  // AI layers: show skeleton then progressively fill each block
+  _initBriefingSkeleton();
+
+  // Layer 1: fastest (no Kline), call immediately
+  _loadLayer1();
+
+  // Layer 2: call after L1 responds
+  // Layer 3: call after L2 responds
+  // Each calls the next in sequence via .then()
+  fetch("/api/briefings/layer2?days=3")
+    .then(r => r.json())
+    .then(d => _showLayer2(d))
+    .then(() => fetch("/api/briefings/layer3?days=3"))
+    .then(r => r.json())
+    .then(d => _showLayer3(d))
+    .catch(() => {});
+}
+
+/** Render initial three blocks with all showing "正在生成..." */
+function _initBriefingSkeleton() {
+  const weeklyEl = document.getElementById("weekly-content");
+  const weeklySkeleton = document.getElementById("briefing-skeleton");
+  const weeklyContent = document.getElementById("briefing-content");
+  if (weeklySkeleton) weeklySkeleton.style.display = 'none';
+  if (weeklyContent) weeklyContent.style.display = 'block';
+  if (!weeklyEl) return;
+
+  weeklyEl.innerHTML = `
+    <div class="analysis-block analysis-block--layer3" id="block-layer3">
+      <div class="analysis-block__header">
+        <span class="analysis-block__icon">🎯</span>
+        <span class="analysis-block__title">金价预期</span>
+        <span class="analysis-block__confidence" id="l3-confidence"></span>
+      </div>
+      <div class="analysis-block__body"><div class="state-message">正在生成...</div></div>
+    </div>
+
+    <div class="analysis-block analysis-block--layer2" id="block-layer2">
+      <div class="analysis-block__header">
+        <span class="analysis-block__icon">📊</span>
+        <span class="analysis-block__title">行情验证</span>
+      </div>
+      <div class="analysis-block__body"><div class="state-message">正在生成...</div></div>
+    </div>
+
+    <div class="analysis-block analysis-block--layer1" id="block-layer1">
+      <div class="analysis-block__header analysis-block__header--toggle" id="layer1-toggle">
+        <span class="analysis-block__icon">📰</span>
+        <span class="analysis-block__title">新闻分析</span>
+        <span class="analysis-block__chevron" id="layer1-chevron">▸</span>
+      </div>
+      <div class="analysis-block__body analysis-block__body--collapsed" id="layer1-body">
+        <div class="state-message">正在生成...</div>
+      </div>
+    </div>
+  `;
+
+  // Wire L1 toggle
+  const toggle = document.getElementById("layer1-toggle");
+  const body = document.getElementById("layer1-body");
+  const chevron = document.getElementById("layer1-chevron");
+  if (toggle && body && chevron) {
+    toggle.addEventListener("click", () => {
+      const isCollapsed = body.classList.contains("analysis-block__body--collapsed");
+      body.classList.toggle("analysis-block__body--collapsed");
+      chevron.textContent = isCollapsed ? "▾" : "▸";
+    });
   }
 }
 
-/** Show AI briefing in three compact blocks: L3 → L2 → L1 (L1 collapsible). */
+/** Fetch and render Layer 1 */
+async function _loadLayer1() {
+  try {
+    const res = await fetch("/api/briefings/layer1?days=3");
+    const d = await res.json();
+    const body = document.getElementById("layer1-body");
+    if (body && d.content) {
+      body.innerHTML = renderBriefing(d.content);
+      // Auto-expand L1 once content arrives
+      body.classList.remove("analysis-block__body--collapsed");
+      const chevron = document.getElementById("layer1-chevron");
+      if (chevron) chevron.textContent = "▾";
+    }
+  } catch (e) {
+    const body = document.getElementById("layer1-body");
+    if (body) body.innerHTML = '<div class="state-message">加载失败</div>';
+  }
+}
+
+/** Update Layer 2 block with response data */
+function _showLayer2(d) {
+  const body = document.querySelector("#block-layer2 .analysis-block__body");
+  if (body && d.content) {
+    body.innerHTML = renderBriefing(d.content);
+  }
+}
+
+/** Update Layer 3 block + confidence badge with response data */
+function _showLayer3(d) {
+  const body = document.querySelector("#block-layer3 .analysis-block__body");
+  const confEl = document.getElementById("l3-confidence");
+  if (body && d.content) {
+    body.innerHTML = renderBriefing(d.content);
+  }
+  if (confEl && d.confidence) {
+    const color = CONFIDENCE_COLORS[d.confidence] || "#9ca3af";
+    const icon = CONFIDENCE_ICONS[d.confidence] || "❌";
+    confEl.style.color = color;
+    confEl.textContent = `${icon} ${d.confidence}`;
+  }
+}
+
+/** Show legacy full-briefing response (for backward compat). */
 function _showBriefing(data) {
   const weeklyEl = document.getElementById("weekly-content");
   const weeklySkeleton = document.getElementById("briefing-skeleton");

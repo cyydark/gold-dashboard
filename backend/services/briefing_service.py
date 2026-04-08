@@ -23,6 +23,58 @@ _layer2_cache: dict = {"ts": 0, "data": ""}
 _layer3_cache: dict = {"ts": 0, "data": ""}
 
 
+def get_layer1(days: int = 3) -> dict:
+    """Return Layer 1 (news analysis) independently. Cached 30 min."""
+    news = _get_news(days)
+    current_price = _fetch_current_price()
+    layer1 = _get_layer1(news, days, current_price)
+    return {"layer": "layer1", "content": layer1, "news_count": len(news)}
+
+
+def get_layer2(days: int = 3) -> dict:
+    """Return Layer 2 (kline validation). Depends on cached Layer 1. Cached 60 min."""
+    news = _get_news(days)
+    current_price = _fetch_current_price()
+    layer1 = _get_layer1(news, days, current_price)
+
+    # Fetch Kline fresh for Layer 2
+    try:
+        from backend.data.sources import binance_kline
+        kline_data = binance_kline.fetch_xauusd_kline()
+    except Exception:
+        kline_data = None
+
+    layer2 = _get_layer2(layer1, kline_data)
+    return {"layer": "layer2", "content": layer2}
+
+
+def get_layer3(days: int = 3) -> dict:
+    """Return Layer 3 (price forecast). Depends on cached Layer 1 + Layer 2. Cached 15 min."""
+    news = _get_news(days)
+    current_price = _fetch_current_price()
+    layer1 = _get_layer1(news, days, current_price)
+
+    try:
+        from backend.data.sources import binance_kline
+        kline_data = binance_kline.fetch_xauusd_kline()
+    except Exception:
+        kline_data = None
+
+    layer2 = _get_layer2(layer1, kline_data)
+    layer3 = _get_layer3(layer1, layer2)
+
+    # Extract confidence
+    three_layers = {"layer1": layer1, "layer2": layer2, "layer3": layer3}
+    confidence = _extract_confidence(three_layers)
+
+    return {
+        "layer": "layer3",
+        "content": layer3,
+        "confidence": confidence,
+        "time_range": _time_range(days),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
