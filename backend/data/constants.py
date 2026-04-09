@@ -11,5 +11,5 @@ load_dotenv()
 
 NEWS_TTL = 300             # 5 minutes — shared news source cache TTL
 REFRESH_INTERVAL = 360     # 6 minutes — 新闻/价格刷新间隔（> TTL 300s）
-CLI_TIMEOUT = 120          # seconds — Claude CLI 超时
+CLI_TIMEOUT = 300          # seconds — Claude CLI 超时
 DAILY_BRIEFING_HOUR = 8    # 北京时间

@@ -9,16 +9,43 @@ logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
+# 集中式黄金关键词过滤 — 所有源统一过此关卡
+GOLD_KEYWORDS_EN = [
+    "gold", "xau", "xauusd", "silver", "bullion", "precious metal",
+    "goldman sachs", "goldman", "gold futures", "gold etf",
+    "gold rally", "gold surge", "gold falls", "gold drop",
+]
+GOLD_KEYWORDS_ZH = [
+    "黄金", "金价", "金条", "金币", "金矿", "金饰", "金店",
+    "国际金", "现货金", "期货金", "COMEX", "伦敦金",
+    "XAU", "au9999", "au(t+d)", "央行购金", "购金潮", "白银",
+]
+EXCLUDE_KEYWORDS = [
+    "bitcoin", "cryptocurrency", "tesla deliveries", "iphone", "apple",
+    "women's sports", "wnba", "kimchi", "chinese restaurant",
+]
+
+
+def _is_gold_news(title: str) -> bool:
+    """Return True if title is primarily about gold/silver."""
+    t = title.lower()
+    if any(kw.lower() in t for kw in EXCLUDE_KEYWORDS):
+        return False
+    return any(kw.lower() in t for kw in GOLD_KEYWORDS_EN) or \
+           any(kw in title for kw in GOLD_KEYWORDS_ZH)
+
 
 def get_news(days: int = 1) -> list:
     """Return news from SQLite. Falls back to scraper if DB is empty."""
     db_items = _fetch_from_db(days)
     if db_items:
-        return db_items
+        # DB 缓存也过一遍过滤（防止旧数据质量参差）
+        return _filter_gold_only(_sort_news(db_items))
 
     # Fall back to scraping
     items = _fetch_news_from_sources()
     items = _filter_by_days(items, days)
+    items = _filter_gold_only(items)
     save_news(items)
     return items
 
@@ -48,6 +75,21 @@ def _filter_by_days(items: list, days: int) -> list:
 def _sort_news(items: list) -> list:
     """Sort news by published_ts descending (newest first)."""
     return sorted(items, key=lambda x: x.get("published_ts", 0), reverse=True)
+
+
+def _filter_gold_only(items: list[dict]) -> list[dict]:
+    """Centralized gold news filter — deduplicate by URL after filtering."""
+    filtered = [it for it in items if _is_gold_news(it.get("title", ""))]
+    seen: set = set()
+    unique = []
+    for it in filtered:
+        url = it.get("url", "")
+        if url and url in seen:
+            continue
+        seen.add(url)
+        unique.append(it)
+    logger.info(f"Gold filter: {len(items)} -> {len(unique)} (dropped {len(items)-len(unique)})")
+    return unique
 
 
 def _fetch_news_from_sources() -> list:

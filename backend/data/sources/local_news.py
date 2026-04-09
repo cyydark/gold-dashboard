@@ -20,6 +20,24 @@ BEIJING_TZ = timezone(timedelta(hours=8))
 _cache: list[dict] = []
 _cache_ts: float = 0.0
 
+# 黄金关键词过滤（英文）
+GOLD_KEYWORDS = [
+    "gold", "xau", "xauusd", "silver", "bullion",
+    "precious metal", "goldman sachs", "gold futures",
+    "gold etf", "gold rally", "gold surge",
+]
+EXCLUDE_KEYWORDS = [
+    "bitcoin", "cryptocurrency", "tesla deliveries",
+    "iphone", "apple", "women's sports", "wnba",
+]
+
+
+def _is_gold_article(title: str) -> bool:
+    t = title.lower()
+    if any(kw in t for kw in EXCLUDE_KEYWORDS):
+        return False
+    return any(kw in t for kw in GOLD_KEYWORDS)
+
 _RSS_URL = os.environ.get("RSSHUB_URL", "http://localhost:18080/news")
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -60,7 +78,7 @@ def fetch_local_news() -> list[dict]:
     news: list[dict] = []
     for item in items:
         title = (item.findtext("title") or "").strip()
-        if not title:
+        if not title or not _is_gold_article(title):
             continue
         link = (item.findtext("link") or "").strip()
         pub_str = (item.findtext("pubDate") or "").strip()

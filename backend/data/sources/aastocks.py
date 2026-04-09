@@ -22,7 +22,6 @@ BROAD_GOLD_KEYWORDS = [
     "gold", "xau", "xauusd", "silver", "bullion", "precious metal",
     "goldman sachs", "goldman", "gold futures", "gold etf",
     "gold rally", "gold surge", "gold falls", "gold drop", "gold retreat",
-    "commodity markets", "commodity price",
 ]
 EXCLUDE_KEYWORDS = [
     "bitcoin", "cryptocurrency", "tesla deliveries", "apple iphone",
