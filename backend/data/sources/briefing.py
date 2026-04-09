@@ -1,5 +1,6 @@
 """AI 金市简报生成 via claude -p 命令。"""
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -12,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 class BriefingGenerationError(Exception):
     """Raised when Claude CLI fails to generate a briefing."""
-
     pass
+
 
 DAILY_PROMPT_TEMPLATE = """用大白话分析黄金走势，结合新闻和实际行情数据。不要任何markdown格式。
 
@@ -51,11 +52,8 @@ def call_claude_cli(prompt: str) -> str:
         raise BriefingGenerationError(f"Claude CLI call failed: {e}")
 
 
-async def call_claude_cli_streaming(prompt: str) -> tuple[asyncio.StreamReader, asyncio.subprocess.Process]:
-    """启动 claude -p 流式进程，返回 stdout reader 和进程对象。
-
-    Caller must await proc.wait() or call proc.terminate() to clean up the subprocess.
-    """
+async def call_claude_cli_streaming(prompt: str):
+    """流式生成，yield text chunks via claude CLI subprocess."""
     proc = await asyncio.create_subprocess_exec(
         "claude", "-p", prompt,
         "--output-format", "stream-json",
@@ -64,7 +62,31 @@ async def call_claude_cli_streaming(prompt: str) -> tuple[asyncio.StreamReader, 
         stderr=asyncio.subprocess.DEVNULL,
         env={**os.environ},
     )
-    return proc.stdout, proc
+    try:
+        async for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line.decode("utf-8"))
+            except Exception:
+                continue
+            # 兼容两种格式
+            result = data.get("result")
+            if result and isinstance(result, dict):
+                text = result.get("text")
+                if text:
+                    yield text
+                    continue
+            msg = data.get("message", {})
+            if isinstance(msg, dict):
+                for item in msg.get("content", []):
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        t = item.get("text", "")
+                        if t:
+                            yield t
+    finally:
+        await proc.wait()
 
 
 def _build_news_list(news: list[dict]) -> str:
@@ -173,41 +195,30 @@ def _last_5_close_direction(bars: list[dict]) -> str:
 
 
 def aggregate_kline_for_prompt(klines: list[dict]) -> str:
-    """将 Binance 5M K线列表聚合为日线摘要字符串，供 Step 2 prompt 使用。
-
-    Args:
-        klines: binance_kline.fetch_xauusd_kline() 返回的列表 oldest-first。
-
-    Returns:
-        多行字符串，供 CROSS_VALIDATION_TEMPLATE 渲染使用。
-    """
+    """将 Binance 5M K线列表聚合为日线摘要字符串，供 Step 2 prompt 使用。"""
     if not klines:
         return "（暂无 K线数据）"
 
-    # 数据 oldest-first（第一条 = 最早一根），确认一下
     newest_close = klines[-1]["close"]
     oldest_open = klines[0]["open"]
 
-    # 按日期分组（上海时区）
     daily_groups: dict[str, list[dict]] = {}
     for bar in klines:
         dt = _shanghai_ts(bar["time"])
         date_key = dt.strftime("%Y-%m-%d")
         daily_groups.setdefault(date_key, []).append(bar)
 
-    # 按日期升序排列
     sorted_dates = sorted(daily_groups.keys())
 
-    # 构建每日摘要，取最近 3 个交易日
     day_lines: list[str] = []
     max_high_price, max_high_date = -1.0, ""
     min_low_price, min_low_date = float("inf"), ""
 
     for date_key in sorted_dates[-3:]:
-        bars = daily_groups[date_key]          # 该日所有 5M bar，oldest-first
-        bars_rev = list(reversed(bars))       # 反转为 newest-first 供计算用
-        open_price = bars_rev[-1]["open"]      # 当日第一根（最早）的开盘 = 日开盘
-        close_price = bars_rev[0]["close"]     # 当日最后一根（最新）的收盘 = 日收盘
+        bars = daily_groups[date_key]
+        bars_rev = list(reversed(bars))
+        open_price = bars_rev[-1]["open"]
+        close_price = bars_rev[0]["close"]
         high_price = max(b["high"] for b in bars_rev)
         low_price = min(b["low"] for b in bars_rev)
         change = round(close_price - open_price, 2)
@@ -234,7 +245,6 @@ def aggregate_kline_for_prompt(klines: list[dict]) -> str:
             f"尾盘（最后25分钟）：{close_dir}"
         )
 
-    # 整体趋势描述
     overall_change = round(newest_close - oldest_open, 2)
     overall_pct = round(overall_change / oldest_open * 100, 2) if oldest_open else 0.0
     sign = "+" if overall_change >= 0 else ""
@@ -288,4 +298,3 @@ def build_l3_prompt(l12_output: str) -> str:
         f"什么时候见效：\n大概要等多久？\n\n"
         f"什么情况下会变卦：\n说出最可能打破预期的一件事。"
     )
-

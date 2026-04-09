@@ -141,10 +141,10 @@ def get_fx_realtime(source: str):
 
 
 @router.get("/chart/xau")
-def get_chart_xau(source: str = Query(default="comex")):
+def get_chart_xau(source: str = Query(default="comex"), gap_threshold_ms: int | None = Query(default=None)):
     bars_raw = _fetch(source, _XAU_BAR_FETCHERS)
     if bars_raw is None:
-        return {"bars": [], "source": source}
+        return {"bars": [], "source": source, "gap_threshold_ms": gap_threshold_ms}
     bars = []
     for b in bars_raw:
         bars.append({
@@ -154,14 +154,14 @@ def get_chart_xau(source: str = Query(default="comex")):
             "low": round(float(b.get("low", b.get("close", 0))), 2),
             "close": round(float(b.get("close", b.get("price", 0))), 2),
         })
-    return {"bars": bars, "source": source}
+    return {"bars": bars, "source": source, "gap_threshold_ms": gap_threshold_ms}
 
 
 @router.get("/chart/au")
-def get_chart_au(source: str = Query(default="au9999")):
+def get_chart_au(source: str = Query(default="au9999"), gap_threshold_ms: int | None = Query(default=None)):
     bars_raw = _fetch(source, _AU_BAR_FETCHERS)
     if bars_raw is None:
-        return {"bars": [], "source": source}
+        return {"bars": [], "source": source, "gap_threshold_ms": gap_threshold_ms}
     bars = []
     for b in bars_raw:
         bars.append({
@@ -171,4 +171,4 @@ def get_chart_au(source: str = Query(default="au9999")):
             "low": round(float(b.get("low", b.get("close", 0))), 2),
             "close": round(float(b.get("close", b.get("price", 0))), 2),
         })
-    return {"bars": bars, "source": source}
+    return {"bars": bars, "source": source, "gap_threshold_ms": gap_threshold_ms}

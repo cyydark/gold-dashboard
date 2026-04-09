@@ -102,7 +102,15 @@ class GoldChart {
     this._auFetching = false;
     // Block polling while a switch is in progress
     this._switchingChart = undefined;
+    // Gap threshold for insertGaps (ms). Null = use per-source default.
+    this.gapThresholdMs = null;
   }
+
+  /** Set the gap threshold for insertGaps (ms). Pass null to reset to default. */
+  setGapThreshold(ms) { this.gapThresholdMs = ms; }
+
+  /** Returns gap threshold for insertGaps: instance value or 30 min default. */
+  _gapThreshold() { return this.gapThresholdMs ?? 30 * 60 * 1000; }
 
   setNews(news) {
     this.news = news || [];
@@ -169,7 +177,8 @@ class GoldChart {
         return;
       }
 
-      const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })));
+      const threshold = this._gapThreshold();
+      const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })), threshold);
 
       // 5. Render after confirmed data
       const c = XAU_COLORS[source] || XAU_COLORS.comex;
@@ -235,7 +244,8 @@ class GoldChart {
         return;
       }
 
-      const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })));
+      const threshold = this._gapThreshold();
+      const pts = insertGaps(d.bars.map(b => ({ x: new Date(b.time * 1000), y: b.close })), threshold);
 
       // 5. Render after confirmed data
       const c = AU_COLORS[source] || AU_COLORS.au9999;
@@ -258,13 +268,17 @@ class GoldChart {
   }
 
   warmup() {
-    fetch(`/api/chart/xau?source=${this.xauSource}`).then(r => r.json()).then(d => {
+    const threshold = this._gapThreshold();
+    const urlXau = `/api/chart/xau?source=${this.xauSource}${threshold != null ? `&gap_threshold_ms=${threshold}` : ''}`;
+    const urlAu  = `/api/chart/au?source=${this.auSource}${threshold != null ? `&gap_threshold_ms=${threshold}` : ''}`;
+    fetch(urlXau).then(r => r.json()).then(d => {
       if (d && d.bars && d.bars.length > 0) {
+        if (d.gap_threshold_ms != null) this.gapThresholdMs = d.gap_threshold_ms;
         this._warmupXau = d;
         this.loadXauFromCache(d);
       }
     }).catch(() => {});
-    fetch(`/api/chart/au?source=${this.auSource}`).then(r => r.json()).then(d => {
+    fetch(urlAu).then(r => r.json()).then(d => {
       if (d && d.bars && d.bars.length > 0) {
         this._warmupAu = d;
         this.loadAuFromCache(d);
@@ -312,7 +326,9 @@ class GoldChart {
   /** Called by PollingManager with fresh chart data */
   loadXauFromCache(data) {
     if (!data || !data.bars || data.bars.length === 0) return;
-    const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })));
+    if (data.gap_threshold_ms != null) this.gapThresholdMs = data.gap_threshold_ms;
+    const threshold = this._gapThreshold();
+    const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })), threshold);
     if (this.chart && this.chart.data.datasets[0]) {
       const c = XAU_COLORS[this.xauSource] || XAU_COLORS.comex;
       this.chart.data.datasets[0].data = pts;
@@ -332,7 +348,8 @@ class GoldChart {
 
   loadAuFromCache(data) {
     if (!data || !data.bars || data.bars.length === 0) return;
-    const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })));
+    const threshold = this._gapThreshold();
+    const pts = insertGaps(data.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })), threshold);
     if (this.chart && this.chart.data.datasets[1]) {
       const c = AU_COLORS[this.auSource] || AU_COLORS.au9999;
       this.chart.data.datasets[1].data = pts;
@@ -357,7 +374,7 @@ class GoldChart {
     const tsMs = bar.x.getTime();
     const lastTs = pts.length > 0 ? pts[pts.length - 1].x.getTime() : null;
 
-    if (lastTs !== null && tsMs - lastTs > 30 * 60 * 1000) {
+    if (lastTs !== null && tsMs - lastTs > this._gapThreshold()) {
       dataset.data.push({
         x: new Date((lastTs + tsMs) / 2),
         y: null,
@@ -394,16 +411,22 @@ class GoldChart {
       // Fetch each independently — one failure should not block the other
       if (!xauResp || !xauResp.bars || xauResp.bars.length === 0) {
         try {
-          const xauRes = await fetch(`/api/chart/xau?source=${this.xauSource}`);
+          const threshold = this._gapThreshold();
+          const url = `/api/chart/xau?source=${this.xauSource}${threshold != null ? `&gap_threshold_ms=${threshold}` : ''}`;
+          const xauRes = await fetch(url);
           const d = await xauRes.json();
-          if (d.bars && d.bars.length > 0) xauResp = d;
+          if (d.bars && d.bars.length > 0) {
+            xauResp = d;
+            if (d.gap_threshold_ms != null) this.gapThresholdMs = d.gap_threshold_ms;
+          }
         } catch (e) {
           console.warn("XAU chart fetch failed:", e.message);
         }
       }
       if (!auResp || !auResp.bars || auResp.bars.length === 0) {
         try {
-          const auRes = await fetch(`/api/chart/au?source=${this.auSource}`);
+          const url = `/api/chart/au?source=${this.auSource}`;
+          const auRes = await fetch(url);
           const d = await auRes.json();
           if (d.bars && d.bars.length > 0) auResp = d;
         } catch (e) {
@@ -411,11 +434,12 @@ class GoldChart {
         }
       }
 
+      const threshold = this._gapThreshold();
       const xauPts = xauResp
-        ? insertGaps(xauResp.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })))
+        ? insertGaps(xauResp.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })), threshold)
         : [];
       const auPts = auResp
-        ? insertGaps(auResp.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })))
+        ? insertGaps(auResp.bars.map(d => ({ x: new Date(d.time * 1000), y: d.close })), threshold)
         : [];
 
       if (xauPts.length === 0 && auPts.length === 0) {
