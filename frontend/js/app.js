@@ -275,12 +275,21 @@ const COLOR_POOL = [
   "#22d3ee",  // cyan
 ];
 
-/** Pick a random item from an array using a symbol-seeded index */
-function _pick(symbol, pool) {
-  // Use symbol char codes to get a stable-but-varied index per symbol
-  const seed = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const index = (seed + Math.floor(Date.now() / 15000)) % pool.length;
-  return pool[index];
+/** Random color/font state per symbol — changes every update with no repeats */
+const _symbolStyle = {};
+function _rand(pool, prev) {
+  let item;
+  do {
+    item = pool[Math.floor(Math.random() * pool.length)];
+  } while (item === prev && pool.length > 1);
+  return item;
+}
+function _styleFor(symbol, pool, key) {
+  if (!_symbolStyle[symbol]) _symbolStyle[symbol] = {};
+  const prev = _symbolStyle[symbol][key];
+  const next = _rand(pool, prev);
+  _symbolStyle[symbol][key] = next;
+  return next;
 }
 
 /** Apply a price update to DOM */
@@ -302,8 +311,8 @@ function _applyPrice(symbol, data) {
   const sel = document.getElementById(`src-${srcKeyMap[symbol]}`);
   const srcVal = sel ? sel.value : "";
   // Randomize color and font on every update for visual variety
-  const color = _pick(symbol, COLOR_POOL);
-  const font = _pick(symbol, FONT_POOL);
+  const color = _styleFor(symbol, COLOR_POOL, "color");
+  const font = _styleFor(symbol, FONT_POOL, "font");
   priceEl.setAttribute("data-source", srcVal);
   priceEl.style.color = color;
   priceEl.style.fontFamily = font;
