@@ -29,3 +29,6 @@ docs/
 
 # Build/output artifacts
 graphify-out/
+
+# Claude Code brainstorm sessions
+.superpowers/
