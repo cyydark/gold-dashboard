@@ -1053,6 +1053,18 @@ body {
   background: linear-gradient(135deg, rgba(212, 175, 55, 0.07) 0%, transparent 60%);
 }
 
+/* L2: price forecast — prominent gold border */
+.analysis-block--l2 {
+  border-color: var(--color-gold);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.07) 0%, transparent 60%);
+}
+
+/* L1: analysis conclusions — subtle gold accent */
+.analysis-block--l1 {
+  border-color: rgba(212, 175, 55, 0.3);
+  background: rgba(212, 175, 55, 0.03);
+}
+
 /* Block header */
 .analysis-block__header {
   display: flex;
