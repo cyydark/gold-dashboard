@@ -165,6 +165,6 @@ def time_range(days: int) -> str:
     """Return a human-readable time range string for the past N days (Beijing timezone)."""
     from datetime import datetime, timezone, timedelta
     BEIJING_TZ = timezone(timedelta(hours=8))
-    now = datetime.now(BEIING_TZ)
+    now = datetime.now(BEIJING_TZ)
     past = now - timedelta(days=days)
     return f"{past.strftime('%m月%d日')} - {now.strftime('%m月%d日')}"
