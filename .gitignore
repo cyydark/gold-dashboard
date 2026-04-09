@@ -26,3 +26,6 @@ backend/alerts.db
 
 # Docs (implementation plans, design specs — local only)
 docs/
+
+# Build/output artifacts
+graphify-out/
