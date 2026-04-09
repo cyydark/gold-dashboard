@@ -190,7 +190,7 @@ function _hideBriefingSkeleton() {
   if (skeleton) skeleton.style.display = 'none';
 }
 
-/** Render initial two blocks with all showing "正在生成..." */
+/** Render initial two blocks — "加载中" until SSE cached event fills them in. */
 function _initBriefingSkeleton() {
   const weeklyEl = document.getElementById("weekly-content");
   const weeklySkeleton = document.getElementById("briefing-skeleton");
@@ -202,11 +202,11 @@ function _initBriefingSkeleton() {
   weeklyEl.innerHTML = `
     <div class="analysis-block analysis-block--l3" id="block-l3">
       <div class="analysis-block__header"><span class="analysis-block__icon">🎯</span><span class="analysis-block__title">金价预期</span></div>
-      <div class="analysis-block__body" id="body-l3"><div class="state-message">正在生成...</div></div>
+      <div class="analysis-block__body" id="body-l3"><div class="state-message">加载中...</div></div>
     </div>
     <div class="analysis-block analysis-block--l12" id="block-l12">
       <div class="analysis-block__header"><span class="analysis-block__icon">📊</span><span class="analysis-block__title">分析结论</span></div>
-      <div class="analysis-block__body" id="body-l12"><div class="state-message">正在生成...</div></div>
+      <div class="analysis-block__body" id="body-l12"><div class="state-message">加载中...</div></div>
     </div>
   `;
 }
@@ -249,6 +249,40 @@ const PRICE_SOURCE_COLORS = {
   sina_au0:  "#fb923c",   // orange
 };
 
+/** Random font pool for price numbers (6 fonts, varied aesthetics) */
+const FONT_POOL = [
+  "'Cormorant Garamond', serif",
+  "'DM Sans', sans-serif",
+  "'JetBrains Mono', monospace",
+  "'Playfair Display', serif",
+  "'Space Grotesk', sans-serif",
+  "'IBM Plex Mono', monospace",
+];
+
+/** Rich color pool for price numbers */
+const COLOR_POOL = [
+  "#d4af37",  // gold
+  "#fb923c",  // orange
+  "#c084fc",  // violet
+  "#34d399",  // emerald
+  "#38bdf8",  // sky blue
+  "#fbbf24",  // amber
+  "#f472b6",  // pink
+  "#a78bfa",  // purple
+  "#4ade80",  // green
+  "#fb7185",  // rose
+  "#facc15",  // yellow
+  "#22d3ee",  // cyan
+];
+
+/** Pick a random item from an array using a symbol-seeded index */
+function _pick(symbol, pool) {
+  // Use symbol char codes to get a stable-but-varied index per symbol
+  const seed = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const index = (seed + Math.floor(Date.now() / 15000)) % pool.length;
+  return pool[index];
+}
+
 /** Apply a price update to DOM */
 function _applyPrice(symbol, data) {
   const priceEl = document.getElementById(`price-${symbol}`);
@@ -267,11 +301,15 @@ function _applyPrice(symbol, data) {
   const srcKeyMap = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" };
   const sel = document.getElementById(`src-${srcKeyMap[symbol]}`);
   const srcVal = sel ? sel.value : "";
-  const srcColor = PRICE_SOURCE_COLORS[srcVal] || "#d4af37";
+  // Randomize color and font on every update for visual variety
+  const color = _pick(symbol, COLOR_POOL);
+  const font = _pick(symbol, FONT_POOL);
   priceEl.setAttribute("data-source", srcVal);
-  priceEl.style.color = srcColor;
+  priceEl.style.color = color;
+  priceEl.style.fontFamily = font;
   priceEl.style.textShadow = "";
   changeEl.setAttribute("data-source", srcVal);
+  changeEl.style.fontFamily = font;
 
   animatePriceChange(priceEl, `${data.price} ${data.unit || ""}`);
 
