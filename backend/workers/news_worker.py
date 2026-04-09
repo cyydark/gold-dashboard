@@ -1,37 +1,46 @@
-"""Background worker: periodically saves news to SQLite every 15 minutes."""
-import asyncio
+"""Background worker: refreshes news (30min) and AI layers (3h) in-memory."""
 import logging
 import threading
-from datetime import datetime, timezone, timedelta
+import time
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-INTERVAL_MINUTES = 15  # 15 minutes
+NEWS_INTERVAL = 1800    # 30 minutes
+AI_INTERVAL = 10800   # 3 hours
 
 
-def _save_once():
-    """Fetch from sources and save to DB (runs in thread)."""
+def _refresh_news():
     try:
-        from backend.services.news_service import _fetch_news_from_sources, _filter_by_days
-        items = _fetch_news_from_sources()
-        items = _filter_by_days(items, days=3)
-        from backend.repositories.news_repo import save_news
-        save_news(items)
-        logger.info("News worker saved %d items at %s", len(items), datetime.now(timezone.utc).isoformat())
+        from backend.services import briefing_cache as bc
+        news = bc._fetch_news(3)
+        bc._news_cache[3] = {"ts": time.time(), "data": news}
+        logger.info("News cache refreshed: %d items", len(news))
     except Exception as e:
         logger.warning("News worker failed: %s", e)
 
 
-def _run_periodic():
-    _save_once()
-    t = threading.Timer(INTERVAL_MINUTES * 60, _run_periodic)
-    t.daemon = True
-    t.start()
+def _refresh_ai():
+    try:
+        from backend.services import briefing_cache as bc
+        news = bc.get_news(3)
+        layer1, layer2 = bc.get_layer(news, 3)
+        logger.info("AI layers refreshed: L1=%d chars, L2=%d chars", len(layer1), len(layer2))
+    except Exception as e:
+        logger.warning("AI worker failed: %s", e)
+
+
+def _run_news_loop():
+    _refresh_news()
+    threading.Timer(NEWS_INTERVAL, _run_news_loop).start()
+
+
+def _run_ai_loop():
+    _refresh_ai()
+    threading.Timer(AI_INTERVAL, _run_ai_loop).start()
 
 
 def start_news_worker():
-    """Start the periodic news saver. Call once from app lifespan."""
-    logger.info("Starting news worker (interval=%d min)", INTERVAL_MINUTES)
-    t = threading.Timer(INTERVAL_MINUTES * 60, _run_periodic)
-    t.daemon = True
-    t.start()
+    logger.info("Starting worker: news=30min, AI=3h")
+    threading.Timer(NEWS_INTERVAL, _run_news_loop).start()
+    threading.Timer(AI_INTERVAL, _run_ai_loop).start()
