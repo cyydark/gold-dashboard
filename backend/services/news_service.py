@@ -1,6 +1,5 @@
-"""News service — in-memory cache backed by SQLite persistence."""
+"""News service — fetches from SQLite (no in-memory cache layer)."""
 import logging
-import time
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -10,36 +9,16 @@ logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
-# In-memory TTL: 10 minutes (matches news_repo TTL)
-_CACHE_TTL = 600
-_cache: dict[str, Any] = {"ts": 0, "data": [], "days": 1}
-
 
 def get_news(days: int = 1) -> list:
-    """Return cached news list.
-
-    Layer 1 — in-memory: fast, per-process.
-    Layer 2 — SQLite: persistent across restarts, shared (future).
-    Refreshes from sources if both layers are stale.
-    """
-    now = time.monotonic()
-    if _cache["data"] and (now - _cache["ts"]) < _CACHE_TTL and _cache.get("days") == days:
-        return _cache["data"]
-
-    # Try SQLite first (faster than scraping)
+    """Return news from SQLite. Falls back to scraper if DB is empty."""
     db_items = _fetch_from_db(days)
     if db_items:
-        _cache["data"] = db_items
-        _cache["ts"] = now
-        _cache["days"] = days
         return db_items
 
     # Fall back to scraping
     items = _fetch_news_from_sources()
     items = _filter_by_days(items, days)
-    _cache["data"] = items
-    _cache["ts"] = now
-    _cache["days"] = days
     save_news(items)
     return items
 

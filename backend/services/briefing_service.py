@@ -369,19 +369,15 @@ async def briefing_stream(days: int) -> AsyncGenerator[dict, None]:
         cached = get_recent(days)
         if cached:
             yield {"type": "cached", "blocks": {"l12": cached["l12_content"], "l3": cached["l3_content"]}}
-            yield {"type": "news-ready", "news": cached.get("news", [])}
             return
 
-    # 并发拉取新闻 + Kline + 价格
+    # 并发拉取 Kline + 价格（新闻由前端独立 REST 接口加载）
     from backend.services.news_service import get_news as ns_get_news
     news, kline_data, current_price = await asyncio.gather(
         asyncio.to_thread(lambda: ns_get_news(days=days)),
         asyncio.to_thread(lambda: _safe_fetch_kline()),
         asyncio.to_thread(_fetch_current_price),
     )
-
-    # 新闻一拿到就发，前端立刻渲染，不等 L1/L2/L3
-    yield {"type": "news-ready", "news": news}
 
     kline_summary = (
         "（K线数据暂不可用）"

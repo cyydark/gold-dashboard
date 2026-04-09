@@ -162,14 +162,18 @@ body {
   z-index: 2;
 }
 
-/* Source-specific price number color variants */
-.price-card__price[data-source="comex"]    { color: #d4af37; }
-.price-card__price[data-source="binance"]    { color: #fb923c; }
-.price-card__price[data-source="sina"]      { color: #c084fc; }
-.price-card__price[data-source="au9999"]    { color: #34d399; }
-.price-card__price[data-source="eastmoney"] { color: #38bdf8; }
-.price-card__price[data-source="yfinance"] { color: #fbbf24; }
-.price-card__price[data-source="sina_au0"]  { color: #fb923c; }
+/* Source-specific price number color + font variants
+   Design intent:
+     COMEX / AU9999  → Cormorant Garamond (elegant serif, authoritative)
+     Binance / Eastmoney → DM Sans (modern, clean)
+     Sina / Yahoo Finance / Sina AU0 → JetBrains Mono (monospace, financial data) */
+.price-card__price[data-source="comex"]     { color: #d4af37; font-family: var(--font-display); }
+.price-card__price[data-source="binance"]   { color: #fb923c; font-family: var(--font-body);    }
+.price-card__price[data-source="sina"]      { color: #c084fc; font-family: var(--font-mono);   }
+.price-card__price[data-source="au9999"]    { color: #34d399; font-family: var(--font-display); }
+.price-card__price[data-source="eastmoney"] { color: #38bdf8; font-family: var(--font-body);   }
+.price-card__price[data-source="yfinance"]  { color: #fbbf24; font-family: var(--font-mono);   }
+.price-card__price[data-source="sina_au0"]   { color: #fb923c; font-family: var(--font-mono);   }
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -477,6 +481,15 @@ body {
 
 .price-card__change--up { color: var(--color-green); }
 .price-card__change--down { color: var(--color-red); }
+
+/* Source-specific font for change/pct values */
+.price-card__change[data-source="comex"]     { font-family: var(--font-display); }
+.price-card__change[data-source="binance"]   { font-family: var(--font-body);    }
+.price-card__change[data-source="sina"]       { font-family: var(--font-mono);    }
+.price-card__change[data-source="au9999"]     { font-family: var(--font-display); }
+.price-card__change[data-source="eastmoney"]  { font-family: var(--font-body);    }
+.price-card__change[data-source="yfinance"]   { font-family: var(--font-mono);    }
+.price-card__change[data-source="sina_au0"]   { font-family: var(--font-mono);    }
 
 .price-card__ohlc {
   display: flex;

@@ -91,9 +91,20 @@ function renderBriefing(text) {
   return escaped.replace(/【(.+?)】/g, '<span class="section-label">【$1】</span>');
 }
 
-/**
- * Load briefings via SSE stream.
- */
+/** Load news via REST API (runs independently of briefing SSE). */
+async function loadNews(days = 3) {
+  try {
+    const res = await fetch(`/api/news?days=${days}`);
+    if (!res.ok) throw new Error(`news API ${res.status}`);
+    const data = await res.json();
+    const items = data.news || data.data || [];
+    _renderNews(items);
+  } catch (err) {
+    console.error("loadNews failed:", err);
+  }
+}
+
+/** Load briefings via SSE stream (AI content only, news is loaded separately). */
 function loadBriefings() {
   const es = new EventSource("/api/briefings/stream?days=3");
 
@@ -114,7 +125,6 @@ function loadBriefings() {
       if (bodies.l12 && data.blocks.l12) bodies.l12.innerHTML = renderBriefing(data.blocks.l12);
       if (bodies.l3 && data.blocks.l3) bodies.l3.innerHTML = renderBriefing(data.blocks.l3);
     }
-    if (data.news && data.news.length) _renderNews(data.news);
     _hideBriefingSkeleton();
     es.close();
   });
@@ -127,16 +137,7 @@ function loadBriefings() {
     _hideBriefingSkeleton();
   });
 
-  es.addEventListener("news-ready", (e) => {
-    const { news } = JSON.parse(e.data);
-    if (news && news.length) _renderNews(news);
-    _hideBriefingSkeleton();
-  });
-
-  es.addEventListener("block-done", (e) => {
-    const { block } = JSON.parse(e.data);
-    // News already sent via news-ready
-  });
+  es.addEventListener("block-done", () => {});
 
   es.addEventListener("done", () => {
     es.close();
@@ -419,6 +420,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Start polling
   polling.start("prices");
   polling.start("chart");
+  // News and AI briefing are loaded independently in parallel
+  loadNews();
   loadBriefings();
 
 });
