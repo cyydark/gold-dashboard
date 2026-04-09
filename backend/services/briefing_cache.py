@@ -10,7 +10,7 @@ import time
 
 logger = logging.getLogger(__name__)
 
-_NEWS_TTL = 600          # 10 minutes
+_NEWS_TTL = 600          # 10 minutes — news cache TTL
 _LAYER1_TTL = 1800       # 30 minutes
 _LAYER2_TTL = 3600       # 60 minutes
 _LAYER3_TTL = 900        # 15 minutes
@@ -64,7 +64,6 @@ def get_layer1(news: list[dict], days: int, current_price: str) -> str:
     """Layer 1 cache with 30-min TTL."""
     if _layer1_cache["data"] != "" and (time.time() - _layer1_cache["ts"]) < _LAYER1_TTL:
         return _layer1_cache["data"]
-    import importlib
     mod = importlib.import_module("backend.data.sources.briefing")
     layer1 = asyncio.run(mod.generate_daily_briefing_from_news(news, current_price))
     _layer1_cache["data"] = layer1
@@ -85,7 +84,6 @@ def get_layer2(layer1: str, kline_data: list[dict] | None) -> str:
         _layer2_cache["data"] = fallback
         _layer2_cache["ts"] = time.time()
         return fallback
-    import importlib
     mod = importlib.import_module("backend.data.sources.briefing")
     layer2 = asyncio.run(mod.generate_cross_validation(layer1, kline_data))
     if not layer2:
@@ -103,7 +101,6 @@ def get_layer3(layer1: str, layer2: str) -> str:
     """Layer 3 cache with 15-min TTL."""
     if _layer3_cache["data"] != "" and (time.time() - _layer3_cache["ts"]) < _LAYER3_TTL:
         return _layer3_cache["data"]
-    import importlib
     mod = importlib.import_module("backend.data.sources.briefing")
     layer3 = asyncio.run(mod.generate_price_forecast(layer1, layer2))
     _layer3_cache["data"] = layer3
@@ -125,7 +122,6 @@ def run_three_layers(news: list[dict], days: int) -> dict:
     # Layer 1 (concurrent with Kline fetch)
     async def _layer1_task() -> tuple[str, list[dict] | None]:
         async def gen() -> str:
-            import importlib
             mod = importlib.import_module("backend.data.sources.briefing")
             return await mod.generate_daily_briefing_from_news(news, current_price)
 

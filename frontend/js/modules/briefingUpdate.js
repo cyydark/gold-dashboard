@@ -84,8 +84,6 @@ export function loadBriefings() {
     hideSkeleton();
   });
 
-  es.addEventListener("block-done", () => {});
-
   es.addEventListener("done", () => {
     hideSkeleton();
     es.close();

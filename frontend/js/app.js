@@ -12,12 +12,6 @@ import { loadNews } from "./modules/newsUpdate.js";
 // Re-export showToast so other modules can use it
 export { showToast } from "./modules/briefingUpdate.js";
 
-const XAU_LEGEND = {
-  comex:   "COMEX GC00Y",
-  binance: "XAUTUSDT (Binance)",
-  sina:    "Sina 伦敦金 (hf_XAU)",
-};
-
 const polling = new PollingManager();
 let chart = null;
 

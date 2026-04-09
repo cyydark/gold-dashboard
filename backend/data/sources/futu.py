@@ -14,11 +14,12 @@ from typing import Set
 
 import httpx
 
+from backend.data.constants import NEWS_TTL
+
 logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
-_TTL = 300  # 5 minutes
 _cache: list[dict] = []
 _cache_ts: float = 0.0
 _save_done_event: concurrent.futures.Future | None = None
@@ -167,7 +168,7 @@ def fetch_futu_news() -> list[dict]:
     """
     global _cache, _cache_ts
     now_ts = time.time()
-    if _cache and (now_ts - _cache_ts) < _TTL:
+    if _cache and (now_ts - _cache_ts) < NEWS_TTL:
         return _cache
 
     all_items = []

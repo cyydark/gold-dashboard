@@ -36,7 +36,7 @@
       "command": "/Users/chenyanyu/.local/bin/uvx",
       "args": ["minimax-coding-plan-mcp", "-y"],
       "env": {
-        "MINIMAX_API_KEY": "sk-cp-KlpVl6IfxHEuVcDNinRnv8ajicGtO9iRdv-fo3TPuov8B00EyZOxOEC5evQG41Hq642rnE8Daylg-7yh0VVjXZN57YhWozCbiC7sazdx49kk43mkwhtwWyo",
+        "MINIMAX_API_KEY": "<YOUR_MINIMAX_API_KEY>",
         "MINIMAX_API_HOST": "https://api.minimaxi.com"
       }
     }
@@ -54,7 +54,7 @@ cat > ~/.claude/mcp_minimax.json << 'EOF'
       "command": "/Users/chenyanyu/.local/bin/uvx",
       "args": ["minimax-coding-plan-mcp", "-y"],
       "env": {
-        "MINIMAX_API_KEY": "sk-cp-KlpVl6IfxHEuVcDNinRnv8ajicGtO9iRdv-fo3TPuov8B00EyZOxOEC5evQG41Hq642rnE8Daylg-7yh0VVjXZN57YhWozCbiC7sazdx49kk43mkwhtwWyo",
+        "MINIMAX_API_KEY": "<YOUR_MINIMAX_API_KEY>",
         "MINIMAX_API_HOST": "https://api.minimaxi.com"
       }
     }

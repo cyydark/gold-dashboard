@@ -13,11 +13,6 @@ BEIJING_TZ = timezone(timedelta(hours=8))
 class PriceService:
     """Service for price-related business logic (REST-only, no DB)."""
 
-    def __init__(self, repository=None):
-        # repository argument accepted for backwards-compatible signatures;
-        # it is never used.
-        pass
-
     async def get_current_prices(self) -> dict:
         """Fetch current prices for all symbols from REST sources.
 
@@ -80,15 +75,3 @@ class PriceService:
             }
 
         return result
-
-    async def get_price_history(self, symbol: str, days: int = 1) -> dict:
-        """Price history is served directly by routes/price.py — this is a stub."""
-        return {"bars": [], "xMin": 0, "xMax": 0}
-
-    async def get_latest_price(self, symbol: str) -> dict | None:
-        """Latest price is served directly by routes/price.py — this is a stub."""
-        return None
-
-    async def switch_xauusd_source(self, source: str) -> dict:
-        """Source switching is handled by routes/price.py — this is a stub."""
-        return {"error": "source switching is now handled by frontend via /api/realtime/xau/{source}"}

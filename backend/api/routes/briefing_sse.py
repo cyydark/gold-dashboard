@@ -1,9 +1,8 @@
 """SSE 流式金价分析 endpoint."""
-import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
 from backend.services.briefing_service import briefing_stream

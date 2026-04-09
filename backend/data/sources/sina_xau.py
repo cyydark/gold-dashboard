@@ -12,7 +12,6 @@ K线接口: CN_MarketDataService.getKLineData (5分钟K线, 1023根)
 
 import logging
 import re
-import time
 from datetime import datetime
 
 import requests
@@ -26,87 +25,7 @@ _HEADERS = {
     "Referer": "https://finance.sina.com.cn/",
 }
 
-_KLINE_URL = "https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketDataService.getKLineData"
 _REALTIME_URL = "https://hq.sinajs.cn/list=hf_XAU"
-_SYMBOL = "hf_XAU"
-_SCALE = 5
-_DATALEN = 1023
-
-
-def fetch_xauusd_history() -> list[dict] | None:
-    """Fetch XAU 5-minute Kline bars from Sina Finance.
-
-    Returns up to 1023 bars of 5-minute frequency.
-    change/pct computed from today's settlement price (实时接口 f8).
-    """
-    settlement = 0.0
-
-    # Fetch realtime data to get today's settlement price for change/pct
-    try:
-        rt_resp = requests.get(_REALTIME_URL, headers=_HEADERS, timeout=10)
-        rt_resp.raise_for_status()
-        text = rt_resp.text.strip()
-        # var hq_str_hf_XAU="price,prev_close,open,bid,high,low,time,s_prev,s_settlement,...,date,note";
-        m = re.search(r'hq_str_hf_XAU="([^"]+)"', text)
-        if m:
-            fields = m.group(1).split(",")
-            if len(fields) >= 9:
-                settlement = float(fields[8])  # f8: 今结算
-    except Exception as e:
-        logger.warning(f"Sina XAU realtime error: {e}")
-
-    try:
-        kline_resp = requests.get(
-            _KLINE_URL,
-            params={
-                "symbol": _SYMBOL,
-                "scale": _SCALE,
-                "datalen": _DATALEN,
-            },
-            headers=_HEADERS,
-            timeout=10,
-        )
-        kline_resp.raise_for_status()
-        klines = kline_resp.json()
-    except Exception as e:
-        logger.warning(f"Sina XAU Kline error: {e}")
-        return None
-
-    if not klines:
-        logger.warning("Sina XAU Kline: no bars returned")
-        return None
-
-    records = []
-    for bar in klines:
-        dt_str = bar.get("day", "")
-        try:
-            dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-            ts = int(dt.timestamp())
-        except Exception:
-            logger.warning(f"Sina XAU Kline: failed to parse date {dt_str!r}")
-            continue
-
-        open_px = float(bar["open"])
-        close_px = float(bar["close"])
-        high_px = float(bar["high"])
-        low_px = float(bar["low"])
-        volume = float(bar.get("vol", 0))
-
-        change = round(close_px - settlement, 2) if settlement else 0.0
-        pct = round((close_px - settlement) / settlement * 100, 4) if settlement else 0.0
-
-        records.append({
-            "time": ts,
-            "open": open_px,
-            "high": high_px,
-            "low": low_px,
-            "close": close_px,
-            "volume": volume,
-            "change": change,
-            "pct": pct,
-        })
-
-    return records if records else None
 
 
 def fetch_xauusd_realtime() -> dict | None:

@@ -7,10 +7,11 @@ from datetime import datetime, timezone, timedelta
 
 import httpx
 
+from backend.data.constants import NEWS_TTL
+
 logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
-_TTL = 300  # 5 minutes
 _cache: list[dict] = []
 _cache_ts: float = 0.0
 
@@ -48,7 +49,7 @@ def fetch_bernama_gold_news() -> list[dict]:
     """Scrape gold news from bernamabiz.com search page, returns normalized items."""
     global _cache, _cache_ts
     now = time.time()
-    if _cache and (now - _cache_ts) < _TTL:
+    if _cache and (now - _cache_ts) < NEWS_TTL:
         return _cache
 
     try:

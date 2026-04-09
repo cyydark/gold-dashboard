@@ -12,14 +12,9 @@ class Settings(BaseSettings):
 
     # Intervals (seconds)
     news_refresh_interval: int = 300  # 5 minutes
-    price_sync_interval: int = 300  # 5 minutes
-    briefing_interval: int = 3600  # 1 hour
 
     # API
     frontend_path: Path = Path(__file__).parent.parent / "frontend"
-
-    # Security
-    rate_limit: str = "30/minute"  # per IP
 
     model_config = SettingsConfigDict(
         env_file=".env",

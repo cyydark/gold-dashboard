@@ -6,8 +6,6 @@ from backend.data.db import get_db
 
 logger = logging.getLogger(__name__)
 
-_NEWS_TTL_MINUTES = 10
-
 
 def save_news(items: list[dict]) -> None:
     """Insert new news items, ignoring duplicates; preserve existing published_ts on conflict."""

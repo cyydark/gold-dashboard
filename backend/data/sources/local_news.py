@@ -1,9 +1,10 @@
-"""Local RSS news aggregator — gold news from localhost:18080 (RSSHUB).
+"""Local RSS news aggregator — gold news from RSSHUB.
 
-数据源: http://localhost:18080/news
+数据源: RSSHUB RSS aggregator
 来源: Bloomberg Markets / FX Street Gold / Investing.com Commodities
 """
 import logging
+import os
 import time
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
@@ -11,14 +12,15 @@ import xml.etree.ElementTree as ET
 
 import httpx
 
+from backend.data.constants import NEWS_TTL
+
 logger = logging.getLogger(__name__)
 
 BEIJING_TZ = timezone(timedelta(hours=8))
-_TTL = 300  # 5 minutes
 _cache: list[dict] = []
 _cache_ts: float = 0.0
 
-_RSS_URL = "http://localhost:18080/news"
+_RSS_URL = os.environ.get("RSSHUB_URL", "http://localhost:18080/news")
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -42,7 +44,7 @@ def fetch_local_news() -> list[dict]:
     """
     global _cache, _cache_ts
 
-    if _cache and (time.time() - _cache_ts) < _TTL:
+    if _cache and (time.time() - _cache_ts) < NEWS_TTL:
         return _cache
 
     try:

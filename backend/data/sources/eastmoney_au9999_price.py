@@ -10,10 +10,15 @@
 涨跌额/涨跌幅直接取 f3/f4（数据源原生字段）。
 """
 import logging
+import os
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+_EASTMONEY_UT = os.environ.get(
+    "EASTMONEY_UT", "fa5fd1943c7b386f172d6893dbfba10b"
+)
 
 _LIST_URL = (
     "https://push2.eastmoney.com/api/qt/ulist.np/get"
