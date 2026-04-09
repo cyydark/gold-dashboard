@@ -415,6 +415,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     srcFx.addEventListener("change", () => flashCardSource("USDCNY"));
   }
 
+  // Fire news + briefing immediately — don't wait for chart load
+  loadNews();
+  loadBriefings();
+
+  // Chart initialization (takes ~2s, independent of news/AI)
   chart = new GoldChart();
   chart.xauSource = polling.getSource("xauChart");
   chart.auSource  = polling.getSource("auChart");
@@ -458,8 +463,5 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Start polling
   polling.start("prices");
   polling.start("chart");
-  // News and AI briefing are loaded independently in parallel
-  loadNews();
-  loadBriefings();
 
 });
