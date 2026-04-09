@@ -249,47 +249,44 @@ const PRICE_SOURCE_COLORS = {
   sina_au0:  "#fb923c",   // orange
 };
 
-/** Random font pool for price numbers (6 fonts, varied aesthetics) */
-const FONT_POOL = [
-  "'Cormorant Garamond', serif",
-  "'DM Sans', sans-serif",
-  "'JetBrains Mono', monospace",
-  "'Playfair Display', serif",
-  "'Space Grotesk', sans-serif",
-  "'IBM Plex Mono', monospace",
-];
-
-/** Rich color pool for price numbers */
-const COLOR_POOL = [
-  "#d4af37",  // gold
-  "#fb923c",  // orange
-  "#c084fc",  // violet
-  "#34d399",  // emerald
-  "#38bdf8",  // sky blue
-  "#fbbf24",  // amber
-  "#f472b6",  // pink
-  "#a78bfa",  // purple
-  "#4ade80",  // green
-  "#fb7185",  // rose
-  "#facc15",  // yellow
-  "#22d3ee",  // cyan
-];
-
-/** Random color/font state per symbol — changes every update with no repeats */
-const _symbolStyle = {};
-function _rand(pool, prev) {
-  let item;
-  do {
-    item = pool[Math.floor(Math.random() * pool.length)];
-  } while (item === prev && pool.length > 1);
-  return item;
+/** Shuffle array in place (Fisher-Yates) */
+function _shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
-function _styleFor(symbol, pool, key) {
+
+/** Per-symbol last value to avoid consecutive repeats */
+const _symbolStyle = {};
+const _prevOf = (symbol, key) => (_symbolStyle[symbol] || {})[key];
+
+/** Fixed unique assignment across all three cards (resets on page load) */
+const _CARD_FONTS = ["'Cormorant Garamond', serif", "'Playfair Display', serif", "'DM Sans', sans-serif", "'Space Grotesk', sans-serif", "'JetBrains Mono', monospace", "'IBM Plex Mono', monospace"];
+const _CARD_COLORS = ["#d4af37", "#fb923c", "#c084fc", "#34d399", "#38bdf8", "#fbbf24", "#f472b6", "#a78bfa", "#4ade80", "#fb7185", "#facc15", "#22d3ee"];
+let _fontAssign = null;   // { XAUUSD, AU9999, USDCNY }
+let _colorAssign = null;
+
+function _assign(symbol, pool, assignMap) {
+  if (!assignMap[symbol]) {
+    // First time: shuffle the pool and assign one per symbol
+    const shuffled = [...pool];
+    _shuffle(shuffled);
+    assignMap["XAUUSD"] = shuffled[0];
+    assignMap["AU9999"]  = shuffled[1];
+    assignMap["USDCNY"]  = shuffled[2];
+  }
+  let value = assignMap[symbol];
+  // Avoid repeat on same symbol
+  if (value === _prevOf(symbol, pool === _CARD_FONTS ? "font" : "color")) {
+    const idx = pool.indexOf(value);
+    value = pool[(idx + 1) % pool.length];
+    assignMap[symbol] = value;
+  }
   if (!_symbolStyle[symbol]) _symbolStyle[symbol] = {};
-  const prev = _symbolStyle[symbol][key];
-  const next = _rand(pool, prev);
-  _symbolStyle[symbol][key] = next;
-  return next;
+  _symbolStyle[symbol][pool === _CARD_FONTS ? "font" : "color"] = value;
+  return value;
 }
 
 /** Apply a price update to DOM */
@@ -310,9 +307,9 @@ function _applyPrice(symbol, data) {
   const srcKeyMap = { XAUUSD: "xau", AU9999: "au", USDCNY: "fx" };
   const sel = document.getElementById(`src-${srcKeyMap[symbol]}`);
   const srcVal = sel ? sel.value : "";
-  // Randomize color and font on every update for visual variety
-  const color = _styleFor(symbol, COLOR_POOL, "color");
-  const font = _styleFor(symbol, FONT_POOL, "font");
+  // Assign unique font/color per symbol (guaranteed different across all 3 cards)
+  const color = _assign(symbol, _CARD_COLORS, _colorAssign = _colorAssign || {});
+  const font  = _assign(symbol, _CARD_FONTS,  _fontAssign  = _fontAssign  || {});
   priceEl.setAttribute("data-source", srcVal);
   priceEl.style.color = color;
   priceEl.style.fontFamily = font;
