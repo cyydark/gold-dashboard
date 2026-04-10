@@ -1,4 +1,4 @@
-"""Briefing service — news + AI briefing, in-memory only."""
+"""Briefing service — AI briefing only, news served separately via /api/news."""
 import logging
 from datetime import datetime, timezone, timedelta
 
@@ -9,8 +9,8 @@ BEIJING_TZ = timezone(timedelta(hours=8))
 
 
 def get_briefing(days: int = 3) -> dict:
-    """Return cached briefing + news. News from in-memory, AI from in-memory."""
-    news = _cache.get_news(days)
+    """Return cached AI briefing only. News is fetched separately via /api/news."""
+    news = _cache.get_news(days)  # triggers fetch if cache is cold
     layer1, layer2 = _cache.get_layer(news, days)
     return {
         "weekly": {
@@ -19,6 +19,4 @@ def get_briefing(days: int = 3) -> dict:
             "time_range": _cache.time_range(days),
             "news_count": len(news),
         },
-        "news": news,
-        "news_count": len(news),
     }
