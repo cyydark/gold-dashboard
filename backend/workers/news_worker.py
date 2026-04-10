@@ -15,10 +15,7 @@ AI_INTERVAL = 10800   # 3 hours
 def _refresh_ai():
     try:
         from backend.services import briefing_cache as bc
-        news = bc.get_news(3)
-        if not news:
-            logger.info("AI refresh skipped: news cache is cold, worker will retry next cycle")
-            return
+        news = bc.get_news(3)  # auto-fetches if cache is cold
         layer1, layer2 = bc.get_layer(news, 3)
         logger.info("AI layers refreshed: L1=%d chars, L2=%d chars", len(layer1), len(layer2))
     except Exception as e:

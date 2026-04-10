@@ -38,15 +38,17 @@ def bust_all_caches() -> None:
 # ---------------------------------------------------------------------------
 
 def get_news(days: int) -> list:
-    """Return cached news only. Returns empty list if cache is cold."""
+    """Return cached news, auto-fetch + write cache if cold or empty."""
     entry = _news_cache.get(days)
     if entry and (time.time() - entry["ts"]) < _NEWS_TTL:
         return entry["data"]
-    return []
+    news = _fetch_news(days)
+    _news_cache[days] = {"ts": time.time(), "data": news}
+    return news
 
 
 def set_news(days: int, news: list) -> None:
-    """Write news into cache. Called by /api/news or news_worker."""
+    """Explicitly write news into cache. Called by /api/news for pre-warming."""
     _news_cache[days] = {"ts": time.time(), "data": news}
 
 
