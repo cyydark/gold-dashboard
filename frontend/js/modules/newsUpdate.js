@@ -27,8 +27,8 @@ function bjTime(tsSec) {
 }
 
 export function renderNews(news) {
-  const newsEl = document.getElementById("briefing-news-list");
-  const newsSkeleton = document.getElementById("news-skeleton");
+  const newsEl = document.getElementById("news-list");
+  const newsSkeleton = document.getElementById("news__skeleton");
   if (!newsEl) return;
   if (newsSkeleton) newsSkeleton.style.display = 'none';
   newsEl.style.display = 'block';

@@ -523,8 +523,8 @@ body {
 }
 
 /* 骨架与内容对齐：两侧 skeleton/content 同高 */
-#briefing-skeleton,
-#news-skeleton {
+#briefing__skeleton,
+#news__skeleton {
   min-height: 166px;
   display: flex;
   flex-direction: column;
@@ -539,7 +539,7 @@ body {
   scrollbar-color: var(--color-border) transparent;
 }
 
-#briefing-news-list {
+#news-list {
   flex: 1;
   min-height: 0;
 }

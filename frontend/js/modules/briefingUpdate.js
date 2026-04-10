@@ -35,20 +35,20 @@ export function loadBriefings() {
     .then((data) => {
       const weekly = data.weekly || {};
 
-      const skeleton = document.getElementById("briefing-skeleton");
+      const skeleton = document.getElementById("briefing__skeleton");
       const content = document.getElementById("briefing-content");
-      const weeklyEl = document.getElementById("weekly-content");
+      const weeklyEl = document.getElementById("briefing-content-body");
       if (!weeklyEl) return;
 
       // Render L2 (金价预期) then L1 (分析结论)
       weeklyEl.innerHTML = `
-        <div class="analysis-block analysis-block--l2" id="block-l2">
-          <div class="analysis-block__body" id="body-l2">${
+        <div class="briefing-block briefing-block--l2" id="briefing-block-l2">
+          <div class="briefing-block__body" id="briefing-body-l2">${
             weekly.layer2 ? renderBriefing(weekly.layer2) : ""
           }</div>
         </div>
-        <div class="analysis-block analysis-block--l1" id="block-l1">
-          <div class="analysis-block__body" id="body-l1">${
+        <div class="briefing-block briefing-block--l1" id="briefing-block-l1">
+          <div class="briefing-block__body" id="briefing-body-l1">${
             weekly.layer1 ? renderBriefing(weekly.layer1) : ""
           }</div>
         </div>`;

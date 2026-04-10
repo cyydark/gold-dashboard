@@ -137,15 +137,15 @@
         <div class="briefing__header">
           <span class="briefing__title">🎯 金价分析</span>
         </div>
-        <!-- 骨架（与右侧 news-skeleton 对齐：3行同高） -->
-        <div id="briefing-skeleton">
+        <!-- 骨架 -->
+        <div id="briefing__skeleton">
           <div class="skeleton skeleton--shimmer" style="width:100%;height:50px"></div>
           <div class="skeleton skeleton--shimmer" style="width:80%;height:50px"></div>
           <div class="skeleton skeleton--shimmer" style="width:60%;height:50px"></div>
         </div>
         <!-- 内容 -->
         <div id="briefing-content" style="display:none">
-          <div id="weekly-content" class="briefing__content"></div>
+          <div id="briefing-content-body" class="briefing__content"></div>
         </div>
       </section>
 
@@ -154,14 +154,14 @@
         <div class="briefing__header">
           <span class="briefing__title">📰 最新资讯</span>
         </div>
-        <!-- Skeleton (outside news-list so it takes space before news loads) -->
-        <div id="news-skeleton">
+        <!-- Skeleton -->
+        <div id="news__skeleton">
           <div class="skeleton skeleton--shimmer" style="width:100%;height:50px"></div>
           <div class="skeleton skeleton--shimmer" style="width:85%;height:50px"></div>
           <div class="skeleton skeleton--shimmer" style="width:70%;height:50px"></div>
         </div>
         <!-- Real Content -->
-        <div id="briefing-news-list" class="news-list" style="display:none"></div>
+        <div id="news-list" class="news-list" style="display:none"></div>
       </section>
     </div>
 

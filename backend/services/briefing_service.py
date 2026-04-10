@@ -17,7 +17,7 @@ def get_briefing(days: int = 3) -> dict:
         "weekly": {
             "layer1": layer1,
             "layer2": layer2,
-            "time_range": _cache.time_range(days),
-            "news_count": len(news),
+            "timeRange": _cache.time_range(days),
+            "newsCount": len(news),
         },
     }
