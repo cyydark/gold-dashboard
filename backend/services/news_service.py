@@ -1,9 +1,6 @@
-"""News service — fetches from SQLite (no in-memory cache layer)."""
+"""News service — fetches from multiple sources, gold-only filtering, no DB."""
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Any
-
-from backend.repositories.news_repo import get_recent_news, save_news
 
 logger = logging.getLogger(__name__)
 
@@ -36,30 +33,11 @@ def _is_gold_news(title: str) -> bool:
 
 
 def get_news(days: int = 1) -> list:
-    """Return news from SQLite. Falls back to scraper if DB is empty."""
-    db_items = _fetch_from_db(days)
-    if db_items:
-        # DB 缓存也过一遍过滤（防止旧数据质量参差）
-        return _filter_gold_only(_sort_news(db_items))
-
-    # Fall back to scraping
+    """Fetch news from all sources, filter by days and gold-only, sorted newest first."""
     items = _fetch_news_from_sources()
     items = _filter_by_days(items, days)
     items = _filter_gold_only(items)
-    save_news(items)
     return items
-
-
-def _fetch_from_db(days: int) -> list:
-    """Try to get fresh news from SQLite."""
-    try:
-        items = get_recent_news(days)
-        if items:
-            logger.debug("News from DB: %d items", len(items))
-        return items
-    except Exception as e:
-        logger.warning("News from DB failed: %s", e)
-        return []
 
 
 def _filter_by_days(items: list, days: int) -> list:
