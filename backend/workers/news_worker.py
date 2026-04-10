@@ -1,4 +1,7 @@
-"""Background worker: refreshes news (30min) and AI layers (3h) in-memory."""
+"""Background worker: refreshes AI layers (3h) in-memory.
+
+News is NOT refreshed here — /api/news (on-demand) or ns_get_news() TTL handles that.
+"""
 import logging
 import threading
 import time
@@ -6,34 +9,20 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-NEWS_INTERVAL = 1800    # 30 minutes
 AI_INTERVAL = 10800   # 3 hours
-
-
-def _refresh_news():
-    try:
-        from backend.services.news_service import get_news as ns_get_news
-        from backend.services import briefing_cache as bc
-        news = ns_get_news(3)
-        bc.set_news(3, news)
-        logger.info("News cache refreshed: %d items", len(news))
-    except Exception as e:
-        logger.warning("News worker failed: %s", e)
 
 
 def _refresh_ai():
     try:
         from backend.services import briefing_cache as bc
         news = bc.get_news(3)
+        if not news:
+            logger.info("AI refresh skipped: news cache is cold, worker will retry next cycle")
+            return
         layer1, layer2 = bc.get_layer(news, 3)
         logger.info("AI layers refreshed: L1=%d chars, L2=%d chars", len(layer1), len(layer2))
     except Exception as e:
         logger.warning("AI worker failed: %s", e)
-
-
-def _run_news_loop():
-    _refresh_news()
-    threading.Timer(NEWS_INTERVAL, _run_news_loop).start()
 
 
 def _run_ai_loop():
@@ -42,6 +31,5 @@ def _run_ai_loop():
 
 
 def start_news_worker():
-    logger.info("Starting worker: news=30min, AI=3h")
-    threading.Timer(NEWS_INTERVAL, _run_news_loop).start()
+    logger.info("Starting AI worker: refresh every 3h")
     threading.Timer(AI_INTERVAL, _run_ai_loop).start()
