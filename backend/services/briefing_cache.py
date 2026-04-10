@@ -88,27 +88,10 @@ def get_layer(news: list[dict], days: int) -> tuple[str, str]:
         from backend.data.sources import binance_kline
         return binance_kline.fetch_xauusd_kline()
 
-    def _get_kline_summary(kline):
-        if not kline:
-            return "（K线数据暂不可用）"
-        closes = [float(b["close"]) for b in kline if b.get("close")]
-        if not closes:
-            return "（K线数据暂不可用）"
-        latest = closes[-1]
-        earliest = closes[0]
-        change = latest - earliest
-        pct = (change / earliest * 100) if earliest else 0
-        direction = "上涨" if change >= 0 else "下跌"
-        return (
-            f"价格区间 {min(closes):.2f}–{max(closes):.2f}，"
-            f"最新 {latest:.2f}，{direction} {abs(change):.2f} ({abs(pct):.2f}%)，"
-            f"共 {len(closes)} 个数据点"
-        )
-
     async def _gen():
         mod = importlib.import_module("backend.data.sources.briefing")
         kline = await asyncio.to_thread(_fetch_kline)
-        kline_summary = _get_kline_summary(kline)
+        kline_summary = aggregate_kline(kline)
 
         # Build L12 prompt with kline_summary injected
         prompt = mod.DAILY_PROMPT_TEMPLATE.format(
@@ -150,15 +133,6 @@ def _fetch_current_price() -> str:
     except Exception:
         pass
     return "N/A"
-
-
-def safe_fetch_kline() -> list[dict] | None:
-    """Safely fetch Kline data, returning None on failure."""
-    try:
-        from backend.data.sources import binance_kline
-        return binance_kline.fetch_xauusd_kline()
-    except Exception:
-        return None
 
 
 def aggregate_kline(klines: list[dict]) -> str:

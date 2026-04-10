@@ -27,6 +27,7 @@ def _run_ai_loop():
     threading.Timer(AI_INTERVAL, _run_ai_loop).start()
 
 
-def start_news_worker():
-    logger.info("Starting AI worker: refresh every 3h")
+def start_briefing_worker():
+    """Start the background worker. Call once from app lifespan."""
+    logger.info("Starting briefing worker: AI refresh every 3h")
     threading.Timer(AI_INTERVAL, _run_ai_loop).start()

@@ -1,14 +1,7 @@
 /**
  * Briefing rendering module.
  */
-
-function escapeHtml(s) {
-  return String(s || "")
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
+import { escapeHtml } from "../utils/escape.js";
 
 function renderBriefing(text) {
   return escapeHtml(text || "").replace(/【(.+?)】/g, '<span class="section-label">【$1】</span>');

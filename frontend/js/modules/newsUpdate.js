@@ -2,14 +2,7 @@
  * News rendering module.
  */
 import { on } from "../utils/eventBus.js";
-
-function escapeHtml(s) {
-  return String(s || "")
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
+import { escapeHtml } from "../utils/escape.js";
 
 function timeAgo(tsSec) {
   if (!tsSec) return "未知";

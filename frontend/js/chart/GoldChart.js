@@ -47,12 +47,6 @@ const _yRange = (pts, minPad = 1) => {
   return [dataMin - pad, dataMax + pad];
 };
 
-const XAU_SYMBOL_MAP = {
-  comex:   "XAUUSD",
-  binance: "XAUUSD_BINANCE",
-  sina:    "XAUUSD_SINA",
-};
-
 const XAU_LEGEND_MAP = {
   comex:   "COMEX GC00Y",
   binance: "XAUTUSDT (Binance)",
