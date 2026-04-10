@@ -267,23 +267,28 @@ class GoldChart {
     }
   }
 
-  warmup() {
+  // warmup() is called by load() with await — no concurrent duplicate fetch
+  async warmup() {
+    // Deduplicate: if already running/completed, return existing promise
+    if (this._warmupPromise) return this._warmupPromise;
+
     const threshold = this._gapThreshold();
     const urlXau = `/api/chart/xau?source=${this.xauSource}${threshold != null ? `&gap_threshold_ms=${threshold}` : ''}`;
     const urlAu  = `/api/chart/au?source=${this.auSource}${threshold != null ? `&gap_threshold_ms=${threshold}` : ''}`;
-    fetch(urlXau).then(r => r.json()).then(d => {
-      if (d && d.bars && d.bars.length > 0) {
-        if (d.gap_threshold_ms != null) this.gapThresholdMs = d.gap_threshold_ms;
-        this._warmupXau = d;
-        this.loadXauFromCache(d);
-      }
-    }).catch(() => {});
-    fetch(urlAu).then(r => r.json()).then(d => {
-      if (d && d.bars && d.bars.length > 0) {
-        this._warmupAu = d;
-        this.loadAuFromCache(d);
-      }
-    }).catch(() => {});
+    this._warmupPromise = Promise.all([
+      fetch(urlXau).then(r => r.json()).catch(() => null),
+      fetch(urlAu).then(r => r.json()).catch(() => null),
+    ]);
+    const [xauData, auData] = await this._warmupPromise;
+    if (xauData && xauData.bars && xauData.bars.length > 0) {
+      if (xauData.gap_threshold_ms != null) this.gapThresholdMs = xauData.gap_threshold_ms;
+      this._warmupXau = xauData;
+      this.loadXauFromCache(xauData);
+    }
+    if (auData && auData.bars && auData.bars.length > 0) {
+      this._warmupAu = auData;
+      this.loadAuFromCache(auData);
+    }
   }
 
   _updateNowLine() {
@@ -389,6 +394,9 @@ class GoldChart {
     if (this.loading) return;
     this.loading = true;
 
+    // Wait for warmup to finish before checking cache / falling back
+    await this.warmup();
+
     const canvas = document.getElementById("priceChart");
     if (!canvas) { console.error("canvas not found"); return; }
 
@@ -425,7 +433,8 @@ class GoldChart {
       }
       if (!auResp || !auResp.bars || auResp.bars.length === 0) {
         try {
-          const url = `/api/chart/au?source=${this.auSource}`;
+          const threshold = this._gapThreshold();
+          const url = `/api/chart/au?source=${this.auSource}${threshold != null ? `&gap_threshold_ms=${threshold}` : ''}`;
           const auRes = await fetch(url);
           const d = await auRes.json();
           if (d.bars && d.bars.length > 0) auResp = d;

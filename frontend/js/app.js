@@ -90,7 +90,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   chart = new GoldChart();
   chart.xauSource = polling.getSource("xauChart");
   chart.auSource  = polling.getSource("auChart");
-  chart.warmup();
+  chart.warmup();   // no await — fetch starts async, load() awaits it internally
   await chart.load();
   window.__goldChart = chart;  // allow other modules to access chart instance
 
