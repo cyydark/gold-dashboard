@@ -5,9 +5,8 @@ for the actual API endpoints, which call source modules directly).
 """
 import asyncio
 import time
-from datetime import datetime, timezone, timedelta
-
-BEIJING_TZ = timezone(timedelta(hours=8))
+from datetime import datetime, timedelta
+from backend.config import BEIJING_TZ
 
 
 class PriceService:

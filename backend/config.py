@@ -1,7 +1,10 @@
 """Configuration management for Gold Dashboard."""
 import os
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 
 class Settings(BaseSettings):

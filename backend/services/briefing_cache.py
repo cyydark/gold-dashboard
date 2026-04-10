@@ -105,8 +105,8 @@ def get_layer(news: list[dict], days: int) -> tuple[str, str]:
         if not layer1:
             layer1 = f"近{days}日共{len(news)}条新闻，AI 分析生成失败。"
 
-        # L2 from build_l3_prompt (which is actually the forecast prompt)
-        l3_prompt = mod.build_l3_prompt(layer1)
+        # L2: 价格预期（从 L1 结论 + K线数据推导）
+        l3_prompt = mod.build_l3_prompt(layer1, kline_summary)
         layer2 = await mod.call_claude_cli_async(l3_prompt)
         if not layer2:
             layer2 = "金价预期生成失败。"
@@ -156,8 +156,8 @@ def aggregate_kline(klines: list[dict]) -> str:
 
 def time_range(days: int) -> str:
     """Return a human-readable time range string for the past N days (Beijing timezone)."""
-    from datetime import datetime, timezone, timedelta
-    BEIJING_TZ = timezone(timedelta(hours=8))
+    from datetime import datetime, timedelta
+    from backend.config import BEIJING_TZ
     now = datetime.now(BEIJING_TZ)
     past = now - timedelta(days=days)
     return f"{past.strftime('%m月%d日')} - {now.strftime('%m月%d日')}"

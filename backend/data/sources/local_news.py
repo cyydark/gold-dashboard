@@ -6,17 +6,18 @@
 import logging
 import os
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+
 from email.utils import parsedate_to_datetime
 import xml.etree.ElementTree as ET
 
 import httpx
 
+from backend.config import BEIJING_TZ
 from backend.data.constants import NEWS_TTL
 
 logger = logging.getLogger(__name__)
 
-BEIJING_TZ = timezone(timedelta(hours=8))
 _cache: list[dict] = []
 _cache_ts: float = 0.0
 

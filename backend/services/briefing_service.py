@@ -1,11 +1,12 @@
 """Briefing service — AI briefing only, news served separately via /api/news."""
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+
+from backend.config import BEIJING_TZ
 
 from backend.services import briefing_cache as _cache
 
 logger = logging.getLogger(__name__)
-BEIJING_TZ = timezone(timedelta(hours=8))
 
 
 def get_briefing(days: int = 3) -> dict:

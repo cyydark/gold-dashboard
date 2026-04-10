@@ -313,10 +313,11 @@ def build_l12_prompt(news: list[dict], current_price: str, kline_summary: str) -
     )
 
 
-def build_l3_prompt(l12_output: str) -> str:
+def build_l3_prompt(l12_output: str, kline_summary: str) -> str:
     return (
-        f"基于以上分析，给出最直接的判断。不要任何markdown格式。\n\n"
+        f"基于以下分析，结合实际行情数据，给出最直接的判断。不要任何markdown格式。\n\n"
         f"【分析结论摘要】\n{l12_output}\n\n"
+        f"【实际行情数据】\n{kline_summary}\n\n"
         f"直接说：\n\n【分析结论】\n（结合新闻与走势，对以上摘要的补充或修正，用一句话说清楚）\n\n"
         f"【金价预期】\n接下来涨还是跌：\n说清楚。\n\n"
         f"能涨/跌到多少：\n给个大概的数字区间。\n\n"

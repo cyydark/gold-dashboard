@@ -1,10 +1,10 @@
 """News service — fetches from multiple sources, gold-only filtering, no DB."""
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+
+from backend.config import BEIJING_TZ
 
 logger = logging.getLogger(__name__)
-
-BEIJING_TZ = timezone(timedelta(hours=8))
 
 # 集中式黄金关键词过滤 — 所有源统一过此关卡
 GOLD_KEYWORDS_EN = [

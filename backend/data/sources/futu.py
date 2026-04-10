@@ -9,16 +9,15 @@ import html
 import logging
 import re
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from typing import Set
 
 import httpx
 
+from backend.config import BEIJING_TZ
 from backend.data.constants import NEWS_TTL
 
 logger = logging.getLogger(__name__)
-
-BEIJING_TZ = timezone(timedelta(hours=8))
 
 _cache: list[dict] = []
 _cache_ts: float = 0.0

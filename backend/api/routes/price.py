@@ -1,12 +1,12 @@
 """Price API routes — realtime price, chart bars, FX rates."""
 import logging
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+
+from backend.config import BEIJING_TZ
 from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)
-
-BEIJING_TZ = timezone(timedelta(hours=8))
 
 # ── Fetcher registry ────────────────────────────────────────────────
 # Import all modules once at startup and cache function references.

@@ -3,16 +3,16 @@ import html
 import logging
 import re
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 import httpx
 from bs4 import BeautifulSoup
 
+from backend.config import BEIJING_TZ
 from backend.data.constants import NEWS_TTL
 
 logger = logging.getLogger(__name__)
 
-BEIJING_TZ = timezone(timedelta(hours=8))
 _MAX_PAGES = 200  # pagination cap
 _cache: list[dict] = []
 _cache_ts: float = 0.0
