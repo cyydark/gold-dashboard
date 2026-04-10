@@ -6,6 +6,7 @@ briefing_service.py imports from here for the caching logic.
 import asyncio
 import importlib
 import logging
+import threading
 import time
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,7 @@ _LAYER_TTL = 10800      # 3 hours — L1+L2 layer cache TTL
 
 _news_cache: dict[int, dict] = {}
 _layer_cache: dict[int, dict] = {}
+_news_refresh_locks: dict[int, threading.Lock] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -25,12 +27,14 @@ def bust_cache(days: int) -> None:
     """Clear cached news and layers for a specific days value."""
     _news_cache.pop(days, None)
     _layer_cache.pop(days, None)
+    _news_refresh_locks.pop(days, None)
 
 
 def bust_all_caches() -> None:
     """Clear all caches to force regeneration on next call."""
     _news_cache.clear()
     _layer_cache.clear()
+    _news_refresh_locks.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -38,13 +42,23 @@ def bust_all_caches() -> None:
 # ---------------------------------------------------------------------------
 
 def get_news(days: int) -> list:
-    """Return cached news, auto-fetch + write cache if cold or empty."""
+    """Return cached news, auto-fetch + write cache if cold or empty.
+
+    Uses a per-days lock so concurrent callers share one fetch.
+    """
     entry = _news_cache.get(days)
     if entry and (time.time() - entry["ts"]) < _NEWS_TTL:
         return entry["data"]
-    news = _fetch_news(days)
-    _news_cache[days] = {"ts": time.time(), "data": news}
-    return news
+
+    lock = _news_refresh_locks.setdefault(days, threading.Lock())
+    with lock:
+        # Re-check after acquiring lock — another thread may have just populated it
+        entry = _news_cache.get(days)
+        if entry and (time.time() - entry["ts"]) < _NEWS_TTL:
+            return entry["data"]
+        news = _fetch_news(days)
+        _news_cache[days] = {"ts": time.time(), "data": news}
+        return news
 
 
 def set_news(days: int, news: list) -> None:
