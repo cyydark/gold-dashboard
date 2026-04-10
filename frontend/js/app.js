@@ -108,4 +108,5 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Start polling
   polling.start("prices");
   polling.start("chart");
+  polling.start("briefing");  // 15min — refreshes AI briefing in background
 });

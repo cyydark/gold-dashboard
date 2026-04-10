@@ -3,18 +3,20 @@
  * Three independent polling channels: card-prices, chart-bars, news.
  * Each channel polls at its own interval and persists source choices.
  */
-const POLL_INTERVAL_PRICES = 10000;   // 10s
-const POLL_INTERVAL_CHART  = 30000;   // 30s
-const POLL_INTERVAL_NEWS  = 30 * 60 * 1000;  // 30min
+const POLL_INTERVAL_PRICES   = 10000;   // 10s
+const POLL_INTERVAL_CHART    = 30000;   // 30s
+const POLL_INTERVAL_NEWS     = 30 * 60 * 1000;  // 30min — kept for compatibility
+const POLL_INTERVAL_BRIEFING = 15 * 60 * 1000;  // 15min — unified briefing poll
 
 export class PollingManager {
   constructor() {
     this._timers = {};
     this._lastPrices = {};
     this._lastChart  = {};
-    this._onPriceUpdate = null;
-    this._onChartUpdate = null;
-    this._onNewsUpdate = null;
+    this._onPriceUpdate    = null;
+    this._onChartUpdate    = null;
+    this._onNewsUpdate     = null;
+    this._onBriefingUpdate = null;
     this._switchingChart = null; // null = idle, "xau"/"au" = switching (set by app.js)
     // Source defaults (权威性排序第一个)
     this._sources = {
@@ -31,6 +33,7 @@ export class PollingManager {
   onPriceUpdate(fn)    { this._onPriceUpdate = fn; }
   onChartUpdate(fn)    { this._onChartUpdate = fn; }
   onNewsUpdate(fn)     { this._onNewsUpdate = fn; }
+  onBriefingUpdate(fn) { this._onBriefingUpdate = fn; }
 
   // ── Source accessors ──────────────────────────────────────────────
 
@@ -64,6 +67,9 @@ export class PollingManager {
     } else if (channel === "news") {
       this._pollNews();
       this._timers.news = setInterval(() => this._pollNews(), POLL_INTERVAL_NEWS);
+    } else if (channel === "briefing") {
+      this._pollBriefing();
+      this._timers.briefing = setInterval(() => this._pollBriefing(), POLL_INTERVAL_BRIEFING);
     }
   }
 
@@ -187,6 +193,12 @@ export class PollingManager {
         au:  au.status  === "fulfilled" ? au.value  : null,
       });
     }
+  }
+
+  async _pollBriefing() {
+    // loadBriefings() handles SWR internally — just call it
+    const { loadBriefings } = await import("./modules/briefingUpdate.js");
+    loadBriefings();
   }
 
   async _pollNews() {
