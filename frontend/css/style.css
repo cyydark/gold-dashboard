@@ -531,9 +531,17 @@ body {
   gap: 8px;
 }
 
-#briefing-content,
+#briefing-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
 #briefing-news-list {
-  min-height: 166px;
+  flex: 1;
+  min-height: 0;
 }
 
 .skeleton--small {
@@ -613,9 +621,6 @@ body {
 }
 
 .briefing__content {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
   font-size: var(--font-size-base);
   color: var(--color-text);
   line-height: 1.3;
