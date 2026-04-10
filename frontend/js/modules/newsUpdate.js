@@ -58,7 +58,13 @@ export async function loadNews(days = 3) {
     const res = await fetch(`/api/news?days=${days}`);
     if (!res.ok) throw new Error(`news API ${res.status}`);
     const data = await res.json();
-    renderNews(data.news || data.data || []);
+    renderNews(data.news || []);
+
+    // Update refresh time
+    const periodEl = document.getElementById("news__period");
+    if (periodEl && data.refreshedAt) {
+      periodEl.textContent = data.refreshedAt + " 更新";
+    }
   } catch (err) {
     console.error("loadNews failed:", err);
   }
