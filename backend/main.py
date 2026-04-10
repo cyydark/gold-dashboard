@@ -24,7 +24,8 @@ FRONTEND_PATH = os.environ.get("FRONTEND_PATH", str(settings.frontend_path))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from backend.workers.briefing_worker import start_briefing_worker
+    from backend.workers.briefing_worker import start_briefing_worker, warm_cache_async
+    asyncio.create_task(warm_cache_async())   # warm cache in background, don't block startup
     start_briefing_worker()
     yield
 

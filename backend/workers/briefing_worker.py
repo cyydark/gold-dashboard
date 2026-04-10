@@ -2,6 +2,7 @@
 
 News is NOT refreshed here — /api/news (on-demand) or ns_get_news() TTL handles that.
 """
+import asyncio
 import logging
 import threading
 import time
@@ -25,6 +26,17 @@ def _refresh_ai():
 def _run_ai_loop():
     _refresh_ai()
     threading.Timer(AI_INTERVAL, _run_ai_loop).start()
+
+
+async def warm_cache_async():
+    """Pre-warm caches on startup. Call from lifespan (awaitable, no nested asyncio.run)."""
+    from backend.services import briefing_cache as bc
+    try:
+        news = await asyncio.to_thread(bc.get_news, 3)
+        await asyncio.to_thread(bc.get_layer, news, 3)
+        logger.info("Cache pre-warmed on startup")
+    except Exception as e:
+        logger.warning("Cache warm-up failed (non-fatal): %s", e)
 
 
 def start_briefing_worker():

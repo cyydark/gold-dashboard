@@ -1,7 +1,16 @@
 /**
- * Briefing rendering module.
+ * Briefing rendering module — stale-while-revalidate.
+ *
+ * Strategy:
+ * - If content is already visible → show it immediately, refresh in background
+ * - If content is NOT visible (first load, cold cache) → show skeleton while fetching
+ *
+ * Result: users NEVER see a blank page or spinner on repeat visits.
  */
 import { escapeHtml } from "../utils/escape.js";
+
+/** True once we have successfully rendered real content at least once. */
+let _hasRendered = false;
 
 function renderBriefing(text) {
   return escapeHtml(text || "").replace(
@@ -10,9 +19,26 @@ function renderBriefing(text) {
   );
 }
 
+function hasContent() {
+  const bodyL1 = document.getElementById("body-l1");
+  const bodyL2 = document.getElementById("body-l2");
+  if (!bodyL1 || !bodyL2) return false;
+  const l1 = bodyL1.textContent?.trim() || "";
+  const l2 = bodyL2.textContent?.trim() || "";
+  // "加载中..." is the skeleton placeholder — anything else is real content
+  return (l1 && l1 !== "加载中...") || (l2 && l2 !== "加载中...");
+}
+
 function hideSkeleton() {
   const skeleton = document.getElementById("briefing-skeleton");
   if (skeleton) skeleton.style.display = "none";
+}
+
+function showSkeleton() {
+  const skeleton = document.getElementById("briefing-skeleton");
+  if (skeleton) skeleton.style.display = "flex";
+  const weeklyContent = document.getElementById("briefing-content");
+  if (weeklyContent) weeklyContent.style.display = "none";
 }
 
 function initSkeleton() {
@@ -48,7 +74,14 @@ export function showToast(msg, type = "info") {
 }
 
 export function loadBriefings() {
-  initSkeleton();
+  const firstLoad = !_hasRendered;
+
+  if (firstLoad) {
+    // Cold cache or first visit — show skeleton while waiting
+    initSkeleton();
+    showSkeleton();
+  }
+  // else: warm cache — existing content stays visible while we fetch fresh data
 
   fetch("/api/briefings/stream?days=3")
     .then((res) => {
@@ -62,9 +95,13 @@ export function loadBriefings() {
       if (bodyL1 && weekly.layer1) bodyL1.innerHTML = renderBriefing(weekly.layer1);
       if (bodyL2 && weekly.layer2) bodyL2.innerHTML = renderBriefing(weekly.layer2);
       hideSkeleton();
+      _hasRendered = true;
     })
     .catch(() => {
-      hideSkeleton();
-      showToast("AI 分析加载失败，请刷新重试", "error");
+      if (firstLoad) {
+        hideSkeleton();
+        showToast("AI 分析加载失败，请刷新重试", "error");
+      }
+      // On background refresh failure, silently keep showing stale content — no disruption
     });
 }
