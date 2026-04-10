@@ -12,9 +12,10 @@ AI_INTERVAL = 10800   # 3 hours
 
 def _refresh_news():
     try:
+        from backend.services.news_service import get_news as ns_get_news
         from backend.services import briefing_cache as bc
-        news = bc._fetch_news(3)
-        bc._news_cache[3] = {"ts": time.time(), "data": news}
+        news = ns_get_news(3)
+        bc.set_news(3, news)
         logger.info("News cache refreshed: %d items", len(news))
     except Exception as e:
         logger.warning("News worker failed: %s", e)
