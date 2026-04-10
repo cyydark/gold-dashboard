@@ -63,7 +63,7 @@ export async function loadNews(days = 3) {
     // Update refresh time
     const periodEl = document.getElementById("news__period");
     if (periodEl && data.refreshedAt) {
-      periodEl.textContent = data.refreshedAt + " 更新";
+      periodEl.textContent = data.refreshedAt;
     }
   } catch (err) {
     console.error("loadNews failed:", err);

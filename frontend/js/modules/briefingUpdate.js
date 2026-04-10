@@ -60,7 +60,7 @@ export function loadBriefings() {
       // Update analysis time
       const periodEl = document.getElementById("briefing__period");
       if (periodEl && weekly.generatedAt) {
-        periodEl.textContent = weekly.generatedAt + " 分析";
+        periodEl.textContent = weekly.generatedAt;
       }
     })
     .catch(() => {
