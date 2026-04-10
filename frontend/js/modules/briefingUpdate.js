@@ -34,6 +34,11 @@ function hideSkeleton() {
   if (skeleton) skeleton.style.display = "none";
 }
 
+function showContent() {
+  const content = document.getElementById("briefing-content");
+  if (content) content.style.display = "block";
+}
+
 function showSkeleton() {
   const skeleton = document.getElementById("briefing-skeleton");
   if (skeleton) skeleton.style.display = "flex";
@@ -95,6 +100,7 @@ export function loadBriefings() {
       if (bodyL1 && weekly.layer1) bodyL1.innerHTML = renderBriefing(weekly.layer1);
       if (bodyL2 && weekly.layer2) bodyL2.innerHTML = renderBriefing(weekly.layer2);
       hideSkeleton();
+      showContent();
       _hasRendered = true;
     })
     .catch(() => {
