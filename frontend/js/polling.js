@@ -107,7 +107,9 @@ export class PollingManager {
 
   // 只抓单个图表，合并到最近缓存后回调（用于 chart source 切换时零刷新）
   async _pollChartOne(which) {
-    const urlMap  = { xau: `/api/chart/xau?source=${this._sources.xauChart}`, au: `/api/chart/au?source=${this._sources.auChart}` };
+    const chartGapMs = window.__goldChart?.gapThresholdMs ?? (30 * 60 * 1000);
+    const threshold = `&gap_threshold_ms=${chartGapMs}`;
+    const urlMap  = { xau: `/api/chart/xau?source=${this._sources.xauChart}${threshold}`, au: `/api/chart/au?source=${this._sources.auChart}${threshold}` };
     const url = urlMap[which];
     if (!url) return;
     // If a switch is in progress, switchXauSource/switchAuSource already fetched + rendered;
@@ -163,9 +165,12 @@ export class PollingManager {
   async _pollChart() {
     // Skip if a switch is in progress — switchXauSource/switchAuSource handles the fetch
     if (this._switchingChart) return;
+    // Use gap threshold from GoldChart if available, otherwise default 30min
+    const chartGapMs = window.__goldChart?.gapThresholdMs ?? (30 * 60 * 1000);
+    const threshold = `&gap_threshold_ms=${chartGapMs}`;
     const [xau, au] = await Promise.allSettled([
-      fetch(`/api/chart/xau?source=${this._sources.xauChart}`).then(r => r.json()),
-      fetch(`/api/chart/au?source=${this._sources.auChart}`).then(r => r.json()),
+      fetch(`/api/chart/xau?source=${this._sources.xauChart}${threshold}`).then(r => r.json()),
+      fetch(`/api/chart/au?source=${this._sources.auChart}${threshold}`).then(r => r.json()),
     ]);
 
     if (xau.status === "fulfilled") this._lastChart.xau = xau.value;
