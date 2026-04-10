@@ -171,3 +171,13 @@ def time_range(days: int) -> str:
     now = datetime.now(BEIJING_TZ)
     past = now - timedelta(days=days)
     return f"{past.strftime('%m月%d日')} - {now.strftime('%m月%d日')}"
+
+
+def generated_at(days: int) -> str:
+    """Return human-readable timestamp of when layer cache was last updated."""
+    entry = _layer_cache.get(days)
+    if not entry:
+        return ""
+    from datetime import datetime
+    from backend.config import BEIJING_TZ
+    return datetime.fromtimestamp(entry["ts"], BEIJING_TZ).strftime("%m月%d日 %H:%M")

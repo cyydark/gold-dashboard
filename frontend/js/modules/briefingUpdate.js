@@ -56,6 +56,12 @@ export function loadBriefings() {
       // Switch: hide skeleton, show content
       if (skeleton) skeleton.style.display = "none";
       if (content) content.style.display = "block";
+
+      // Update analysis time
+      const periodEl = document.getElementById("briefing__period");
+      if (periodEl && weekly.generatedAt) {
+        periodEl.textContent = weekly.generatedAt + " 分析";
+      }
     })
     .catch(() => {
       showToast("AI 分析加载失败，请刷新重试", "error");

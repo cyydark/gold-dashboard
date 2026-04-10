@@ -19,5 +19,6 @@ def get_briefing(days: int = 3) -> dict:
             "layer2": layer2,
             "timeRange": _cache.time_range(days),
             "newsCount": len(news),
+            "generatedAt": _cache.generated_at(days),
         },
     }
