@@ -93,6 +93,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   chart.warmup();   // no await — fetch starts async, load() awaits it internally
   await chart.load();
   window.__goldChart = chart;  // allow other modules to access chart instance
+  polling._skipNextChartPoll = true;  // skip the first _pollChart since warmup+load already fetched
 
   // Chart source selectors
   const selXau = document.getElementById("sel-xau");

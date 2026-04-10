@@ -163,6 +163,11 @@ export class PollingManager {
   }
 
   async _pollChart() {
+    // Skip first poll right after page load — warmup+load already has fresh data
+    if (this._skipNextChartPoll) {
+      this._skipNextChartPoll = false;
+      return;
+    }
     // Skip if a switch is in progress — switchXauSource/switchAuSource handles the fetch
     if (this._switchingChart) return;
     // Use gap threshold from GoldChart if available, otherwise default 30min
