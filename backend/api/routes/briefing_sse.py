@@ -1,5 +1,6 @@
 """Briefing endpoint — reads from in-memory cache, returns JSON."""
 from fastapi import APIRouter, Query
+
 from backend.services.briefing_service import get_briefing
 
 router = APIRouter(prefix="/api", tags=["briefings"])

@@ -522,6 +522,20 @@ body {
   width: 80%;
 }
 
+/* 骨架与内容对齐：两侧 skeleton/content 同高 */
+#briefing-skeleton,
+#news-skeleton {
+  min-height: 166px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#briefing-content,
+#briefing-news-list {
+  min-height: 166px;
+}
+
 .skeleton--small {
   height: 0.8em;
   width: 40%;

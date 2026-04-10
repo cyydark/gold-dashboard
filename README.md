@@ -26,27 +26,24 @@
 - 多源新闻：富途牛牛、Bernama（马来西亚英文）、Aastocks（港股）、CNBC、RSSHUB 本地聚合
 - 黄金关键词过滤，保留高相关性内容
 
-### AI 简报（三层分析 + SSE 流式输出）
-- **Layer 1**：新闻摘要分析
-- **Layer 2**：K 线交叉验证
-- **Layer 3**：价格走势预测
-- 简报通过 Server-Sent Events 流式推送，实时逐块渲染
+### AI 简报（两层分析 + REST 返回）
+- **Layer 1**：新闻 + K 线 → 分析结论（新闻与走势是否吻合）
+- **Layer 2**：从同一 AI 响应中解析金价预期（方向、目标区间、见效时间、变卦条件）
+- 两次 AI 调用合并为一次，响应写入 in-memory 缓存（TTL 3h），REST 接口直接读取，无 SSE 流式
 
 ---
 
 ## 技术架构
 
 ```
-Browser ← HTTP/SSE → FastAPI
-                        │
-           ┌────────────┼─────────────┐
-           │            │             │
-        API Routes  Services      Workers
-       (routes/)   (services/)  (news_worker)
-                        │
-              ┌────────┴────────┐
-           Repository        Data Sources
-         (SQLite 缓存)     (可插拔 sources/)
+Browser ← HTTP → FastAPI
+                      │
+         ┌────────────┼─────────────┐
+         │            │             │
+      API Routes  Services      Workers
+     (routes/)   (services/)  (news_worker)
+                      │
+           Data Sources (可插拔 sources/)
 ```
 
 ---
@@ -66,11 +63,10 @@ gold-dashboard/
 │   │       ├── briefing_sse.py   # SSE 流式简报
 │   │       └── health.py         # 健康检查 + 数据源探测
 │   ├── services/            # 业务逻辑层
-│   │   ├── briefing_service.py  # AI 简报编排
-│   │   ├── briefing_cache.py    # 三层缓存
+│   │   ├── briefing_service.py  # AI 简报编排（in-memory）
+│   │   ├── briefing_cache.py    # 两层 in-memory 缓存（TTL 3h）
 │   │   ├── news_service.py      # 新闻聚合
 │   │   └── price_service.py     # 价格逻辑（REST 模式）
-│   ├── repositories/        # SQLite 数据访问
 │   ├── data/
 │   │   ├── db.py            # 数据库初始化
 │   │   ├── constants.py     # 全局配置常量
@@ -165,12 +161,9 @@ cp backend/.env.example backend/.env
 | `/api/chart/au` | GET | AU9999 K 线历史 | 30/min |
 | `/api/news` | GET | 新闻资讯（?days=1~30） | 30/min |
 | `/api/briefings` | GET | AI 简报 + 近 N 天新闻（?days=1~30） | 30/min |
-| `/api/briefings/stream` | GET | SSE 流式简报（?days=1~30） | 30/min |
-| `/api/briefings/news/refresh` | POST | 强制刷新新闻 | 5/min |
+| `/api/briefings/stream` | GET | 同 /briefings，返回 JSON | 30/min |
+| `/api/briefings/news/refresh` | POST | 强制刷新新闻（预热缓存） | 5/min |
 | `/api/briefings/briefing/refresh` | POST | 强制刷新简报缓存 | 3/hour |
-| `/api/briefings/layer1` | GET | 仅 Layer 1（新闻分析） | 30/min |
-| `/api/briefings/layer2` | GET | 仅 Layer 2（K 线验证） | 30/min |
-| `/api/briefings/layer3` | GET | 仅 Layer 3（价格预测） | 30/min |
 | `/api/health` | GET | 服务健康检查 | — |
 | `/api/health/sources` | GET | 各数据源连通性探测 | — |
 

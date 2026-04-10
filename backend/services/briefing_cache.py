@@ -73,11 +73,25 @@ def _fetch_news(days: int) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Layer 1 + Layer 2 (generated together, shared 3h TTL)
+# Layer 1 + Layer 2 (merged into single AI call)
 # ---------------------------------------------------------------------------
 
+def parse_layer_response(raw: str, days: int) -> tuple[str, str]:
+    """Parse single AI response into layer1 and layer2 by splitting on 【金价预期】."""
+    marker = "【金价预期】"
+    idx = raw.find(marker)
+    if idx > 0:
+        return raw[:idx].strip(), raw[idx:].strip()
+    # Fallback: no marker found, treat all as layer1
+    return raw.strip(), ""
+
+
 def get_layer(news: list[dict], days: int) -> tuple[str, str]:
-    """Get or generate Layer1 + Layer2 for given days. Both share 3h TTL."""
+    """Get or generate Layer1 + Layer2. Both share 3h TTL.
+
+    L1: 新闻 + K线 → 分析结论（新闻与走势是否吻合）
+    L2: 从同一响应中解析金价预期
+    """
     entry = _layer_cache.get(days)
     if entry and (time.time() - entry["ts"]) < _LAYER_TTL:
         return entry["layer1"], entry["layer2"]
@@ -93,24 +107,20 @@ def get_layer(news: list[dict], days: int) -> tuple[str, str]:
         kline = await asyncio.to_thread(_fetch_kline)
         kline_summary = aggregate_kline(kline)
 
-        # Build L12 prompt with kline_summary injected
+        # 一次调用：新闻 + K线 → 分析结论 + 金价预期
         prompt = mod.DAILY_PROMPT_TEMPLATE.format(
             news_count=len(news),
             news_list=mod._build_news_list(news),
             current_price=current_price,
             kline_summary=kline_summary,
         )
-        layer1 = await mod.call_claude_cli_async(prompt)
-
-        if not layer1:
-            layer1 = f"近{days}日共{len(news)}条新闻，AI 分析生成失败。"
-
-        # L2: 价格预期（从 L1 结论 + K线数据推导）
-        l3_prompt = mod.build_l3_prompt(layer1, kline_summary)
-        layer2 = await mod.call_claude_cli_async(l3_prompt)
-        if not layer2:
-            layer2 = "金价预期生成失败。"
-
+        raw = await mod.call_claude_cli_async(prompt)
+        if not raw:
+            return (
+                f"近{days}日共{len(news)}条新闻，AI 分析生成失败。",
+                "金价预期生成失败。",
+            )
+        layer1, layer2 = parse_layer_response(raw, days)
         return layer1, layer2
 
     layer1, layer2 = asyncio.run(_gen())
