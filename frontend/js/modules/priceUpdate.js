@@ -92,26 +92,17 @@ export function _refreshOne(symbol) {
 
 /** Apply current card color/font to DOM and trigger flash animation */
 function _apply(symbol) {
-  const priceEl  = document.getElementById(`price-${symbol}`);
-  const card     = document.getElementById(`card-${symbol}`);
-  const openEl   = document.getElementById(`open-${symbol}`);
-  const highEl   = document.getElementById(`high-${symbol}`);
-  const lowEl    = document.getElementById(`low-${symbol}`);
+  const card = document.getElementById(`card-${symbol}`);
+  if (!card) return;
 
-  if (!priceEl) return;
-
-  if (card) {
-    card.style.setProperty("--card-accent", _cardColor[symbol]);
-    card.style.setProperty("--card-font",   _cardFont[symbol]);
-  }
+  card.style.setProperty("--card-accent", _cardColor[symbol]);
+  card.style.setProperty("--card-font",   _cardFont[symbol]);
 
   // Flash animation
-  if (card) {
-    card.classList.remove("price-card--switched");
-    void card.offsetWidth; // force reflow
-    card.classList.add("price-card--switched");
-    setTimeout(() => card.classList.remove("price-card--switched"), 1200);
-  }
+  card.classList.remove("price-card--switched");
+  void card.offsetWidth; // force reflow
+  card.classList.add("price-card--switched");
+  setTimeout(() => card.classList.remove("price-card--switched"), 1200);
 }
 
 // ── Legacy export compatibility ─────────────────────────────────────────────────
@@ -210,21 +201,24 @@ export function flashCardSource(symbol) {
   });
 }
 
+/** Update the "last-update" timestamp label */
+function _updateTimestamp(data) {
+  const el = document.getElementById("last-update");
+  if (!el) return;
+  const ts = data.XAUUSD?.ts || data.AU9999?.ts || data.USDCNY?.ts;
+  if (ts) {
+    const d = new Date(ts * 1000);
+    el.textContent = `更新于 ${d.toLocaleTimeString("zh-CN", {
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      timeZone: "Asia/Shanghai",
+    })} 北京时间`;
+  }
+}
+
 /** Handle price update events from EventBus */
 export function onPriceUpdate(data) {
   if (!data) return;
-  const el = document.getElementById("last-update");
-  if (el) {
-    const ts = data.XAUUSD?.ts || data.AU9999?.ts || data.USDCNY?.ts;
-    if (ts) {
-      const d = new Date(ts * 1000);
-      el.textContent = `更新于 ${d.toLocaleTimeString("zh-CN", {
-        hour: "2-digit", minute: "2-digit", second: "2-digit",
-        timeZone: "Asia/Shanghai",
-      })} 北京时间`;
-    }
-  }
-
+  _updateTimestamp(data);
   _refreshAll();
 
   for (const sym of _SYMBOLS) {
