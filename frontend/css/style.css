@@ -162,14 +162,27 @@ body {
   z-index: 2;
 }
 
-/* Source-specific price number color only (font is randomized in JS per update) */
-.price-card__price[data-source="comex"]     { color: #d4af37; }
-.price-card__price[data-source="binance"]   { color: #fb923c; }
-.price-card__price[data-source="sina"]     { color: #c084fc; }
-.price-card__price[data-source="au9999"]    { color: #34d399; }
-.price-card__price[data-source="eastmoney"] { color: #38bdf8; }
-.price-card__price[data-source="yfinance"]  { color: #fbbf24; }
-.price-card__price[data-source="sina_au0"]   { color: #fb923c; }
+/* Price card accent — driven by JS via --card-accent CSS variable on .price-card */
+/* This avoids CSS attribute selectors overriding JS-set inline colors */
+.price-card__price {
+  font-family: var(--card-font, var(--font-display));
+  font-size: 34px;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
+  color: var(--card-accent, var(--color-text));
+  line-height: 1.1;
+  animation: count-up 0.3s ease-out;
+}
+
+.price-card__change {
+  font-family: var(--card-font, var(--font-mono));
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-3);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -453,26 +466,6 @@ body {
   border-color: var(--color-gold);
   box-shadow: 0 0 0 2px var(--color-gold-dim);
   color: var(--color-text);
-}
-
-.price-card__price {
-  font-family: var(--font-display);
-  font-size: 34px;
-  font-weight: 600;
-  margin-bottom: var(--space-1);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.5px;
-  color: var(--color-text);
-  line-height: 1.1;
-  animation: count-up 0.3s ease-out;
-}
-
-.price-card__change {
-  font-size: var(--font-size-sm);
-  margin-bottom: var(--space-3);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  font-family: var(--font-mono);
 }
 
 .price-card__change--up { color: var(--color-green); }
