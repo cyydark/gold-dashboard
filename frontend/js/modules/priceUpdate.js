@@ -62,13 +62,21 @@ function _returnTo(pool, value) {
   if (value !== null && !pool.includes(value)) pool.push(value);
 }
 
-// ── Core refresh ────────────────────────────────────────────────────────────────
+// ── Public entry points ─────────────────────────────────────────────────────────
 
 /**
- * Retire one card's old values, deal fresh assignments, and update DOM.
- * Sequence: deal new (excluding old) → return old to pool.
+ * Update price data only — does NOT change color/font.
+ * Called on every price poll update.
  */
-function _refresh(symbol) {
+export function _refreshAll() {
+  // Color/font set once at init; changed only on user source switch.
+}
+
+/**
+ * Randomize and apply color/font for one card — WITH animation.
+ * Called on user source switch.
+ */
+export function _refreshOne(symbol) {
   const oldColor = _cardColor[symbol];
   const oldFont  = _cardFont[symbol];
 
@@ -78,38 +86,51 @@ function _refresh(symbol) {
   _returnTo(_colorPool, oldColor);
   _returnTo(_fontPool,  oldFont);
 
-  _apply(symbol);
+  _apply(symbol, /* animate */ true);
 }
 
-// ── Public entry points ─────────────────────────────────────────────────────────
-
-/** Refresh all 3 cards (called on every price poll update) */
-export function _refreshAll() {
+/**
+ * Randomize and assign color/font for ALL cards ONCE — used at init.
+ * NO animation, no price data.
+ */
+export function initCardAppearance() {
   for (const sym of _SYMBOLS) {
-    _refresh(sym);
-  }
-}
+    const oldColor = _cardColor[sym];
+    const oldFont  = _cardFont[sym];
 
-/** Refresh one card (called on user source switch) */
-export function _refreshOne(symbol) {
-  _refresh(symbol);
+    _cardColor[sym] = _deal(_colorPool, oldColor);
+    _cardFont[sym]  = _deal(_fontPool,  oldFont);
+
+    _returnTo(_colorPool, oldColor);
+    _returnTo(_fontPool,  oldFont);
+
+    const card = document.getElementById(`card-${sym}`);
+    if (card) {
+      card.style.setProperty("--card-accent", _cardColor[sym]);
+      card.style.setProperty("--card-font",   _cardFont[sym]);
+    }
+  }
 }
 
 // ── DOM update ──────────────────────────────────────────────────────────────────
 
-/** Apply current card color/font to DOM and trigger flash animation */
-function _apply(symbol) {
+/**
+ * Apply current card color/font to DOM.
+ * @param {boolean} animate - if true, trigger flash animation
+ */
+function _apply(symbol, animate) {
   const card = document.getElementById(`card-${symbol}`);
   if (!card) return;
 
   card.style.setProperty("--card-accent", _cardColor[symbol]);
   card.style.setProperty("--card-font",   _cardFont[symbol]);
 
-  // Flash animation
-  card.classList.remove("price-card--switched");
-  void card.offsetWidth; // force reflow
-  card.classList.add("price-card--switched");
-  setTimeout(() => card.classList.remove("price-card--switched"), 1200);
+  if (animate) {
+    card.classList.remove("price-card--switched");
+    void card.offsetWidth; // force reflow
+    card.classList.add("price-card--switched");
+    setTimeout(() => card.classList.remove("price-card--switched"), 1200);
+  }
 }
 
 // ── Legacy export compatibility ─────────────────────────────────────────────────

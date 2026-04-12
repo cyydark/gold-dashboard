@@ -5,7 +5,7 @@
 import { GoldChart } from "./chart/GoldChart.js";
 import { PollingManager } from "./polling.js";
 import { EventBus, on } from "./utils/eventBus.js";
-import { onPriceUpdate, flashCardSource } from "./modules/priceUpdate.js";
+import { onPriceUpdate, flashCardSource, initCardAppearance } from "./modules/priceUpdate.js";
 import { loadBriefings } from "./modules/briefingUpdate.js";
 import { loadNews } from "./modules/newsUpdate.js";
 
@@ -81,6 +81,9 @@ function handlePriceSelectors() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   handlePriceSelectors();
+
+  // Randomize card colors/fonts ONCE at startup — not on every price update
+  initCardAppearance();
 
   // Fire news + briefing immediately — don't wait for chart load
   loadNews();
