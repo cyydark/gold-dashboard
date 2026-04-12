@@ -45,32 +45,39 @@ function _shuffle(arr) {
   return a;
 }
 
-/** Return a value to the pool if it is not already there */
-function _return(pool, value) {
-  if (value !== null && !pool.includes(value)) pool.push(value);
+/** Draw one value from pool, excluding current (ensures fresh value each time) */
+function _deal(pool, current) {
+  // Filter out the current value so we always get something different
+  const candidates = pool.filter(v => v !== current);
+  const source = candidates.length > 0 ? candidates : pool;
+  const picked = source[Math.floor(Math.random() * source.length)];
+  // Remove picked from pool so it can't be dealt to another card this round
+  const idx = pool.indexOf(picked);
+  if (idx !== -1) pool.splice(idx, 1);
+  return picked;
 }
 
-/** Draw one value from pool (refills when empty) */
-function _deal(pool) {
-  if (pool.length === 0) {
-    const fresh = pool === _colorPool
-      ? _shuffle([..._CARD_COLORS])
-      : _shuffle([..._CARD_FONTS]);
-    pool.push(...fresh);
-  }
-  return pool.pop();
+/** Restore a value to the pool if it is not already present */
+function _returnTo(pool, value) {
+  if (value !== null && !pool.includes(value)) pool.push(value);
 }
 
 // ── Core refresh ────────────────────────────────────────────────────────────────
 
 /**
  * Retire one card's old values, deal fresh assignments, and update DOM.
+ * Sequence: deal new (excluding old) → return old to pool.
  */
 function _refresh(symbol) {
-  _return(_colorPool, _cardColor[symbol]);
-  _return(_fontPool,  _cardFont[symbol]);
-  _cardColor[symbol] = _deal(_colorPool);
-  _cardFont[symbol]  = _deal(_fontPool);
+  const oldColor = _cardColor[symbol];
+  const oldFont  = _cardFont[symbol];
+
+  _cardColor[symbol] = _deal(_colorPool, oldColor);
+  _cardFont[symbol]  = _deal(_fontPool,  oldFont);
+
+  _returnTo(_colorPool, oldColor);
+  _returnTo(_fontPool,  oldFont);
+
   _apply(symbol);
 }
 
