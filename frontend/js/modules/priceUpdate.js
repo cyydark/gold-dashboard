@@ -33,11 +33,8 @@ let _fontPool  = _shuffle([..._CARD_FONTS]);
 let _cardColor = { XAUUSD: null, AU9999: null, USDCNY: null };
 let _cardFont  = { XAUUSD: null, AU9999: null, USDCNY: null };
 
-// Symbols whose source was just switched — color/font deferred until new data arrives
+// Symbols whose source was just switched — color/font changed immediately on data arrival
 let _pendingSwitch = new Set();
-
-// True while a source switch poll is in-flight — suppresses flash on non-switched cards
-let _skipFlashFor = new Set();
 
 // ── Pool operations ─────────────────────────────────────────────────────────────
 
@@ -69,6 +66,21 @@ function _returnTo(pool, value) {
 }
 
 // ── Public entry points ─────────────────────────────────────────────────────────
+
+/**
+ * Randomize and apply color/font for ALL cards — called on every price poll.
+ */
+export function _refreshAll() {
+  for (const sym of _SYMBOLS) {
+    const oldColor = _cardColor[sym];
+    const oldFont  = _cardFont[sym];
+    _cardColor[sym] = _deal(_colorPool, oldColor);
+    _cardFont[sym]  = _deal(_fontPool,  oldFont);
+    _returnTo(_colorPool, oldColor);
+    _returnTo(_fontPool,  oldFont);
+    _apply(sym);
+  }
+}
 
 /**
  * Randomize and apply color/font for one card — WITH animation.
@@ -174,10 +186,8 @@ function applyPrice(symbol, data) {
   }
 
   if (card) {
-    const skipFlash = _skipFlashFor.has(symbol);
-    if (skipFlash) _skipFlashFor.delete(symbol);
     card.classList.remove("price-card--up", "price-card--down");
-    if (!skipFlash && data.change != null) {
+    if (data.change != null) {
       const animClass = data.change >= 0 ? "price-card--up" : "price-card--down";
       card.classList.add(animClass);
       setTimeout(() => card.classList.remove(animClass), 600);
@@ -255,21 +265,17 @@ export function onPriceUpdate(data) {
 
   const pending = _SYMBOLS.filter(sym => data[sym]);
 
-  // Symbols whose source was just switched — apply color/font now
+  // For switched cards: apply new color/font immediately (no flash, flash comes from updatePriceCard)
   const toRefresh = pending.filter(sym => _pendingSwitch.has(sym));
   for (const sym of toRefresh) {
     _refreshOne(sym);
     _pendingSwitch.delete(sym);
   }
 
-  // During a source switch, skip flash on the other cards
-  if (toRefresh.length > 0) {
-    for (const sym of pending) {
-      if (!toRefresh.includes(sym)) _skipFlashFor.add(sym);
-    }
-  }
+  // Refresh all 3 cards' color/font on every poll
+  _refreshAll();
 
-  // Flush all updates in a single rAF for synchronized flash
+  // Flush updates in a single rAF for synchronized green/red flash
   if (pending.length > 0) {
     requestAnimationFrame(() => {
       for (const sym of pending) updatePriceCard(sym, data[sym]);

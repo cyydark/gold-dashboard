@@ -81,7 +81,13 @@ def parse_layer_response(raw: str, days: int) -> tuple[str, str]:
     marker = "【金价预期】"
     idx = raw.find(marker)
     if idx > 0:
-        return raw[:idx].strip(), raw[idx:].strip()
+        before = raw[:idx].strip()
+        after = raw[idx:].strip()
+        # Remove --- and blank lines before the next section marker
+        lines = before.splitlines()
+        while lines and lines[-1].strip() in ("---", "* * *", "***", ""):
+            lines.pop()
+        return "\n".join(lines).strip(), after
     # Fallback: no marker found, treat all as layer1
     return raw.strip(), ""
 

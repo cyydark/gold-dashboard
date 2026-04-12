@@ -54,7 +54,14 @@ def call_claude_cli(prompt: str) -> str:
         if result.returncode != 0:
             logger.warning(f"Claude CLI error: {result.stderr}")
             raise BriefingGenerationError(f"Claude CLI exited with code {result.returncode}: {result.stderr}")
-        return result.stdout.strip()
+        raw = result.stdout.strip()
+        # Strip leading/trailing markdown dividers the AI sometimes emits despite instructions
+        lines = raw.splitlines()
+        while lines and lines[0].strip() in ("---", "* * *", "***"):
+            lines.pop(0)
+        while lines and lines[-1].strip() in ("---", "* * *", "***"):
+            lines.pop()
+        return "\n".join(lines).strip()
     except FileNotFoundError:
         logger.warning("claude CLI not found")
         raise BriefingGenerationError("claude CLI not found")
@@ -77,7 +84,14 @@ async def call_claude_cli_async(prompt: str) -> str:
         if proc.returncode != 0:
             logger.warning(f"Claude CLI async error: {stderr.decode()}")
             return ""
-        return stdout.decode().strip()
+        raw = stdout.decode().strip()
+        lines = raw.splitlines()
+        # Remove leading and trailing dividers only — internal ones are stripped by replace
+        while lines and lines[0].strip() in ("---", "* * *", "***"):
+            lines.pop(0)
+        while lines and lines[-1].strip() in ("---", "* * *", "***"):
+            lines.pop()
+        return "\n".join(lines).strip()
     finally:
         await proc.wait()
 
