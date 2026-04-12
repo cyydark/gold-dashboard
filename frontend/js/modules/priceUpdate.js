@@ -33,6 +33,9 @@ let _fontPool  = _shuffle([..._CARD_FONTS]);
 let _cardColor = { XAUUSD: null, AU9999: null, USDCNY: null };
 let _cardFont  = { XAUUSD: null, AU9999: null, USDCNY: null };
 
+// Symbols whose source was just switched — color/font deferred until new data arrives
+let _pendingSwitch = new Set();
+
 // ── Pool operations ─────────────────────────────────────────────────────────────
 
 /** Fisher-Yates shuffle, returns a new array */
@@ -65,14 +68,6 @@ function _returnTo(pool, value) {
 // ── Public entry points ─────────────────────────────────────────────────────────
 
 /**
- * Update price data only — does NOT change color/font.
- * Called on every price poll update.
- */
-export function _refreshAll() {
-  // Color/font set once at init; changed only on user source switch.
-}
-
-/**
  * Randomize and apply color/font for one card — WITH animation.
  * Called on user source switch.
  */
@@ -86,7 +81,7 @@ export function _refreshOne(symbol) {
   _returnTo(_colorPool, oldColor);
   _returnTo(_fontPool,  oldFont);
 
-  _apply(symbol, /* animate */ true);
+  _apply(symbol);
 }
 
 /**
@@ -116,36 +111,37 @@ export function initCardAppearance() {
 
 /**
  * Apply current card color/font to DOM.
- * @param {boolean} animate - if true, trigger flash animation
  */
-function _apply(symbol, animate) {
+function _apply(symbol) {
   const card = document.getElementById(`card-${symbol}`);
   if (!card) return;
 
   card.style.setProperty("--card-accent", _cardColor[symbol]);
   card.style.setProperty("--card-font",   _cardFont[symbol]);
-
-  if (animate) {
-    card.classList.remove("price-card--switched");
-    void card.offsetWidth; // force reflow
-    card.classList.add("price-card--switched");
-    setTimeout(() => card.classList.remove("price-card--switched"), 1200);
-  }
 }
 
 // ── Legacy export compatibility ─────────────────────────────────────────────────
+
+/** Pending timeout IDs per element — used to cancel in-flight animations */
+const _pendingTimeouts = new WeakMap();
 
 /** Animate a price number change with a brief scale effect */
 function animatePriceChange(element, newValue) {
   if (!element) return;
   const oldValue = element.textContent;
   if (oldValue !== newValue) {
+    // Cancel any in-flight animation so a later timeout can't overwrite with stale text
+    const existing = _pendingTimeouts.get(element);
+    if (existing != null) clearTimeout(existing);
+
     element.style.transform = "scale(1.05)";
     element.style.transition = "transform 0.15s ease-out";
-    setTimeout(() => {
+    const tid = setTimeout(() => {
       element.textContent = newValue;
       element.style.transform = "scale(1)";
+      _pendingTimeouts.delete(element);
     }, 50);
+    _pendingTimeouts.set(element, tid);
   }
 }
 
@@ -167,16 +163,20 @@ function applyPrice(symbol, data) {
     const changeText = `${sign}${data.change} (${sign}${data.pct}%)`;
     animatePriceChange(changeEl, changeText);
     changeEl.className = `price-card__change price-card__change--${data.change >= 0 ? "up" : "down"}`;
-    if (card) {
-      card.classList.remove("price-card--up", "price-card--down");
-      const animClass = data.change >= 0 ? "price-card--up" : "price-card--down";
+  } else {
+    if (changeEl) {
+      changeEl.textContent = "";
+      changeEl.className = "price-card__change";
+    }
+  }
+
+  if (card) {
+    card.classList.remove("price-card--up", "price-card--down");
+    const animClass = data.change != null ? (data.change >= 0 ? "price-card--up" : "price-card--down") : null;
+    if (animClass) {
       card.classList.add(animClass);
       setTimeout(() => card.classList.remove(animClass), 600);
     }
-  } else {
-    changeEl.textContent = "";
-    changeEl.className = "price-card__change";
-    if (card) card.classList.remove("price-card--up", "price-card--down");
   }
 
   if (data.open != null && data.high != null && data.low != null) {
@@ -214,13 +214,13 @@ export function flashCardSource(symbol) {
   tag.textContent = srcName;
   card.appendChild(tag);
 
-  // Retire old → deal fresh
-  _refreshOne(symbol);
+  // Mark as pending — color/font change deferred until new data arrives
+  _pendingSwitch.add(symbol);
 
-  // Remove tag after animation
+  // Remove tag after animation (CSS source-label-pop runs 1.5s)
   setTimeout(() => {
     if (tag.parentNode) tag.remove();
-  }, 1200);
+  }, 1500);
 
   emit("source:changed", {
     symbol,
@@ -247,9 +247,23 @@ function _updateTimestamp(data) {
 export function onPriceUpdate(data) {
   if (!data) return;
   _updateTimestamp(data);
-  _refreshAll();
 
-  for (const sym of _SYMBOLS) {
-    if (data[sym]) updatePriceCard(sym, data[sym]);
+  // Symbols with fresh data this poll
+  const pending = _SYMBOLS.filter(sym => data[sym]);
+
+  // For symbols whose source was just switched: apply new color/font BEFORE price data
+  const toRefresh = pending.filter(sym => _pendingSwitch.has(sym));
+  for (const sym of toRefresh) {
+    _refreshOne(sym);
+    _pendingSwitch.delete(sym);
+  }
+
+  // Flush price updates in a single frame for synchronized flash
+  const remaining = pending.filter(sym => !toRefresh.includes(sym));
+  if (remaining.length > 0 || toRefresh.length > 0) {
+    requestAnimationFrame(() => {
+      for (const sym of toRefresh) updatePriceCard(sym, data[sym]);
+      for (const sym of remaining)  updatePriceCard(sym, data[sym]);
+    });
   }
 }

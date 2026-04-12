@@ -116,32 +116,11 @@ body {
 }
 
 /* Source-switched flash — gold ring pulse to indicate fresh data from new source */
-@keyframes source-flash {
-  0%   { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0), var(--shadow-card); }
-  20%  { box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.5), var(--shadow-card); }
-  100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0), var(--shadow-card); }
-}
-
 @keyframes source-label-pop {
   0%   { opacity: 0; transform: scale(0.8) translateY(2px); }
   30%  { opacity: 1; transform: scale(1) translateY(0); }
   70%  { opacity: 1; transform: scale(1) translateY(0); }
   100% { opacity: 0; transform: scale(0.9) translateY(-2px); }
-}
-
-/* Price digit flash — color burst on number when new data arrives from source switch */
-@keyframes price-flash {
-  0%   { color: var(--color-text); }
-  15%  { color: var(--color-gold-light); text-shadow: 0 0 12px var(--color-gold-glow); }
-  100% { color: var(--color-text); text-shadow: none; }
-}
-
-.price-card--switched {
-  animation: source-flash 0.9s ease-out forwards;
-}
-
-.price-card__price--flash {
-  animation: price-flash 1.2s ease-out forwards;
 }
 
 .price-card__source-tag {
