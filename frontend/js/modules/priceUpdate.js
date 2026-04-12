@@ -4,7 +4,7 @@
  * All cards share a single color pool (12 colors) and font pool (6 fonts).
  * On every refresh, old values are returned to the pool and fresh values are dealt.
  */
-import { emit } from "../utils/eventBus.js";
+import { emit, on } from "../utils/eventBus.js";
 
 const _CARD_FONTS = [
   "'Cormorant Garamond', serif",
@@ -35,6 +35,9 @@ let _cardFont  = { XAUUSD: null, AU9999: null, USDCNY: null };
 
 // Symbols whose source was just switched — color/font deferred until new data arrives
 let _pendingSwitch = new Set();
+
+// True while a source switch poll is in-flight — suppresses flash on non-switched cards
+let _skipFlashFor = new Set();
 
 // ── Pool operations ─────────────────────────────────────────────────────────────
 
@@ -171,9 +174,11 @@ function applyPrice(symbol, data) {
   }
 
   if (card) {
+    const skipFlash = _skipFlashFor.has(symbol);
+    if (skipFlash) _skipFlashFor.delete(symbol);
     card.classList.remove("price-card--up", "price-card--down");
-    const animClass = data.change != null ? (data.change >= 0 ? "price-card--up" : "price-card--down") : null;
-    if (animClass) {
+    if (!skipFlash && data.change != null) {
+      const animClass = data.change >= 0 ? "price-card--up" : "price-card--down";
       card.classList.add(animClass);
       setTimeout(() => card.classList.remove(animClass), 600);
     }
@@ -248,22 +253,26 @@ export function onPriceUpdate(data) {
   if (!data) return;
   _updateTimestamp(data);
 
-  // Symbols with fresh data this poll
   const pending = _SYMBOLS.filter(sym => data[sym]);
 
-  // For symbols whose source was just switched: apply new color/font BEFORE price data
+  // Symbols whose source was just switched — apply color/font now
   const toRefresh = pending.filter(sym => _pendingSwitch.has(sym));
   for (const sym of toRefresh) {
     _refreshOne(sym);
     _pendingSwitch.delete(sym);
   }
 
-  // Flush price updates in a single frame for synchronized flash
-  const remaining = pending.filter(sym => !toRefresh.includes(sym));
-  if (remaining.length > 0 || toRefresh.length > 0) {
+  // During a source switch, skip flash on the other cards
+  if (toRefresh.length > 0) {
+    for (const sym of pending) {
+      if (!toRefresh.includes(sym)) _skipFlashFor.add(sym);
+    }
+  }
+
+  // Flush all updates in a single rAF for synchronized flash
+  if (pending.length > 0) {
     requestAnimationFrame(() => {
-      for (const sym of toRefresh) updatePriceCard(sym, data[sym]);
-      for (const sym of remaining)  updatePriceCard(sym, data[sym]);
+      for (const sym of pending) updatePriceCard(sym, data[sym]);
     });
   }
 }
